@@ -1,0 +1,6 @@
+# R3 交付目录忽略规则：依赖与构建产物不入库（node_modules/target/dist 均为运行/构建生成）
+node_modules/
+target/
+dist/
+.devtmp/
+*.log

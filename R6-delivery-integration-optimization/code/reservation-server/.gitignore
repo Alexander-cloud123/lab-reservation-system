@@ -1,0 +1,21 @@
+# Maven
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# 日志
+logs/
+*.log
+
+# 系统
+.DS_Store
+Thumbs.db

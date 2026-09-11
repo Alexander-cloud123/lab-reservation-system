@@ -1,0 +1,437 @@
+<template>
+  <div class="calendar-page">
+    <el-card shadow="never">
+      <!-- 顶部工具栏：教室筛选 + 视图切换 + 状态图例 -->
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <span class="page-title">预约日历总览</span>
+          <el-select
+            v-model="selectedClassroomId"
+            placeholder="全部教室"
+            clearable
+            style="width: 220px"
+            @change="handleClassroomChange"
+          >
+            <el-option v-for="c in classrooms" :key="c.id" :label="`${c.name}（${c.roomNo}）`" :value="c.id" />
+          </el-select>
+        </div>
+        <div class="toolbar-right">
+          <div class="legend">
+            <span class="legend-item"><i class="dot dot-pending" />待审核</span>
+            <span class="legend-item"><i class="dot dot-approved" />已通过</span>
+            <span class="legend-item"><i class="dot dot-rejected" />已驳回</span>
+            <span class="legend-item"><i class="dot dot-canceled" />已取消</span>
+          </div>
+          <el-radio-group v-model="viewType" size="small" @change="handleViewChange">
+            <el-radio-button value="dayGridMonth">月视图</el-radio-button>
+            <el-radio-button value="dayGridWeek">周视图</el-radio-button>
+          </el-radio-group>
+        </div>
+      </div>
+
+      <div v-loading="loading" class="calendar-container">
+        <div ref="calendarEl" />
+      </div>
+    </el-card>
+
+    <!-- 快速预约弹窗（点击可预约时段发起，前端实时冲突校验 + 后端二次校验） -->
+    <el-dialog v-model="reserveVisible" title="快速预约" width="480px" :close-on-click-modal="false">
+      <el-form ref="reserveFormRef" :model="reserveForm" :rules="reserveRules" label-width="90px">
+        <el-form-item label="教室" prop="classroomId">
+          <el-select v-model="reserveForm.classroomId" placeholder="请选择教室" style="width: 100%">
+            <el-option v-for="c in classrooms" :key="c.id" :label="`${c.name}（${c.roomNo}）`" :value="c.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="预约日期" prop="reserveDate">
+          <el-date-picker
+            v-model="reserveForm.reserveDate"
+            type="date"
+            placeholder="选择日期"
+            value-format="YYYY-MM-DD"
+            :disabled-date="(d) => d && d.getTime() < Date.now() - 86400000"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="开始时间" prop="startTime">
+          <el-time-select
+            v-model="reserveForm.startTime"
+            start="08:00"
+            end="21:00"
+            step="01:00"
+            placeholder="选择开始时间"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="结束时间" prop="endTime">
+          <el-time-select
+            v-model="reserveForm.endTime"
+            start="09:00"
+            end="22:00"
+            step="01:00"
+            placeholder="选择结束时间"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="预约用途" prop="purpose">
+          <el-input
+            v-model="reserveForm.purpose"
+            type="textarea"
+            :rows="2"
+            maxlength="255"
+            placeholder="请填写具体教学 / 实验 / 自习等用途"
+          />
+        </el-form-item>
+        <el-alert
+          v-if="conflictInfo"
+          :type="conflictInfo.conflict ? 'error' : 'success'"
+          :title="conflictInfo.reason"
+          :closable="false"
+          show-icon
+        />
+      </el-form>
+      <template #footer>
+        <el-button @click="reserveVisible = false">取消</el-button>
+        <el-button
+          type="primary"
+          :loading="submitting"
+          :disabled="conflictInfo && conflictInfo.conflict"
+          @click="handleSubmitReserve"
+        >
+          提交预约
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 预约详情弹窗（点击色块查看） -->
+    <el-dialog v-model="detailVisible" title="预约详情" width="440px">
+      <el-descriptions v-if="detail" :column="1" border>
+        <el-descriptions-item label="教室">{{ detail.classroomName }}（{{ detail.roomNo }}）</el-descriptions-item>
+        <el-descriptions-item label="日期">{{ detail.reserveDate }}</el-descriptions-item>
+        <el-descriptions-item label="时段">{{ detail.startTime }} - {{ detail.endTime }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag :type="statusTagType(detail.status)" size="small">{{ statusText(detail.status) }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="预约用途">{{ detail.purpose }}</el-descriptions-item>
+        <el-descriptions-item v-if="detail.auditRemark" label="审核备注">{{ detail.auditRemark }}</el-descriptions-item>
+      </el-descriptions>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup>
+import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
+import { Calendar } from 'fullcalendar'
+import dayGridPlugin from '@fullcalendar/daygrid'
+import interactionPlugin from '@fullcalendar/interaction'
+import zhCnLocale from '@fullcalendar/core/locales/zh-cn'
+import dayjs from 'dayjs'
+import { listClassrooms } from '@/api/classroom'
+import { checkConflict, submitReservation, getCalendarReservations } from '@/api/reservation'
+
+/** 预约状态常量（与后端 Constants 一致：0-待审核，1-已通过，2-已驳回，3-已取消） */
+const RES_STATUS = { PENDING: 0, APPROVED: 1, REJECTED: 2, CANCELED: 3 }
+
+const loading = ref(false)
+const classrooms = ref([])
+const selectedClassroomId = ref(null)
+const viewType = ref('dayGridMonth')
+
+const calendarEl = ref(null)
+let calendar = null
+
+/** 当前日历可视区间（ISO 日期，由 datesSet 维护，用于拉取区间预约） */
+let rangeStart = ''
+let rangeEnd = ''
+
+const reserveVisible = ref(false)
+const submitting = ref(false)
+const reserveFormRef = ref(null)
+const reserveForm = reactive({ classroomId: null, reserveDate: '', startTime: '', endTime: '', purpose: '' })
+const conflictInfo = ref(null)
+
+const detailVisible = ref(false)
+const detail = ref(null)
+
+const reserveRules = {
+  classroomId: [{ required: true, message: '请选择教室', trigger: 'change' }],
+  reserveDate: [{ required: true, message: '请选择预约日期', trigger: 'change' }],
+  startTime: [{ required: true, message: '请选择开始时间', trigger: 'change' }],
+  endTime: [{ required: true, message: '请选择结束时间', trigger: 'change' }],
+  purpose: [{ required: true, message: '请填写预约用途', trigger: 'blur' }]
+}
+
+/** 教室列表（日历筛选 + 快速预约下拉共用） */
+async function loadClassrooms() {
+  try {
+    const res = await listClassrooms({ page: 1, size: 100 })
+    classrooms.value = (res.data && res.data.records) || []
+  } catch (e) {
+    // 统一错误提示已由 request.js 处理
+  }
+}
+
+/** 拉取当前区间预约 → 渲染色块事件 */
+async function loadEvents() {
+  if (!rangeStart || !rangeEnd) {
+    return
+  }
+  loading.value = true
+  try {
+    const params = { startDate: rangeStart, endDate: rangeEnd }
+    if (selectedClassroomId.value) {
+      params.classroomId = selectedClassroomId.value
+    }
+    const res = await getCalendarReservations(params)
+    const items = (res.data || []).map((r) => toEvent(r))
+    calendar.removeAllEvents()
+    items.forEach((ev) => calendar.addEvent(ev))
+  } catch (e) {
+    // 统一错误提示已由 request.js 处理
+  } finally {
+    loading.value = false
+  }
+}
+
+/** 预约项 → FullCalendar 事件（色块按状态着色，扩展属性承载详情） */
+function toEvent(r) {
+  return {
+    id: String(r.id),
+    title: `${r.classroomName} ${r.startTime}-${r.endTime} ${statusText(r.status)}`,
+    start: `${r.reserveDate}T${r.startTime}`,
+    end: `${r.reserveDate}T${r.endTime}`,
+    allDay: false,
+    classNames: [`res-ev-${r.status}`],
+    extendedProps: { ...r }
+  }
+}
+
+/** 状态文案 */
+function statusText(status) {
+  return { 0: '待审核', 1: '已通过', 2: '已驳回', 3: '已取消' }[status] || '未知'
+}
+
+/** 状态标签色（Element Plus tag 类型） */
+function statusTagType(status) {
+  return { 0: 'warning', 1: 'success', 2: 'danger', 3: 'info' }[status] || 'info'
+}
+
+/** 教室筛选变化：重新拉取当前区间 */
+function handleClassroomChange() {
+  loadEvents()
+}
+
+/** 视图切换：月/周 */
+function handleViewChange(view) {
+  if (calendar) {
+    calendar.changeView(view)
+  }
+}
+
+/** 点击空白日期 → 快速预约弹窗（预填日期与教室） */
+function handleDateClick(info) {
+  reserveForm.classroomId = selectedClassroomId.value || null
+  reserveForm.reserveDate = dayjs(info.dateStr).format('YYYY-MM-DD')
+  reserveForm.startTime = '08:00'
+  reserveForm.endTime = '10:00'
+  reserveForm.purpose = ''
+  conflictInfo.value = null
+  reserveVisible.value = true
+}
+
+/** 点击色块 → 查看预约详情 */
+function handleEventClick(info) {
+  detail.value = info.event.extendedProps || {}
+  detailVisible.value = true
+}
+
+/**
+ * 前端实时冲突校验（双重校验第一层）：
+ * 日期/教室/时段齐全时调用冲突检测接口，冲突则禁用提交并提示
+ */
+watch(
+  () => [reserveForm.classroomId, reserveForm.reserveDate, reserveForm.startTime, reserveForm.endTime],
+  async ([classroomId, date, start, end]) => {
+    if (!classroomId || !date || !start || !end) {
+      conflictInfo.value = null
+      return
+    }
+    try {
+      const res = await checkConflict({ classroomId, date, startTime: start, endTime: end })
+      conflictInfo.value = res.data
+    } catch (e) {
+      conflictInfo.value = null
+    }
+  }
+)
+
+/** 提交快速预约（后端二次冲突检测兜底） */
+async function handleSubmitReserve() {
+  try {
+    await reserveFormRef.value.validate()
+  } catch (e) {
+    return
+  }
+  submitting.value = true
+  try {
+    const res = await submitReservation({
+      classroomId: reserveForm.classroomId,
+      reserveDate: reserveForm.reserveDate,
+      startTime: reserveForm.startTime,
+      endTime: reserveForm.endTime,
+      purpose: reserveForm.purpose
+    })
+    ElMessage.success(res.message || '预约提交成功，待管理员审核')
+    reserveVisible.value = false
+    // 刷新日历色块（新预约进入待审核色块）
+    loadEvents()
+  } catch (e) {
+    // 统一错误提示已由 request.js 处理（含后端冲突拒绝）
+  } finally {
+    submitting.value = false
+  }
+}
+
+onMounted(() => {
+  loadClassrooms()
+  calendar = new Calendar(calendarEl.value, {
+    plugins: [dayGridPlugin, interactionPlugin],
+    initialView: 'dayGridMonth',
+    locale: zhCnLocale,
+    height: 'auto',
+    firstDay: 1,
+    selectable: false,
+    headerToolbar: {
+      left: 'prev,next today',
+      center: 'title',
+      right: ''
+    },
+    buttonText: { today: '今天' },
+    datesSet(info) {
+      rangeStart = dayjs(info.start).format('YYYY-MM-DD')
+      rangeEnd = dayjs(info.end).format('YYYY-MM-DD')
+      loadEvents()
+    },
+    dateClick: handleDateClick,
+    eventClick: handleEventClick,
+    eventDidMount(info) {
+      // 悬浮显示摘要（浏览器原生 tooltip）
+      const ev = info.event
+      info.el.title = `${ev.title}${ev.extendedProps && ev.extendedProps.purpose ? '｜' + ev.extendedProps.purpose : ''}`
+    }
+  })
+  calendar.render()
+})
+
+onBeforeUnmount(() => {
+  if (calendar) {
+    calendar.destroy()
+    calendar = null
+  }
+})
+</script>
+
+<style scoped>
+.calendar-page {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f3a93;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.legend {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: #606266;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.dot-pending {
+  background: #e6a23c;
+}
+
+.dot-approved {
+  background: #67c23a;
+}
+
+.dot-rejected {
+  background: #f56c6c;
+}
+
+.dot-canceled {
+  background: #909399;
+}
+
+.calendar-container {
+  min-height: 420px;
+}
+
+/* 色块着色（状态口径与后端 Constants 一致） */
+.calendar-container :deep(.fc-event.res-ev-0) {
+  background: #e6a23c;
+  border-color: #e6a23c;
+  cursor: pointer;
+}
+
+.calendar-container :deep(.fc-event.res-ev-1) {
+  background: #67c23a;
+  border-color: #67c23a;
+  cursor: pointer;
+}
+
+.calendar-container :deep(.fc-event.res-ev-2) {
+  background: #f56c6c;
+  border-color: #f56c6c;
+  cursor: pointer;
+}
+
+.calendar-container :deep(.fc-event.res-ev-3) {
+  background: #909399;
+  border-color: #909399;
+  cursor: pointer;
+}
+
+.calendar-container :deep(.fc-daygrid-day) {
+  cursor: pointer;
+}
+
+.calendar-container :deep(.fc-col-header-cell) {
+  font-size: 12px;
+}
+</style>

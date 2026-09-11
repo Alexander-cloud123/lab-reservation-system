@@ -1,0 +1,409 @@
+<template>
+  <!-- AI 快速预约（需求文档 2.4 教室列表页搜索栏旁入口） -->
+  <div class="ai-quick-reserve">
+    <el-button v-if="aiEnabled" type="warning" plain @click="openDialog">AI 快速预约</el-button>
+
+    <el-dialog v-model="dialogVisible" title="AI 快速预约" width="640px" :close-on-click-modal="false" @closed="resetAll">
+      <el-steps :active="step" finish-status="success" simple class="steps">
+        <el-step title="描述需求" />
+        <el-step title="选择教室" />
+        <el-step title="确认提交" />
+      </el-steps>
+
+      <!-- 步骤一：自然语言描述 + 结构化解析结果（可编辑，不强制接受） -->
+      <div v-if="step === 1" class="step-body">
+        <el-input
+          v-model="rawText"
+          type="textarea"
+          :rows="2"
+          placeholder="用自然语言描述预约需求，例如：明天下午2点到4点 40人 机房 做课程设计"
+        />
+        <div class="step-actions">
+          <el-button type="primary" :loading="parsing" @click="handleParse">智能解析</el-button>
+          <el-button v-if="parsed" @click="resetParse">重新描述</el-button>
+        </div>
+
+        <el-alert v-if="parseError" type="error" :title="parseError" show-icon :closable="false" class="tip" />
+        <el-alert
+          v-if="parsed && !parseError"
+          type="warning"
+          title="AI 生成，仅供参考，可手动修改"
+          show-icon
+          :closable="false"
+          class="tip"
+        />
+
+        <el-form v-if="parsed && !parseError" :model="parseForm" label-width="90px" class="parse-form">
+          <el-form-item label="预约日期">
+            <el-date-picker v-model="parseForm.date" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="时段">
+            <el-time-picker v-model="parseForm.startTime" format="HH:mm" value-format="HH:mm" placeholder="开始" style="width: 48%" />
+            <span class="time-sep">至</span>
+            <el-time-picker v-model="parseForm.endTime" format="HH:mm" value-format="HH:mm" placeholder="结束" style="width: 48%" />
+          </el-form-item>
+          <el-form-item label="人数">
+            <el-input-number v-model="parseForm.capacity" :min="1" :max="500" />
+          </el-form-item>
+          <el-form-item label="教室类型">
+            <el-select v-model="parseForm.roomType" style="width: 100%">
+              <el-option label="不限" value="" />
+              <el-option label="普通教室" value="普通教室" />
+              <el-option label="实验室" value="实验室" />
+              <el-option label="机房" value="机房" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="预约用途">
+            <el-input v-model="parseForm.purpose" placeholder="如：课程设计 / 实验 / 自习" />
+          </el-form-item>
+        </el-form>
+      </div>
+
+      <!-- 步骤二：按解析条件筛选可用教室 -->
+      <div v-if="step === 2" v-loading="roomsLoading" class="step-body">
+        <el-empty v-if="!roomsLoading && !rooms.length" description="未找到符合条件的教室，请返回修改描述" :image-size="80" />
+        <div v-for="r in rooms" :key="r.id" class="room-pick-item" @click="pickRoom(r)">
+          <div class="room-pick-head">
+            <span class="room-pick-name">{{ r.name }}</span>
+            <el-tag size="small" type="info" effect="plain">{{ typeText(r.type) }}</el-tag>
+          </div>
+          <div class="room-pick-meta">{{ r.building }} · {{ r.roomNo }} · 容量 {{ r.capacity }} 人</div>
+          <div v-if="r.occupiedSlots && r.occupiedSlots.length" class="room-pick-occupied">
+            该日期已约 {{ r.occupiedSlots.length }} 个时段，提交时将实时冲突校验
+          </div>
+        </div>
+      </div>
+
+      <!-- 步骤三：确认提交（复用既有提交预约流程：表单校验 + 实时冲突校验 + 后端二次校验） -->
+      <div v-if="step === 3" class="step-body">
+        <el-alert
+          v-if="capacityWarn"
+          type="warning"
+          :title="capacityWarn"
+          show-icon
+          :closable="false"
+          class="tip"
+        />
+        <el-form ref="reserveFormRef" :model="reserveForm" :rules="reserveRules" label-width="90px">
+          <el-form-item label="教室">
+            <span class="picked-room">{{ pickedRoom.name }}（{{ pickedRoom.building }} {{ pickedRoom.roomNo }}）</span>
+          </el-form-item>
+          <el-form-item label="预约日期" prop="reserveDate">
+            <el-date-picker v-model="reserveForm.reserveDate" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="开始时间" prop="startTime">
+            <el-time-picker v-model="reserveForm.startTime" format="HH:mm" value-format="HH:mm" placeholder="开始时间" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="结束时间" prop="endTime">
+            <el-time-picker v-model="reserveForm.endTime" format="HH:mm" value-format="HH:mm" placeholder="结束时间" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="预约用途" prop="purpose">
+            <el-input v-model="reserveForm.purpose" type="textarea" :rows="2" placeholder="请填写预约用途" />
+          </el-form-item>
+          <el-form-item>
+            <el-alert
+              v-if="conflictInfo"
+              :type="conflictInfo.conflict ? 'error' : 'success'"
+              :title="conflictInfo.reason"
+              :closable="false"
+              show-icon
+              class="conflict-tip"
+            />
+          </el-form-item>
+        </el-form>
+      </div>
+
+      <!-- 底部按钮区（按步骤显示） -->
+      <template #footer>
+        <el-button v-if="step === 1" @click="dialogVisible = false">取消</el-button>
+        <el-button v-if="step === 1" type="primary" :disabled="!(parsed && !parseError)" @click="goStep2">下一步：选择教室</el-button>
+
+        <el-button v-if="step === 2" @click="step = 1">上一步</el-button>
+        <el-button v-if="step === 2" @click="dialogVisible = false">取消</el-button>
+
+        <el-button v-if="step === 3" @click="step = 2">上一步</el-button>
+        <el-button v-if="step === 3" @click="dialogVisible = false">取消</el-button>
+        <el-button
+          v-if="step === 3"
+          type="primary"
+          :loading="submitting"
+          :disabled="!!(conflictInfo && conflictInfo.conflict)"
+          @click="handleSubmit"
+        >提交预约</el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup>
+import { computed, reactive, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
+import { aiParseReservation } from '@/api/ai'
+import { listClassrooms } from '@/api/classroom'
+import { checkConflict, submitReservation } from '@/api/reservation'
+
+/**
+ * AI 快速预约（R7，需求文档 2.4 教室列表页搜索栏旁「AI 快速预约」入口）
+ * 自然语言 → AI 解析结构化参数（可编辑）→ 筛选教室 → 复用既有提交预约弹窗流程
+ * （前后端双重冲突校验不变）；AI 结果不强制接受，全程可修改/重新描述
+ */
+defineProps({
+  /** AI 是否启用（false 时入口隐藏，系统退化为纯预约系统） */
+  aiEnabled: { type: Boolean, default: false }
+})
+
+const dialogVisible = ref(false)
+const step = ref(1)
+
+/* ===== 步骤一：描述 + 解析 ===== */
+const rawText = ref('')
+const parsing = ref(false)
+const parsed = ref(false)
+const parseError = ref('')
+const parseForm = reactive({ date: '', startTime: '', endTime: '', capacity: null, roomType: '', purpose: '' })
+
+function openDialog() {
+  dialogVisible.value = true
+}
+
+function resetParse() {
+  parsed.value = false
+  parseError.value = ''
+  rawText.value = ''
+  Object.assign(parseForm, { date: '', startTime: '', endTime: '', capacity: null, roomType: '', purpose: '' })
+}
+
+async function handleParse() {
+  if (!rawText.value.trim()) {
+    ElMessage.warning('请先描述您的预约需求')
+    return
+  }
+  parsing.value = true
+  parseError.value = ''
+  try {
+    const res = await aiParseReservation({ text: rawText.value.trim() })
+    if (res.data && res.data.enabled === false) {
+      ElMessage.info('AI 服务未启用')
+      return
+    }
+    if (res.data && res.data.error) {
+      parsed.value = false
+      parseError.value = '无法识别您的需求，请尝试更具体的描述，例如：明天下午2点到4点 40人 机房 做课程设计'
+      return
+    }
+    // 解析成功 → 预填结构化参数（可编辑）
+    parsed.value = true
+    Object.assign(parseForm, {
+      date: res.data.date || '',
+      startTime: res.data.startTime || '',
+      endTime: res.data.endTime || '',
+      capacity: res.data.capacity || null,
+      roomType: res.data.roomType || '',
+      purpose: res.data.purpose || ''
+    })
+  } catch (e) {
+    // 统一错误提示已由 request.js 处理
+    parsed.value = false
+  } finally {
+    parsing.value = false
+  }
+}
+
+/* ===== 步骤二：筛选教室 ===== */
+const rooms = ref([])
+const roomsLoading = ref(false)
+
+/** 类型文案 → 类型数字（与后端 classroom.type 一致） */
+const TYPE_MAP = { 普通教室: 1, 实验室: 2, 机房: 3 }
+
+async function goStep2() {
+  roomsLoading.value = true
+  try {
+    const params = { page: 1, size: 500 }
+    if (parseForm.date) {
+      params.date = parseForm.date
+    }
+    if (parseForm.roomType && TYPE_MAP[parseForm.roomType]) {
+      params.type = TYPE_MAP[parseForm.roomType]
+    }
+    const res = await listClassrooms(params)
+    let list = (res.data && res.data.records) || []
+    if (parseForm.capacity) {
+      list = list.filter((r) => r.capacity >= parseForm.capacity)
+    }
+    rooms.value = list
+    step.value = 2
+  } finally {
+    roomsLoading.value = false
+  }
+}
+
+/* ===== 步骤三：确认提交（复用既有提交预约流程）===== */
+const pickedRoom = ref(null)
+const reserveFormRef = ref(null)
+const submitting = ref(false)
+const conflictInfo = ref(null)
+const reserveForm = reactive({ reserveDate: '', startTime: '', endTime: '', purpose: '' })
+
+const reserveRules = {
+  reserveDate: [{ required: true, message: '请选择预约日期', trigger: 'change' }],
+  startTime: [{ required: true, message: '请选择开始时间', trigger: 'change' }],
+  endTime: [{ required: true, message: '请选择结束时间', trigger: 'change' }],
+  purpose: [{ required: true, message: '请填写预约用途', trigger: 'blur' }]
+}
+
+/** 教室容量不足提示（AI 解析人数仅供参考，不强制） */
+const capacityWarn = computed(() => {
+  if (pickedRoom.value && parseForm.capacity && pickedRoom.value.capacity < parseForm.capacity) {
+    return `该教室容量 ${pickedRoom.value.capacity} 人，小于您填写的 ${parseForm.capacity} 人，请确认是否继续`
+  }
+  return ''
+})
+
+function pickRoom(room) {
+  pickedRoom.value = room
+  conflictInfo.value = null
+  Object.assign(reserveForm, {
+    reserveDate: parseForm.date || '',
+    startTime: parseForm.startTime || '',
+    endTime: parseForm.endTime || '',
+    purpose: parseForm.purpose || ''
+  })
+  step.value = 3
+}
+
+/** 实时冲突校验（与既有提交弹窗同口径：前端校验 + 后端提交时二次校验） */
+watch(
+  () => [reserveForm.reserveDate, reserveForm.startTime, reserveForm.endTime],
+  async () => {
+    if (!pickedRoom.value || !reserveForm.reserveDate || !reserveForm.startTime || !reserveForm.endTime) {
+      conflictInfo.value = null
+      return
+    }
+    try {
+      const res = await checkConflict({
+        classroomId: pickedRoom.value.id,
+        reserveDate: reserveForm.reserveDate,
+        startTime: reserveForm.startTime,
+        endTime: reserveForm.endTime
+      })
+      conflictInfo.value = res.data || null
+    } catch (e) {
+      conflictInfo.value = null
+    }
+  }
+)
+
+async function handleSubmit() {
+  if (!pickedRoom.value) {
+    return
+  }
+  await reserveFormRef.value.validate()
+  submitting.value = true
+  try {
+    await submitReservation({
+      classroomId: pickedRoom.value.id,
+      reserveDate: reserveForm.reserveDate,
+      startTime: reserveForm.startTime,
+      endTime: reserveForm.endTime,
+      purpose: reserveForm.purpose
+    })
+    ElMessage.success('预约提交成功，等待管理员审核')
+    dialogVisible.value = false
+  } catch (e) {
+    // 统一错误提示（含后端二次冲突校验返回）
+  } finally {
+    submitting.value = false
+  }
+}
+
+/** 关闭弹窗后重置全部状态 */
+function resetAll() {
+  step.value = 1
+  resetParse()
+  rooms.value = []
+  pickedRoom.value = null
+  conflictInfo.value = null
+  Object.assign(reserveForm, { reserveDate: '', startTime: '', endTime: '', purpose: '' })
+}
+
+/** 类型文案 */
+function typeText(type) {
+  return { 1: '普通教室', 2: '实验室', 3: '机房' }[type] || '未知'
+}
+</script>
+
+<style scoped>
+.ai-quick-reserve {
+  display: inline-block;
+}
+
+.steps {
+  margin-bottom: 16px;
+}
+
+.step-body {
+  min-height: 220px;
+}
+
+.step-actions {
+  margin: 12px 0;
+}
+
+.tip {
+  margin-bottom: 12px;
+}
+
+.time-sep {
+  display: inline-block;
+  width: 4%;
+  text-align: center;
+  color: #909399;
+}
+
+.room-pick-item {
+  padding: 10px 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.room-pick-item:hover {
+  border-color: #e6a23c;
+  background: #fdf6ec;
+}
+
+.room-pick-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.room-pick-name {
+  font-weight: 600;
+  color: #1f3a93;
+}
+
+.room-pick-meta {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
+}
+
+.room-pick-occupied {
+  font-size: 12px;
+  color: #e6a23c;
+  margin-top: 4px;
+}
+
+.picked-room {
+  font-weight: 600;
+  color: #1f3a93;
+}
+
+.conflict-tip {
+  width: 100%;
+}
+</style>

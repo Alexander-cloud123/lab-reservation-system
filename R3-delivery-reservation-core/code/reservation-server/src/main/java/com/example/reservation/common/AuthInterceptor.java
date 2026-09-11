@@ -1,0 +1,105 @@
+package com.example.reservation.common;
+
+import cn.hutool.core.util.StrUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+import org.springframework.web.servlet.HandlerInterceptor;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
+
+/**
+ * 登录鉴权拦截器
+ * 规则（spec.md 2.5）：
+ *  1. 除登录/注册外，/api/** 全部要求携带合法 Token，否则返回 HTTP 401 + Result{code:401}
+ *  2. 管理员专属接口前缀（/manage、/stats、/ai 等）额外校验角色，学生 Token 访问返回 403
+ *  3. 通过后写入 UserContext 供业务层获取当前用户
+ *
+ * @author reservation-team
+ */
+@Component
+public class AuthInterceptor implements HandlerInterceptor {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    @Value("${app.jwt.secret}")
+    private String secret;
+
+    @Override
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+        // 放行 CORS 预检请求
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
+
+        String authHeader = request.getHeader(Constants.TOKEN_HEADER);
+        if (StrUtil.isBlank(authHeader) || !authHeader.startsWith(Constants.TOKEN_PREFIX)) {
+            return reject(response, ResultCode.UNAUTHORIZED.getCode(), ResultCode.UNAUTHORIZED.getMessage());
+        }
+
+        String token = authHeader.substring(Constants.TOKEN_PREFIX.length());
+        Map<String, Object> claims;
+        try {
+            claims = parseAndVerify(token);
+        } catch (BusinessException e) {
+            return reject(response, e.getCode(), e.getMessage());
+        } catch (Exception e) {
+            // Token 解析/签名校验任何异常统一按未授权处理（不泄露 500 细节）
+            return reject(response, ResultCode.UNAUTHORIZED.getCode(), ResultCode.UNAUTHORIZED.getMessage());
+        }
+
+        Long userId = Long.valueOf(String.valueOf(claims.get("userId")));
+        String username = String.valueOf(claims.get("username"));
+        Integer role = Integer.valueOf(String.valueOf(claims.get("role")));
+
+        // 管理员专属接口：校验角色
+        if (isAdminPath(request.getRequestURI()) && role != Constants.ROLE_ADMIN) {
+            return reject(response, ResultCode.FORBIDDEN.getCode(), ResultCode.FORBIDDEN.getMessage());
+        }
+
+        UserContext.set(userId, username, role);
+        return true;
+    }
+
+    @Override
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
+        // 请求结束清除上下文，防止线程池复用串扰
+        UserContext.clear();
+    }
+
+    /** 校验并解析 Token（复用 JwtUtil 逻辑，避免依赖注入循环） */
+    private Map<String, Object> parseAndVerify(String token) {
+        cn.hutool.jwt.JWT jwt = cn.hutool.jwt.JWTUtil.parseToken(token);
+        if (!jwt.setKey(secret.getBytes(StandardCharsets.UTF_8)).verify()) {
+            throw new BusinessException(ResultCode.UNAUTHORIZED.getCode(), ResultCode.UNAUTHORIZED.getMessage());
+        }
+        return jwt.getPayloads();
+    }
+
+    /** 判断是否为管理员专属接口 */
+    private boolean isAdminPath(String uri) {
+        for (String prefix : Constants.ADMIN_API_PREFIXES) {
+            if (uri.startsWith(prefix)) {
+                return true;
+            }
+        }
+        // R3 预约审核接口（单条审核 /api/reservation/{id}/audit、批量审核 /api/reservation/batch-audit）
+        // 路径不在 /api/reservation/manage 前缀下，按精确路径/正则判定，学生 Token 访问返回 403
+        if (uri.startsWith(Constants.RESERVATION_BATCH_AUDIT_PATH)
+                || uri.matches(Constants.RESERVATION_AUDIT_PATH_REGEX)) {
+            return true;
+        }
+        return false;
+    }
+
+    /** 写入鉴权失败响应：HTTP 状态码 + Result 结构 */
+    private boolean reject(HttpServletResponse response, int code, String message) throws Exception {
+        response.setStatus(code);
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write(MAPPER.writeValueAsString(Result.error(code, message)));
+        return false;
+    }
+}

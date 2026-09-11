@@ -1,0 +1,65 @@
+/* 全局基础样式 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background-color: #f5f7fa;
+}
+
+/* 登录 / 注册页公共布局 */
+.login-page,
+.register-page {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1f3a93 0%, #2b5cd9 55%, #4f8cff 100%);
+}
+
+.login-card,
+.register-card {
+  width: 420px;
+  padding: 40px 36px 28px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+}
+
+.login-title {
+  text-align: center;
+  font-size: 22px;
+  color: #1f3a93;
+  margin-bottom: 4px;
+}
+
+.login-subtitle {
+  text-align: center;
+  font-size: 13px;
+  color: #909399;
+  margin-bottom: 28px;
+}
+
+.login-btn,
+.register-btn {
+  width: 100%;
+}
+
+.login-footer {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 13px;
+  color: #909399;
+}
+
+.login-footer a {
+  color: #2b5cd9;
+  text-decoration: none;
+}

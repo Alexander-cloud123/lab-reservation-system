@@ -1,0 +1,15 @@
+# 开发临时目录（不入库）
+.devtmp/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# 日志
+*.log
+logs/
+
+# 系统
+.DS_Store
+Thumbs.db

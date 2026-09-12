@@ -20,7 +20,7 @@
 | MySQL | Docker 容器 reservation-mysql（mysql:8.0，宿主 3306 空闲，映射 3306:3306，root 密码待确认，默认 root） | **本项目专用容器，禁止复用旧容器**（旧容器 ssm-mysql/student-manage-mysql 已停止，勿启动） |
 | Redis（可选） | Docker 容器 reservation-redis（redis:7-alpine，宿主 6379 空闲，映射 6379:6379） | 仅当负责人确认接入 Redis 加分项时创建 |
 | 数据库 | 库名 `reservation`，utf8mb4 | 由 R1 建库建表 |
-| 后端框架 | Spring Boot 3.2.10 + MyBatis-Plus 3.5.7 + Knife4j 4.4.0 + EasyExcel 3.4.0 + Hutool 5.8.32 | 后端统一 `jakarta.*` 包 |
+| 后端框架 | Spring Boot 3.2.10 + MyBatis-Plus 3.5.7 + Knife4j 4.4.0 + EasyExcel 3.3.4 + Hutool 5.8.32 | 后端统一 `jakarta.*` 包 |
 | 前端框架 | Vue 3.4 + Vite 5 + Element Plus 2.7 + Pinia + Vue Router 4 + ECharts 5.5 + FullCalendar 6.1 + day.js + sass | 禁止 node-sass |
 | AI 服务 | Agnes AI，国内节点 `https://api.agnes-ai.cn/v1`，模型 agnes-2.0-flash | 密钥须由负责人提供，仅存环境变量/配置 |
 

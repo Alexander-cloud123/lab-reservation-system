@@ -48,7 +48,7 @@
 <dependency>
     <groupId>com.alibaba</groupId>
     <artifactId>easyexcel</artifactId>
-    <version>3.4.0</version>
+    <version>3.3.4</version>
 </dependency>
 <dependency>
     <groupId>cn.hutool</groupId>

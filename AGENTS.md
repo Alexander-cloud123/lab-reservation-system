@@ -73,7 +73,7 @@
 | 核心框架 | Spring Boot 3.2.10 LTS |
 | ORM | MyBatis-Plus 3.5.7（mybatis-plus-spring-boot3-starter） |
 | 接口文档 | Knife4j 4.4.0（openapi3-jakarta） |
-| Excel | EasyExcel 3.4.0 |
+| Excel | EasyExcel 3.3.4 |
 | 工具库 | Hutool 5.8.32 + Lombok 1.18.34 |
 | 数据库 | MySQL 8.0.x |
 | 前端运行环境 | Node.js 22.x |

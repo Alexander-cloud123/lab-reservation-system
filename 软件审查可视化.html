@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>reservation-system 软件审查可视化</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  body { font-family: "Microsoft YaHei", sans-serif; margin: 0; background: #f5f7fa; color: #303133; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 16px; }
+  h1 { font-size: 20px; color: #1f3a93; margin: 0 0 4px; }
+  .sub { font-size: 13px; color: #909399; margin-bottom: 20px; }
+  .cards { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .card { flex: 1; min-width: 150px; background: #fff; border-radius: 8px; padding: 14px 16px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .card .num { font-size: 28px; font-weight: 700; }
+  .card .lbl { font-size: 13px; color: #909399; margin-top: 4px; }
+  .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 860px) { .chart-row { grid-template-columns: 1fr; } }
+  .chart-box { background: #fff; border-radius: 8px; padding: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .chart-title { font-size: 14px; font-weight: 600; color: #303133; padding: 4px 4px 8px; }
+  .echart { width: 100%; height: 420px; }
+  table { width: 100%; border-collapse: collapse; background: #fff; margin-top: 16px; font-size: 13px; box-shadow: 0 1px 4px rgba(0,0,0,.06); border-radius: 8px; overflow: hidden; }
+  th, td { padding: 8px 12px; border-bottom: 1px solid #ebeef5; text-align: left; }
+  th { background: #f0f4ff; color: #1f3a93; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 12px; color: #fff; }
+  .tag-high { background: #f56c6c; } .tag-mid { background: #e6a23c; } .tag-low { background: #409eff; } .tag-sug { background: #909399; }
+  .foot { font-size: 12px; color: #909399; margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>软件审查结果总览 — 高校实验室预约管理系统（R8）</h1>
+  <div class="sub">审查日期 2026-09-12 · 静态全量通读 + 动态验证（编译/构建/接口冒烟/缺陷复现）· 综合评分 4.3 / 5</div>
+
+  <div class="cards">
+    <div class="card"><div class="num" style="color:#67c23a">4.3</div><div class="lbl">综合评分（满分 5）</div></div>
+    <div class="card"><div class="num" style="color:#f56c6c">2</div><div class="lbl">高优先级缺陷（P0）</div></div>
+    <div class="card"><div class="num" style="color:#e6a23c">4</div><div class="lbl">中风险（P1）</div></div>
+    <div class="card"><div class="num" style="color:#409eff">11</div><div class="lbl">低风险 / 建议（P2）</div></div>
+    <div class="card"><div class="num" style="color:#1f3a93">3</div><div class="lbl">动态复现缺陷</div></div>
+  </div>
+
+  <div class="chart-row">
+    <div class="chart-box">
+      <div class="chart-title">十维度评分雷达（0–5）</div>
+      <div id="radar" class="echart"></div>
+    </div>
+    <div class="chart-box">
+      <div class="chart-title">问题严重级别分布</div>
+      <div id="sev" class="echart"></div>
+    </div>
+  </div>
+
+  <table>
+    <tr><th>级别</th><th>编号</th><th>问题</th><th>定位</th></tr>
+    <tr><td><span class="tag tag-high">高</span></td><td>H1</td><td>过期 Token 仍被鉴权放行（只验签名不验 exp）</td><td>AuthInterceptor.java:75-79 / JwtUtil.java:46-52</td></tr>
+    <tr><td><span class="tag tag-high">高</span></td><td>H2</td><td>审核通过不复查冲突 → 两个重叠待审核可先后通过成"双已通过"</td><td>ReservationServiceImpl.java:218 / 247</td></tr>
+    <tr><td><span class="tag tag-mid">中</span></td><td>M1</td><td>允许预约过去日期（2020-01-01 提交成功）</td><td>ReservationServiceImpl.java:122-142</td></tr>
+    <tr><td><span class="tag tag-mid">中</span></td><td>M2</td><td>提交并发竞态：先查后插无锁/无唯一约束</td><td>ReservationServiceImpl.java:88-91</td></tr>
+    <tr><td><span class="tag tag-mid">中</span></td><td>M3</td><td>AI 推荐信任请求体 userId，可越权读取他人偏好</td><td>AiController.java:54-56</td></tr>
+    <tr><td><span class="tag tag-mid">中</span></td><td>M4</td><td>禁用账号后已签发 Token 仍有效（状态仅登录校验）</td><td>AuthInterceptor.java:54-63</td></tr>
+    <tr><td><span class="tag tag-low">低</span></td><td>L1–L9</td><td>N+1 查询、CORS 全放开、Knife4j/SQL 日志常开、base-url 与文档不一致、JWT 默认密钥、注册缺长度校验、导出无上限、缺接口清单.md、前端缺开始&lt;结束校验</td><td>见报告第三节</td></tr>
+    <tr><td><span class="tag tag-sug">建议</span></td><td>S1–S2</td><td>Element Plus 全量引入首包偏大、消息已读仅存本地</td><td>main.js / Profile.vue</td></tr>
+  </table>
+  <div class="foot">数据来源：《软件审查报告.md》（C:\Users\72797\Course\reservation-system\）· 图表为 ECharts 渲染，若 CDN 离线请直接阅读报告表格。</div>
+</div>
+
+<script>
+var radarOpt = {
+  backgroundColor: 'transparent',
+  tooltip: { trigger: 'item', triggerOn: 'click', renderMode: 'richText', confine: true },
+  radar: {
+    indicator: [
+      { name: '需求符合性', max: 5 }, { name: '核心业务逻辑', max: 5 }, { name: '代码质量规范', max: 5 },
+      { name: '安全性', max: 5 }, { name: '健壮异常处理', max: 5 }, { name: '性能', max: 5 },
+      { name: '前后端契约', max: 5 }, { name: 'AI 合规', max: 5 }, { name: '测试验证', max: 5 }, { name: '文档交付', max: 5 }
+    ],
+    radius: '68%', center: ['50%', '54%'],
+    axisName: { color: '#606266', fontSize: 12 },
+    splitArea: { areaStyle: { color: ['rgba(31,58,147,0.03)','rgba(31,58,147,0.06)'] } },
+    splitLine: { lineStyle: { color: 'rgba(31,58,147,0.15)' } }
+  },
+  series: [{
+    type: 'radar',
+    data: [{ value: [4.5, 4.0, 4.5, 3.5, 4.5, 4.0, 4.5, 5.0, 4.5, 4.0], name: '审查评分' }],
+    symbolSize: 5,
+    lineStyle: { color: '#1f3a93', width: 2 },
+    itemStyle: { color: '#e6a23c' },
+    areaStyle: { color: 'rgba(64,158,255,0.25)' }
+  }]
+};
+var sevOpt = {
+  backgroundColor: 'transparent',
+  tooltip: { trigger: 'item', triggerOn: 'click', renderMode: 'richText', confine: true },
+  legend: { bottom: 0, fontSize: 12 },
+  series: [{
+    type: 'pie',
+    radius: ['40%', '68%'], center: ['50%', '46%'],
+    itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
+    label: { formatter: '{b}\n{c} 项（{d}%）', fontSize: 12 },
+    data: [
+      { value: 2, name: '高（必须修）', itemStyle: { color: '#f56c6c' } },
+      { value: 4, name: '中（建议修）', itemStyle: { color: '#e6a23c' } },
+      { value: 9, name: '低（可暂缓）', itemStyle: { color: '#409eff' } },
+      { value: 2, name: '建议', itemStyle: { color: '#909399' } }
+    ]
+  }]
+};
+var r = echarts.init(document.getElementById('radar'));
+var s = echarts.init(document.getElementById('sev'));
+r.setOption(radarOpt); s.setOption(sevOpt);
+window.addEventListener('resize', function () { r.resize(); s.resize(); });
+</script>
+</body>
+</html>

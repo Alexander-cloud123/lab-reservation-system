@@ -1,7 +1,10 @@
 package com.example.reservation.common;
 
 import cn.hutool.core.util.StrUtil;
+import com.example.reservation.entity.SysUser;
+import com.example.reservation.mapper.SysUserMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,6 +30,9 @@ public class AuthInterceptor implements HandlerInterceptor {
 
     @Value("${app.jwt.secret}")
     private String secret;
+
+    @Resource
+    private SysUserMapper sysUserMapper;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
@@ -60,6 +66,15 @@ public class AuthInterceptor implements HandlerInterceptor {
             return reject(response, ResultCode.FORBIDDEN.getCode(), ResultCode.FORBIDDEN.getMessage());
         }
 
+        // 用户状态校验：账号被禁用/删除后，已签发 Token 立即失效（登录只在登录时校验状态，此处每请求兜底）
+        SysUser user = sysUserMapper.selectById(userId);
+        if (user == null) {
+            return reject(response, ResultCode.UNAUTHORIZED.getCode(), ResultCode.UNAUTHORIZED.getMessage());
+        }
+        if (user.getStatus() == Constants.USER_STATUS_DISABLED) {
+            return reject(response, ResultCode.FORBIDDEN.getCode(), "账号已被禁用，请联系管理员");
+        }
+
         UserContext.set(userId, username, role);
         return true;
     }
@@ -75,6 +90,19 @@ public class AuthInterceptor implements HandlerInterceptor {
         cn.hutool.jwt.JWT jwt = cn.hutool.jwt.JWTUtil.parseToken(token);
         if (!jwt.setKey(secret.getBytes(StandardCharsets.UTF_8)).verify()) {
             throw new BusinessException(ResultCode.UNAUTHORIZED.getCode(), ResultCode.UNAUTHORIZED.getMessage());
+        }
+        // 过期校验：verify() 仅验签名，需显式校验 exp（JwtUtil.generateToken 设置 24h 有效期）
+        Object exp = jwt.getPayload("exp");
+        if (exp != null) {
+            long expMillis;
+            try {
+                expMillis = Long.parseLong(String.valueOf(exp)) * 1000L;
+            } catch (NumberFormatException e) {
+                throw new BusinessException(ResultCode.UNAUTHORIZED.getCode(), ResultCode.UNAUTHORIZED.getMessage());
+            }
+            if (System.currentTimeMillis() >= expMillis) {
+                throw new BusinessException(ResultCode.UNAUTHORIZED.getCode(), ResultCode.UNAUTHORIZED.getMessage());
+            }
         }
         return jwt.getPayloads();
     }

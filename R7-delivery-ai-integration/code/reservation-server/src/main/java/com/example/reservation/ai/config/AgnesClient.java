@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *  - 请求头：Authorization: Bearer {API_KEY}、Content-Type: application/json
  *  - 请求体：model、messages（system/user）、temperature、response_format={"type":"json_object"}（结构化输出）
  * 调用保护（AGENTS 4.4 / spec.md 6.1）：
- *  - 超时控制：读 AiProperties.timeoutSeconds（默认 3s），超时/报错自动降级
+ *  - 超时控制：读 AiProperties.timeoutSeconds（默认 60s，连接超时固定 10s），超时/报错自动降级
  *  - 限流保护：固定窗口 1 分钟 RPM 计数（rpmLimit），触发限流返回降级
  *  - 密钥缺失：apiKey 为空直接降级，前端零接触密钥
  *
@@ -111,6 +111,10 @@ public class AgnesClient {
         usr.put("role", "user");
         usr.put("content", user);
         root.put("temperature", 0.3);
+        int maxTokens = aiProperties.getMaxTokens();
+        if (maxTokens > 0) {
+            root.put("max_tokens", maxTokens);
+        }
         if (jsonMode) {
             ObjectNode format = root.putObject("response_format");
             format.put("type", "json_object");
@@ -144,9 +148,9 @@ public class AgnesClient {
      */
     private RestClient buildClient() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        int timeoutMs = Math.max(aiProperties.getTimeoutSeconds(), 1) * 1000;
-        factory.setConnectTimeout(timeoutMs);
-        factory.setReadTimeout(timeoutMs);
+        int readTimeoutMs = Math.max(aiProperties.getTimeoutSeconds(), 1) * 1000;
+        factory.setConnectTimeout(10_000);          // 连接超时固定 10s，网络不可达时快速失败
+        factory.setReadTimeout(readTimeoutMs);      // 读取超时 = timeout-seconds（实测模型响应可达数十秒）
         return RestClient.builder()
                 .baseUrl(aiProperties.getBaseUrl())
                 .defaultHeader("Authorization", "Bearer " + aiProperties.getApiKey())

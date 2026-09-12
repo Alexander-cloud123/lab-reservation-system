@@ -145,6 +145,14 @@
 
         <!-- 实时冲突校验提示 -->
         <el-alert
+          v-if="timeError"
+          :title="timeError"
+          type="error"
+          :closable="false"
+          show-icon
+          class="conflict-alert"
+        />
+        <el-alert
           v-if="conflictInfo"
           :type="conflictInfo.conflict ? 'error' : 'success'"
           :title="conflictInfo.reason"
@@ -197,6 +205,8 @@ const submitting = ref(false)
 const reserveFormRef = ref(null)
 const reserveForm = reactive({ reserveDate: '', startTime: '', endTime: '', purpose: '' })
 const conflictInfo = ref(null)
+/** 前端时间合理性校验提示（L9 优化：开始时间必须早于结束时间；后端仍强制兜底） */
+const timeError = ref('')
 /** 本次弹窗是否已提交成功（提交成功后关闭不再保存草稿） */
 const justSubmitted = ref(false)
 
@@ -364,8 +374,16 @@ watch(
   async ([date, start, end]) => {
     if (!date || !start || !end) {
       conflictInfo.value = null
+      timeError.value = ''
       return
     }
+    // 前端时间合理性校验：开始时间必须早于结束时间（L9 优化，后端仍强制兜底）
+    if (start >= end) {
+      conflictInfo.value = null
+      timeError.value = '开始时间必须早于结束时间'
+      return
+    }
+    timeError.value = ''
     try {
       const res = await checkConflict({
         classroomId: classroom.value.id,
@@ -385,6 +403,11 @@ async function handleSubmitReserve() {
   try {
     await reserveFormRef.value.validate()
   } catch (e) {
+    return
+  }
+  // 前端时间合理性校验（L9 优化，后端仍强制兜底）
+  if (reserveForm.startTime && reserveForm.endTime && reserveForm.startTime >= reserveForm.endTime) {
+    ElMessage.warning('开始时间必须早于结束时间')
     return
   }
   submitting.value = true

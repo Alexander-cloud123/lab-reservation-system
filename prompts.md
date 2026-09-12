@@ -22,7 +22,7 @@
 | 数据库 | 库名 `reservation`，utf8mb4 | 由 R1 建库建表 |
 | 后端框架 | Spring Boot 3.2.10 + MyBatis-Plus 3.5.7 + Knife4j 4.4.0 + EasyExcel 3.4.0 + Hutool 5.8.32 | 后端统一 `jakarta.*` 包 |
 | 前端框架 | Vue 3.4 + Vite 5 + Element Plus 2.7 + Pinia + Vue Router 4 + ECharts 5.5 + FullCalendar 6.1 + day.js + sass | 禁止 node-sass |
-| AI 服务 | Agnes AI，国内节点 `https://apihub.agnes-ai.cn/v1`，模型 agnes-2.0-flash | 密钥须由负责人提供，仅存环境变量/配置 |
+| AI 服务 | Agnes AI，国内节点 `https://api.agnes-ai.cn/v1`，模型 agnes-2.0-flash | 密钥须由负责人提供，仅存环境变量/配置 |
 
 ---
 
@@ -45,7 +45,7 @@
 JDK 21 LTS · IDEA 内置 Maven 3.9.x · Node.js 22.x · Docker 运行 MySQL 8.0
 （reservation-mysql，映射 localhost:3306，库名 reservation，utf8mb4）·
 Spring Boot 3.2.10 · MyBatis-Plus 3.5.7 · Vue 3.4 + Vite 5 · Element Plus 2.7 ·
-Agnes AI（国内节点 https://apihub.agnes-ai.cn/v1，模型 agnes-2.0-flash）。
+Agnes AI（国内节点 https://api.agnes-ai.cn/v1，模型 agnes-2.0-flash）。
 禁止要求降级安装任何环境；禁止启动旧项目 Docker 容器；后端统一 jakarta.* 包；
 禁止引入 spec.md 之外的依赖。
 
@@ -57,7 +57,7 @@ Agnes AI（国内节点 https://apihub.agnes-ai.cn/v1，模型 agnes-2.0-flash�
 2. 禁止简化核心逻辑：冲突检测公式「新开始 < 旧结束 AND 新结束 > 旧开始」、
    状态流转（待审核0→已通过1/已驳回2，待审核/已通过→已取消3）、前后端双重校验。
 3. 所有接口统一返回 Result 结构；关键操作（删除/取消/审核/重置密码）必须二次确认。
-4. 密钥禁止硬编码（环境变量/配置）；AI 模块（如涉及）必须只读不写、可开关、超时3秒自动降级。
+4. 密钥禁止硬编码（环境变量/配置）；AI 模块（如涉及）必须只读不写、可开关、超时60秒自动降级。
 5. 交付的必须是可直接运行验证的完整代码，禁止交付骨架、占位、伪代码。
 6. 开发过程中遇到需求歧义，按 AGENTS.md 流程上报裁决，禁止自行理解修改。
 
@@ -107,7 +107,7 @@ Agnes AI（国内节点 https://apihub.agnes-ai.cn/v1，模型 agnes-2.0-flash�
 JDK 21 LTS · IDEA 内置 Maven 3.9.x · Node.js 22.x · Docker 运行 MySQL 8.0
 （reservation-mysql，映射 localhost:3306，库名 reservation，utf8mb4，root 密码 root）·
 Spring Boot 3.2.10 · MyBatis-Plus 3.5.7 · Vue 3.4 + Vite 5 · Element Plus 2.7 ·
-Agnes AI（国内节点 https://apihub.agnes-ai.cn/v1，模型 agnes-2.0-flash）。
+Agnes AI（国内节点 https://api.agnes-ai.cn/v1，模型 agnes-2.0-flash）。
 禁止要求降级安装任何环境；禁止启动旧项目 Docker 容器（ssm-mysql/student-manage-mysql）；
 后端统一 jakarta.* 包；禁止引入 spec.md 之外的依赖。
 
@@ -128,7 +128,7 @@ Agnes AI（国内节点 https://apihub.agnes-ai.cn/v1，模型 agnes-2.0-flash�
 2. 禁止简化核心逻辑：冲突检测公式「新开始 < 旧结束 AND 新结束 > 旧开始」、
    状态流转（待审核0→已通过1/已驳回2，待审核/已通过→已取消3）、前后端双重校验。
 3. 所有接口统一返回 Result 结构；关键操作（删除/取消/审核/重置密码）必须二次确认。
-4. 密钥禁止硬编码；AI 模块（如涉及）必须只读不写、可开关、超时3秒自动降级。
+4. 密钥禁止硬编码；AI 模块（如涉及）必须只读不写、可开关、超时60秒自动降级。
 5. 交付的必须是可直接运行验证的完整代码，禁止交付骨架、占位、伪代码。
 6. 开发过程中遇到需求歧义，按 AGENTS.md 流程上报裁决，禁止自行理解修改。
 

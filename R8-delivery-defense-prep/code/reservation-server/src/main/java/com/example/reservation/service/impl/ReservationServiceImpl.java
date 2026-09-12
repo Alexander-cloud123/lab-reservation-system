@@ -26,13 +26,16 @@ import com.example.reservation.vo.ReservationManageVO;
 import com.example.reservation.vo.ReservationVO;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -52,6 +55,9 @@ public class ReservationServiceImpl implements ReservationService {
 
     /** 关键词无命中时的恒假条件 ID（表中不存在该 ID，保证查询恒空） */
     private static final long NO_MATCH_ID = -1L;
+
+    /** 预约记录导出单次上限（超出提示缩小筛选范围，防全量导出拖垮内存/响应） */
+    private static final int MAX_EXPORT_ROWS = 10000;
 
     @Resource
     private ReservationMapper reservationMapper;
@@ -98,12 +104,15 @@ public class ReservationServiceImpl implements ReservationService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Long createReservation(ReservationDTO dto) {
         // 必填校验
         if (dto.getClassroomId() == null) {
             throw new BusinessException("教室不能为空");
         }
-        Classroom room = classroomMapper.selectById(dto.getClassroomId());
+        // 对教室行加锁（SELECT ... FOR UPDATE）：同一教室的并发预约提交串行化，保证"冲突检测+插入"原子，杜绝双写
+        Classroom room = classroomMapper.selectOne(
+                new LambdaQueryWrapper<Classroom>().eq(Classroom::getId, dto.getClassroomId()).last("FOR UPDATE"));
         if (room == null) {
             throw new BusinessException("教室不存在");
         }
@@ -124,6 +133,10 @@ public class ReservationServiceImpl implements ReservationService {
         LocalTime end = TimeUtil.parseTime(dto.getEndTime());
         if (!start.isBefore(end)) {
             throw new BusinessException("开始时间必须早于结束时间");
+        }
+        // 禁止预约过去日期（与前端 disabled-date 口径一致：允许今天及以后，后端强制兜底）
+        if (reserveDate.isBefore(LocalDate.now())) {
+            throw new BusinessException("预约日期不能早于今天");
         }
 
         // 后端二次冲突检测（强制兜底：绕过前端直接调用本接口仍会被拒绝）
@@ -157,8 +170,9 @@ public class ReservationServiceImpl implements ReservationService {
                 .eq(status != null, Reservation::getStatus, status)
                 .orderByDesc(Reservation::getCreateTime);
         Page<Reservation> result = reservationMapper.selectPage(new Page<>(page, size), wrapper);
-        // 实体 → VO（批量补全教室展示字段）
-        return PageResult.of(result, this::toReservationVO);
+        // 实体 → VO（批量预查教室信息，避免逐行 selectById 造成 N+1 查询）
+        Map<Long, Classroom> roomMap = batchClassroomMap(result.getRecords());
+        return PageResult.of(result, r -> toReservationVO(r, roomMap));
     }
 
     @Override
@@ -200,8 +214,10 @@ public class ReservationServiceImpl implements ReservationService {
         validateFilters(status, startDate, endDate, classroomId);
         LambdaQueryWrapper<Reservation> wrapper = buildManageWrapper(status, startDate, endDate, keyword, classroomId);
         Page<Reservation> result = reservationMapper.selectPage(new Page<>(page, size), wrapper);
-        // 实体 → 管理端 VO（批量补全用户 + 教室信息）
-        return PageResult.of(result, this::toManageVO);
+        // 实体 → 管理端 VO（批量预查用户 + 教室信息，避免逐行 selectById 造成 N+1 查询）
+        Map<Long, SysUser> userMap = batchUserMap(result.getRecords());
+        Map<Long, Classroom> roomMap = batchClassroomMap(result.getRecords());
+        return PageResult.of(result, r -> toManageVO(r, userMap, roomMap));
     }
 
     @Override
@@ -209,12 +225,20 @@ public class ReservationServiceImpl implements ReservationService {
                                                 String keyword, Long classroomId) {
         validateFilters(status, startDate, endDate, classroomId);
         LambdaQueryWrapper<Reservation> wrapper = buildManageWrapper(status, startDate, endDate, keyword, classroomId);
-        // 导出全部命中记录（不分页），按创建时间倒序与 manage 列表口径一致
-        List<Reservation> list = reservationMapper.selectList(wrapper);
-        return list.stream().map(this::toExportVO).collect(Collectors.toList());
+        // 导出上限保护：最多导出 MAX_EXPORT_ROWS 条，超出提示缩小筛选范围（防全量导出拖垮内存/响应）
+        Page<Reservation> page = reservationMapper.selectPage(new Page<>(1, MAX_EXPORT_ROWS + 1), wrapper);
+        if (page.getTotal() > MAX_EXPORT_ROWS) {
+            throw new BusinessException("导出数据超过 " + MAX_EXPORT_ROWS + " 条上限，请缩小筛选范围后导出");
+        }
+        List<Reservation> list = page.getRecords();
+        // 批量预查用户 + 教室信息（避免逐行 selectById 造成 N+1 查询）
+        Map<Long, SysUser> userMap = batchUserMap(list);
+        Map<Long, Classroom> roomMap = batchClassroomMap(list);
+        return list.stream().map(r -> toExportVO(r, userMap, roomMap)).collect(Collectors.toList());
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void auditReservation(Long id, AuditDTO dto) {
         if (id == null) {
             throw new BusinessException("预约 ID 不能为空");
@@ -232,6 +256,20 @@ public class ReservationServiceImpl implements ReservationService {
         if (dto.getStatus() == Constants.RES_STATUS_REJECTED && StrUtil.isBlank(dto.getAuditRemark())) {
             throw new BusinessException("驳回必须填写审核备注");
         }
+        // 通过前复查冲突（核心规则兜底）：防止多个重叠待审核先后被通过产生"双已通过"
+        if (dto.getStatus() == Constants.RES_STATUS_APPROVED) {
+            // 锁教室行串行化同教室审核：并发审核时后者重读已通过列表，杜绝复查冲突的 TOCTOU 竞态
+            classroomMapper.selectOne(new LambdaQueryWrapper<Classroom>()
+                    .eq(Classroom::getId, reservation.getClassroomId()).last("FOR UPDATE"));
+            List<Reservation> approved = listApprovedByClassAndDate(reservation.getClassroomId(), reservation.getReserveDate());
+            for (Reservation r : approved) {
+                // 重叠公式（需求文档 1.4）：新开始 < 旧结束 AND 新结束 > 旧开始
+                if (reservation.getStartTime().isBefore(r.getEndTime()) && reservation.getEndTime().isAfter(r.getStartTime())) {
+                    throw new BusinessException("审核失败：与已通过预约「" + TimeUtil.formatTime(r.getStartTime())
+                            + "-" + TimeUtil.formatTime(r.getEndTime()) + "」时间冲突，不能通过");
+                }
+            }
+        }
 
         Reservation update = new Reservation();
         update.setId(id);
@@ -244,6 +282,7 @@ public class ReservationServiceImpl implements ReservationService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int batchAudit(BatchAuditDTO dto) {
         if (dto.getIds() == null || dto.getIds().isEmpty()) {
             throw new BusinessException("预约 ID 列表不能为空");
@@ -251,6 +290,28 @@ public class ReservationServiceImpl implements ReservationService {
         validateAuditStatus(dto.getStatus());
         if (dto.getStatus() == Constants.RES_STATUS_REJECTED && StrUtil.isBlank(dto.getAuditRemark())) {
             throw new BusinessException("驳回必须填写审核备注");
+        }
+        // 批量通过前逐条复查冲突（核心规则兜底）：任一条与已通过预约冲突则整批拒绝，避免产生"双已通过"
+        if (dto.getStatus() == Constants.RES_STATUS_APPROVED) {
+            List<Reservation> targets = reservationMapper.selectBatchIds(dto.getIds());
+            // 锁涉及教室行（按教室 ID 排序加锁，避免并发批量审核交叉死锁），串行化同教室审核，杜绝 TOCTOU 竞态
+            targets.stream().map(Reservation::getClassroomId).filter(Objects::nonNull).distinct().sorted()
+                    .forEach(cid -> classroomMapper.selectOne(
+                            new LambdaQueryWrapper<Classroom>().eq(Classroom::getId, cid).last("FOR UPDATE")));
+            for (Reservation r : targets) {
+                if (r.getStatus() != Constants.RES_STATUS_PENDING) {
+                    continue;
+                }
+                List<Reservation> approved = listApprovedByClassAndDate(r.getClassroomId(), r.getReserveDate());
+                for (Reservation ap : approved) {
+                    // 重叠公式（需求文档 1.4）：新开始 < 旧结束 AND 新结束 > 旧开始
+                    if (r.getStartTime().isBefore(ap.getEndTime()) && r.getEndTime().isAfter(ap.getStartTime())) {
+                        throw new BusinessException("批量审核失败：预约 ID=" + r.getId()
+                                + " 与已通过预约「" + TimeUtil.formatTime(ap.getStartTime())
+                                + "-" + TimeUtil.formatTime(ap.getEndTime()) + "」时间冲突，请单独处理");
+                    }
+                }
+            }
         }
         // 批量更新：仅【待审核(0)】记录可参与，返回实际更新条数
         LambdaUpdateWrapper<Reservation> wrapper = new LambdaUpdateWrapper<Reservation>()
@@ -426,8 +487,36 @@ public class ReservationServiceImpl implements ReservationService {
                 .orderByAsc(Reservation::getStartTime));
     }
 
-    /** 预约实体 → 学生端 VO（批量补全教室展示字段） */
-    private ReservationVO toReservationVO(Reservation r) {
+    /** 批量预查教室信息 → id→Classroom Map（空集合安全，避免逐行 selectById 造成 N+1） */
+    private Map<Long, Classroom> batchClassroomMap(List<Reservation> list) {
+        if (list == null || list.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Set<Long> ids = list.stream().map(Reservation::getClassroomId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        if (ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return classroomMapper.selectBatchIds(ids).stream()
+                .collect(Collectors.toMap(Classroom::getId, Function.identity(), (a, b) -> a));
+    }
+
+    /** 批量预查用户信息 → id→SysUser Map（空集合安全） */
+    private Map<Long, SysUser> batchUserMap(List<Reservation> list) {
+        if (list == null || list.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Set<Long> ids = list.stream().map(Reservation::getUserId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        if (ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return userMapper.selectBatchIds(ids).stream()
+                .collect(Collectors.toMap(SysUser::getId, Function.identity(), (a, b) -> a));
+    }
+
+    /** 预约实体 → 学生端 VO（教室展示字段来自批量预查 Map，避免 N+1） */
+    private ReservationVO toReservationVO(Reservation r, Map<Long, Classroom> roomMap) {
         ReservationVO vo = new ReservationVO();
         vo.setId(r.getId());
         vo.setClassroomId(r.getClassroomId());
@@ -438,8 +527,7 @@ public class ReservationServiceImpl implements ReservationService {
         vo.setStatus(r.getStatus());
         vo.setAuditRemark(r.getAuditRemark());
         vo.setCreateTime(r.getCreateTime());
-        // 教室展示字段（按需批量查询一次）
-        Classroom room = classroomMapper.selectById(r.getClassroomId());
+        Classroom room = roomMap.get(r.getClassroomId());
         if (room != null) {
             vo.setClassroomName(room.getName());
             vo.setBuilding(room.getBuilding());
@@ -448,8 +536,8 @@ public class ReservationServiceImpl implements ReservationService {
         return vo;
     }
 
-    /** 预约实体 → 管理端 VO（补全用户 + 教室信息） */
-    private ReservationManageVO toManageVO(Reservation r) {
+    /** 预约实体 → 管理端 VO（补全用户 + 教室信息，来自批量预查 Map） */
+    private ReservationManageVO toManageVO(Reservation r, Map<Long, SysUser> userMap, Map<Long, Classroom> roomMap) {
         ReservationManageVO vo = new ReservationManageVO();
         vo.setId(r.getId());
         vo.setUserId(r.getUserId());
@@ -463,12 +551,12 @@ public class ReservationServiceImpl implements ReservationService {
         vo.setAuditorId(r.getAuditorId());
         vo.setAuditTime(r.getAuditTime());
         vo.setCreateTime(r.getCreateTime());
-        SysUser user = userMapper.selectById(r.getUserId());
+        SysUser user = userMap.get(r.getUserId());
         if (user != null) {
             vo.setUserAccount(user.getUsername());
             vo.setUserName(user.getName());
         }
-        Classroom room = classroomMapper.selectById(r.getClassroomId());
+        Classroom room = roomMap.get(r.getClassroomId());
         if (room != null) {
             vo.setClassroomName(room.getName());
             vo.setBuilding(room.getBuilding());
@@ -478,7 +566,7 @@ public class ReservationServiceImpl implements ReservationService {
     }
 
     /** 预约实体 → 导出 VO（补全用户 + 教室信息；时间统一字符串输出） */
-    private ReservationExportVO toExportVO(Reservation r) {
+    private ReservationExportVO toExportVO(Reservation r, Map<Long, SysUser> userMap, Map<Long, Classroom> roomMap) {
         ReservationExportVO vo = new ReservationExportVO();
         vo.setId(r.getId());
         vo.setReserveDate(String.valueOf(r.getReserveDate()));
@@ -489,12 +577,12 @@ public class ReservationServiceImpl implements ReservationService {
         vo.setAuditRemark(r.getAuditRemark());
         vo.setAuditTime(TimeUtil.formatDateTime(r.getAuditTime()));
         vo.setCreateTime(TimeUtil.formatDateTime(r.getCreateTime()));
-        SysUser user = userMapper.selectById(r.getUserId());
+        SysUser user = userMap.get(r.getUserId());
         if (user != null) {
             vo.setUserAccount(user.getUsername());
             vo.setUserName(user.getName());
         }
-        Classroom room = classroomMapper.selectById(r.getClassroomId());
+        Classroom room = roomMap.get(r.getClassroomId());
         if (room != null) {
             vo.setClassroomName(room.getName());
             vo.setBuilding(room.getBuilding());

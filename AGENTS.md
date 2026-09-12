@@ -81,7 +81,7 @@
 | UI 组件 | Element Plus 2.7.x |
 | 状态/路由 | Pinia 2.x + Vue Router 4.x |
 | 亮点插件 | ECharts 5.5 + FullCalendar 6.1 + day.js 1.11 |
-| AI 服务 | Agnes AI（agnes-2.0-flash，国内节点 https://apihub.agnes-ai.cn/v1） |
+| AI 服务 | Agnes AI（agnes-2.0-flash，国内节点 https://api.agnes-ai.cn/v1） |
 
 ### 4.3 代码架构规范
 1. **后端分层**：严格 `controller → service → mapper → entity` 四层结构，禁止跨层调用，业务逻辑禁止写在 controller 层。
@@ -98,7 +98,7 @@
 ### 4.4 AI 模块专属约束
 1. 密钥仅配置在 `application.yml` 或环境变量，禁止硬编码，禁止前端直接调用。
 2. 所有 AI 代码独立存放于 `ai` 包，低耦合调用业务数据，不侵入原有业务逻辑。
-3. 调用超时 3 秒；超时/报错/限流时自动降级为本地规则模拟模式，不阻断业务。
+3. 调用超时 60 秒；超时/报错/限流时自动降级为本地规则模拟模式，不阻断业务。
 4. Prompt 严格限定场景与结构化输出格式，无关问题统一返回预设话术。
 5. AI 只读不写：所有业务操作必须用户手动确认执行。
 6. 全局配置项 `ai.enable` 一键启停所有 AI 功能，关闭后不影响核心系统运行。

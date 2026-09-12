@@ -83,6 +83,15 @@ public class UserServiceImpl implements UserService {
         if (dto.getUsername().length() > 32) {
             throw new BusinessException("账号长度不能超过 32 个字符");
         }
+        if (dto.getName().length() > 20) {
+            throw new BusinessException("姓名长度不能超过 20 个字符");
+        }
+        if (dto.getStudentNo().length() > 20) {
+            throw new BusinessException("学号长度不能超过 20 个字符");
+        }
+        if (StrUtil.isNotBlank(dto.getEmail()) && dto.getEmail().length() > 50) {
+            throw new BusinessException("邮箱长度不能超过 50 个字符");
+        }
         if (dto.getPassword().length() < Constants.PASSWORD_MIN_LENGTH) {
             throw new BusinessException("密码长度不能少于 6 位");
         }

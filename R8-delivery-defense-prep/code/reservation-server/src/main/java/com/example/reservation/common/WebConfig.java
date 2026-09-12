@@ -1,6 +1,7 @@
 package com.example.reservation.common;
 
 import jakarta.annotation.Resource;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
@@ -13,6 +14,10 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
+
+    /** 跨域来源白名单（逗号分隔，来自 application.yml app.cors.allowed-origins，默认 *） */
+    @Value("${app.cors.allowed-origins:*}")
+    private String allowedOrigins;
 
     @Resource
     private AuthInterceptor authInterceptor;
@@ -27,9 +32,9 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        // 前端开发服务器（Vite 5173）与跨源调用放行
+        // 前端开发服务器（Vite 5173）与跨源调用放行；来源白名单可配置（app.cors.allowed-origins）
         registry.addMapping("/api/**")
-                .allowedOriginPatterns("*")
+                .allowedOriginPatterns(allowedOrigins.split(","))
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .allowCredentials(true)

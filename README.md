@@ -10,7 +10,7 @@
 | 后端 | Spring Boot 3.2.10 · MyBatis-Plus 3.5.7 · Knife4j 4.4.0 · EasyExcel 3.3.4 · Hutool 5.8.32 · JDK 21 |
 | 前端 | Vue 3.4 · Vite 5 · Element Plus 2.7 · Pinia · Vue Router 4 · ECharts 5.5 · FullCalendar 6.1 |
 | 数据库 | MySQL 8.0（Docker 容器 reservation-mysql，库名 reservation，utf8mb4） |
-| AI 服务 | Agnes AI（国内节点，密钥仅环境变量注入，可开关，超时 3 秒降级） |
+| AI 服务 | Agnes AI（国内节点，密钥仅环境变量注入，可开关，超时 60 秒降级） |
 
 ## 目录结构
 

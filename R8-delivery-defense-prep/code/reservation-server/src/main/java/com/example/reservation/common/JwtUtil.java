@@ -49,6 +49,19 @@ public class JwtUtil {
             if (!jwt.setKey(secret.getBytes(StandardCharsets.UTF_8)).verify()) {
                 throw new BusinessException(ResultCode.UNAUTHORIZED.getCode(), ResultCode.UNAUTHORIZED.getMessage());
             }
+            // 过期校验：verify() 仅验签名，需显式校验 exp（generateToken 设置 24h 有效期）
+            Object exp = jwt.getPayload("exp");
+            if (exp != null) {
+                long expMillis;
+                try {
+                    expMillis = Long.parseLong(String.valueOf(exp)) * 1000L;
+                } catch (NumberFormatException e) {
+                    throw new BusinessException(ResultCode.UNAUTHORIZED.getCode(), ResultCode.UNAUTHORIZED.getMessage());
+                }
+                if (System.currentTimeMillis() >= expMillis) {
+                    throw new BusinessException(ResultCode.UNAUTHORIZED.getCode(), ResultCode.UNAUTHORIZED.getMessage());
+                }
+            }
             return jwt.getPayloads();
         } catch (BusinessException e) {
             throw e;

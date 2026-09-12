@@ -280,6 +280,11 @@ watch(
       conflictInfo.value = null
       return
     }
+    // 前端时间合理性校验：开始时间必须早于结束时间（L9 优化，后端仍强制兜底）
+    if (reserveForm.startTime >= reserveForm.endTime) {
+      conflictInfo.value = { conflict: true, reason: '开始时间必须早于结束时间' }
+      return
+    }
     try {
       const res = await checkConflict({
         classroomId: pickedRoom.value.id,
@@ -299,6 +304,11 @@ async function handleSubmit() {
     return
   }
   await reserveFormRef.value.validate()
+  // 前端时间合理性校验（L9 优化，后端仍强制兜底）
+  if (reserveForm.startTime && reserveForm.endTime && reserveForm.startTime >= reserveForm.endTime) {
+    ElMessage.warning('开始时间必须早于结束时间')
+    return
+  }
   submitting.value = true
   try {
     await submitReservation({

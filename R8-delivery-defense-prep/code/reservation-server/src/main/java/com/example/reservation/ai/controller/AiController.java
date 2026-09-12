@@ -13,6 +13,7 @@ import com.example.reservation.ai.service.AiComplianceService;
 import com.example.reservation.ai.service.AiParseService;
 import com.example.reservation.ai.service.AiRecommendService;
 import com.example.reservation.common.Result;
+import com.example.reservation.common.UserContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
@@ -48,12 +49,13 @@ public class AiController {
     private AiComplianceService aiComplianceService;
 
     /**
-     * 智能教室推荐：用户 ID → Top3 教室 + 推荐理由（基于历史习惯 + 实时空闲）
+     * 智能教室推荐：Top3 教室 + 推荐理由（基于当前登录用户历史习惯 + 实时空闲）
+     * 推荐对象固定取 UserContext 当前用户，不信任请求体传入的 userId，防止越权读取他人预约偏好（P1 修复）
      */
-    @Operation(summary = "AI-智能教室推荐", description = "入参用户ID，基于历史预约习惯（时段/楼栋/类型/人数）+实时空闲推荐Top3教室及理由")
+    @Operation(summary = "AI-智能教室推荐", description = "基于当前登录用户历史预约习惯（时段/楼栋/类型/人数）+实时空闲推荐Top3教室及理由")
     @PostMapping("/recommend")
-    public Result<AiRecommendVO> recommend(@RequestBody AiRecommendRequest request) {
-        return Result.success(aiRecommendService.recommend(request.getUserId()));
+    public Result<AiRecommendVO> recommend(@RequestBody(required = false) AiRecommendRequest request) {
+        return Result.success(aiRecommendService.recommend(UserContext.getUserId()));
     }
 
     /**

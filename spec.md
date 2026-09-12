@@ -91,10 +91,11 @@ knife4j:
 # ===== AI 模块配置（第 7 轮启用）=====
 ai:
   enable: false              # 总开关，默认关闭，不影响核心系统
-  base-url: https://apihub.agnes-ai.cn/v1
+  base-url: https://api.agnes-ai.cn/v1
   api-key: ${AGNES_API_KEY:}  # 密钥从环境变量读取，禁止硬编码
   model: agnes-2.0-flash
-  timeout-seconds: 3
+  timeout-seconds: 60          # 读取超时（实测模型响应可达数十秒，3s 过短会频繁降级）
+  max-tokens: 1024             # 单次输出上限（防止长输出超时/乱码）
   rpm-limit: 20
 ```
 
@@ -248,8 +249,8 @@ USE reservation;
 ### 6.1 接入要点
 - 接口兼容 OpenAI v1：`POST {base-url}/chat/completions`
 - 请求头：`Authorization: Bearer {API_KEY}`，`Content-Type: application/json`
-- 请求体标准字段：`model`、`messages`、`temperature`、`response_format`（结构化输出用 `{"type":"json_object"}`）
-- 国内节点：`https://apihub.agnes-ai.cn/v1`；模型：`agnes-2.0-flash`（默认）、`agnes-2.5-pro-beta`（复杂语义可选）
+- 请求体标准字段：`model`、`messages`、`temperature`、`response_format`（结构化输出用 `{"type":"json_object"}`）、`max_tokens`（默认 1024）
+- 国内节点：`https://api.agnes-ai.cn/v1`；模型：`agnes-2.0-flash`（默认）、`agnes-2.5-pro-beta`（复杂语义可选）
 - 限流：RPM≈20 次/分钟，必须实现调用计数与限流保护，触发时返回友好提示并降级
 
 ### 6.2 四个 AI 能力的 Prompt 规格
@@ -259,7 +260,7 @@ USE reservation;
 4. **合规校验**：System 限定「判断预约用途是否合规（是否与教学/实验/自习/竞赛等正当用途相关）」，输出 `{"compliant":true|false,"reason":"string"}`。
 
 ### 6.3 降级兜底（必须实现）
-- API 超时(3s)/报错/限流/密钥缺失 → 自动切换本地规则模拟版：
+- API 超时(60s)/报错/限流/密钥缺失 → 自动切换本地规则模拟版：
   - 解析：正则+关键词模板（覆盖「明天下午2点 40人 机房」等常用句式）
   - 推荐：按用户历史偏好 + 空闲状态规则排序
   - 问答：关键词匹配 FAQ 库

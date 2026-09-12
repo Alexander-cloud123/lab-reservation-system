@@ -6,6 +6,13 @@
 .vscode/
 *.iml
 
+# 构建产物（与子工程内置 .gitignore 双保险）
+target/
+node_modules/
+dist/
+dist-ssr/
+*.class
+
 # 日志
 *.log
 logs/

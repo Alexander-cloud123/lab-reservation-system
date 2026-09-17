@@ -69,7 +69,7 @@ def git_revision(base_dir):
         return p.stdout.strip()
     try:
         head = run(["git", "rev-parse", "--short", "HEAD"])
-        dirty = run(["git", "status", "--porcelain"])
+        dirty = run(["git", "status", "--porcelain", "--untracked-files=no"])
         return (head + ("+dirty" if dirty else ""), bool(dirty))
     except Exception:
         return ("unknown", None)
@@ -93,6 +93,8 @@ def preflight():
 
 def main():
     preflight()
+    # 被测版本快照：必须在任何写文件之前采集，反映"运行前"的仓库状态
+    rev, dirty = git_revision(os.path.dirname(os.path.abspath(__file__)))
     # 口令可用环境变量覆盖；默认值与 README.md 的演示账号一致
     ADMIN_PW = os.environ.get("REGRESSION_ADMIN_PW", "admin123")
     STU_PW   = os.environ.get("REGRESSION_STU_PW", "123456")
@@ -240,7 +242,7 @@ def main():
     slots = r.get("data", {}).get("occupiedSlots", []) if code == 200 else []
     check("R5/R3 清理：教室6 09-18 恢复为仅本人 1 个时段", len(slots) == 1, "slots=%d" % len(slots))
 
-    def write_report(passed, total):
+    def write_report(passed, total, rev, dirty):
         base_dir = os.path.dirname(os.path.abspath(__file__))
         stamp = datetime.datetime.now()
         path = os.path.join(base_dir, "regression-结果-%s.md" % stamp.strftime("%Y-%m-%d"))
@@ -248,7 +250,6 @@ def main():
             f.write("# R1–R5 回归运行结果（%s）\n\n" % stamp.strftime("%Y-%m-%d %H:%M"))
             f.write("- 脚本：`docs/e2e/regression-r1r5.py`\n")
             f.write("- 命令：`python docs/e2e/regression-r1r5.py`\n")
-            rev, dirty = git_revision(base_dir)
             marker = "（工作区有未提交改动，结果对应未定版代码）" if dirty else ""
             f.write("- 被测版本：`%s`%s\n" % (rev, marker))
             f.write("- 环境：后端 `%s`、MySQL/Redis 容器、账号 admin/zhangsan/wangwu\n" % BASE)
@@ -266,7 +267,7 @@ def main():
     for name, ok, detail in RESULTS:
         if not ok:
             print("  FAIL -> " + name + (" | " + detail if detail else ""))
-    write_report(passed, len(RESULTS))
+    write_report(passed, len(RESULTS), rev, dirty)
     sys.exit(0 if passed == len(RESULTS) else 1)
 
 

@@ -1,9 +1,9 @@
 package com.example.reservation.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -11,14 +11,15 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 日期序列化契约：全站（含缓存）必须是 ISO 字符串，且旧缓存数组条目仍可读回 */
+/** 日期序列化契约：断言运行期真实 mapper（Boot 自动配置），而非测试自建的 mapper；
+ *  ISO 默认由 Spring Boot JacksonAutoConfiguration 提供，测试直接注入运行期实例 */
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)   // 不绑端口，与在跑的 8080 不冲突
 class JacksonDateSerializationTest {
-    // 与 Spring Boot JacksonAutoConfiguration 行为对齐：裸 builder 默认不会禁用 WRITE_DATES_AS_TIMESTAMPS，
-    // 生产环境真正生效的是 application.yml 的 spring.jackson.serialization.write-dates-as-timestamps: false
-    private final ObjectMapper mapper = new Jackson2ObjectMapperBuilder()
-            .featuresToDisable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
-            .build();
 
+    @Autowired
+    private ObjectMapper mapper;
+
+    // 以下三条断言文本保持不变
     @Test
     void localDateShouldSerializeAsIsoString() throws Exception {
         String json = mapper.writeValueAsString(Map.of("reserveDate", LocalDate.of(2026, 9, 18)));

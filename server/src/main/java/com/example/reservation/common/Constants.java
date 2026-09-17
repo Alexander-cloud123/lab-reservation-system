@@ -1,5 +1,7 @@
 package com.example.reservation.common;
 
+import java.time.LocalTime;
+
 /**
  * 系统常量类（魔法值统一收敛，禁止散落硬编码）
  *
@@ -74,6 +76,23 @@ public final class Constants {
     /** 取消预约时限：预约开始前 N 小时内禁止取消（需求文档 1.4：不足 1 小时不可取消） */
     public static final int RESERVATION_CANCEL_HOURS = 1;
 
+    /** 预约用途长度上限（R4：与 reservation.purpose VARCHAR(255) 对齐，防直调接口触发数据库超长） */
+    public static final int PURPOSE_MAX_LENGTH = 255;
+
+    /* ===== 可预约时段窗口（H3 修复：提交侧强制校验 + 统计侧同口径裁剪，需求文档 1.4 每日 08:00-22:00）===== */
+    /** 每日可预约窗口左边界（含）：08:00，提交预约时强制 startTime ≥ 该时刻 */
+    public static final LocalTime DAILY_SLOT_START = LocalTime.of(8, 0);
+    /** 每日可预约窗口右边界（含）：22:00，提交预约时强制 endTime ≤ 该时刻 */
+    public static final LocalTime DAILY_SLOT_END = LocalTime.of(22, 0);
+    /** 单次预约最长时长（小时）：防止单条记录占满全天（软件审查 H3 建议补充，答辩口径：防恶意占满资源） */
+    public static final int MAX_RESERVATION_HOURS = 8;
+
+    /* ===== 登录失败锁定（M3 修复：防对已知账号无限次爆破，内存固定窗口实现）===== */
+    /** 登录失败锁定阈值（次）：达到后锁定该账号 N 分钟 */
+    public static final int LOGIN_FAIL_MAX_TIMES = 5;
+    /** 登录失败锁定窗口（分钟） */
+    public static final int LOGIN_LOCK_MINUTES = 10;
+
     /* ===== 教室实时状态标签（R3 口径 + R4 补全已结束态）=====
      * 口径：当天存在已通过预约且当前时刻 ∈ [开始,结束) → 使用中；
      *      当天存在已通过预约且当前时刻 ≥ 全部时段结束时间 → 已结束；其余 → 当前空闲 */
@@ -119,4 +138,15 @@ public final class Constants {
     };
     /** 热门时段分布分桶数（含「其他」桶） */
     public static final int TIME_SLOT_BUCKET_COUNT = 6;
+    /**
+     * 热门时段分布分桶区间（左闭右开，M14 修复：与 TIME_SLOT_LABELS 前 5 桶一一对应的单一来源，
+     * 统计侧不再另维护一份区间，杜绝标签与区间双份维护的口径漂移）
+     */
+    public static final LocalTime[][] TIME_SLOT_RANGES = {
+            {LocalTime.of(8, 0), LocalTime.of(10, 0)},
+            {LocalTime.of(10, 0), LocalTime.of(12, 0)},
+            {LocalTime.of(14, 0), LocalTime.of(16, 0)},
+            {LocalTime.of(16, 0), LocalTime.of(18, 0)},
+            {LocalTime.of(19, 0), LocalTime.of(21, 0)}
+    };
 }

@@ -45,17 +45,6 @@ import java.util.stream.Collectors;
 @Service
 public class StatsServiceImpl implements StatsService {
 
-    /** 时段桶左边界（含），与 Constants.TIME_SLOT_LABELS 一一对应（前 5 桶，第 6 桶「其他」兜底） */
-    private static final LocalTime[] SLOT_STARTS = {
-            LocalTime.of(8, 0), LocalTime.of(10, 0),
-            LocalTime.of(14, 0), LocalTime.of(16, 0), LocalTime.of(19, 0)
-    };
-    /** 时段桶右边界（不含） */
-    private static final LocalTime[] SLOT_ENDS = {
-            LocalTime.of(10, 0), LocalTime.of(12, 0),
-            LocalTime.of(16, 0), LocalTime.of(18, 0), LocalTime.of(21, 0)
-    };
-
     @Resource
     private ReservationMapper reservationMapper;
 
@@ -84,10 +73,24 @@ public class StatsServiceImpl implements StatsService {
                 .le(Reservation::getReserveDate, range.end)
                 .eq(Reservation::getStatus, Constants.RES_STATUS_APPROVED));
 
-        // 教室 ID → 占用小时数（分钟转小时，保留 1 位）
-        Map<Long, Double> hoursByClassroom = approved.stream().collect(Collectors.groupingBy(
+        // H3 修复：分子与分母同口径——占用分钟先裁剪到可预约窗口（08:00-22:00），再按天封顶 14h。
+        // 此前直接累加 start-end 分钟数，提交侧若产生窗口外/超长记录（历史脏数据或绕过校验），
+        // 使用率可超 100%；现以（教室, 日期）为粒度裁剪+封顶后再汇总，保证分子 ≤ 分母恒成立
+        Map<Long, Map<LocalDate, Long>> minutesByClassroomAndDate = approved.stream().collect(Collectors.groupingBy(
                 Reservation::getClassroomId,
-                Collectors.summingDouble(r -> ChronoUnit.MINUTES.between(r.getStartTime(), r.getEndTime()) / 60.0)));
+                Collectors.groupingBy(Reservation::getReserveDate,
+                        Collectors.summingLong(this::clippedMinutes))));
+
+        // 教室 ID → 占用小时数（分钟转小时，保留 1 位）
+        Map<Long, Double> hoursByClassroom = new HashMap<>();
+        for (Map.Entry<Long, Map<LocalDate, Long>> entry : minutesByClassroomAndDate.entrySet()) {
+            double totalMinutes = 0;
+            for (long minutes : entry.getValue().values()) {
+                // 每日封顶：单教室单日最多计 14h（= 分母每日可预约时长，同口径）
+                totalMinutes += Math.min(minutes, Constants.DAILY_AVAILABLE_HOURS * 60L);
+            }
+            hoursByClassroom.put(entry.getKey(), totalMinutes / 60.0);
+        }
 
         long days = ChronoUnit.DAYS.between(range.start, range.end) + 1;
         double denominatorHours = days * Constants.DAILY_AVAILABLE_HOURS;
@@ -195,15 +198,34 @@ public class StatsServiceImpl implements StatsService {
         return RedisCache.STATS_KEY_PREFIX + api + ":" + range.start + ":" + range.end;
     }
 
-    /** 开始时间 → 时段桶下标（0-4 对应前 5 桶，5 为「其他」） */
+    /** 开始时间 → 时段桶下标（0-4 对应前 5 桶，5 为「其他」；M14 修复：区间取自 Constants 单一来源，不再双份维护） */
     private int slotIndex(LocalTime start) {
-        for (int i = 0; i < SLOT_STARTS.length; i++) {
+        LocalTime[][] ranges = Constants.TIME_SLOT_RANGES;
+        for (int i = 0; i < ranges.length; i++) {
             // 桶范围：[左边界, 右边界)
-            if (!start.isBefore(SLOT_STARTS[i]) && start.isBefore(SLOT_ENDS[i])) {
+            if (!start.isBefore(ranges[i][0]) && start.isBefore(ranges[i][1])) {
                 return i;
             }
         }
         return Constants.TIME_SLOT_BUCKET_COUNT - 1;
+    }
+
+    /**
+     * 单条预约的窗口内占用分钟数（H3 修复）：裁剪到每日可预约窗口 08:00-22:00 后取正值；
+     * 窗口外或空值返回 0（历史脏数据/异常数据不会污染分子）
+     */
+    private long clippedMinutes(Reservation r) {
+        LocalTime start = r.getStartTime();
+        LocalTime end = r.getEndTime();
+        if (start == null || end == null) {
+            return 0;
+        }
+        LocalTime clipStart = start.isBefore(Constants.DAILY_SLOT_START) ? Constants.DAILY_SLOT_START : start;
+        LocalTime clipEnd = end.isAfter(Constants.DAILY_SLOT_END) ? Constants.DAILY_SLOT_END : end;
+        if (!clipStart.isBefore(clipEnd)) {
+            return 0;
+        }
+        return ChronoUnit.MINUTES.between(clipStart, clipEnd);
     }
 
     /** 日期区间解析：校验格式/先后/跨度；缺省按近 30 天补齐 */

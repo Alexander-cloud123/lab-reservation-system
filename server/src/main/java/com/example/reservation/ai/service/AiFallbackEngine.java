@@ -102,14 +102,31 @@ public class AiFallbackEngine {
         }
         m = P_DATE_FULL.matcher(text);
         if (m.find()) {
-            return String.format("%04d-%02d-%02d", Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)));
+            LocalDate date = safeDate(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)));
+            if (date != null) {
+                return date.toString();
+            }
         }
         m = P_DATE_MD.matcher(text);
         if (m.find()) {
-            LocalDate date = LocalDate.of(LocalDate.now().getYear(), Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)));
-            return date.toString();
+            LocalDate date = safeDate(LocalDate.now().getYear(), Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)));
+            if (date != null) {
+                return date.toString();
+            }
         }
         return null;
+    }
+
+    /**
+     * 构造日期（M6 修复：月份/日越界如"13月1日""2月30日"捕获返回 null，识别失败走"无法解析"，
+     * 保证 AI 降级链在任何外部输入下都不抛 500——降级链的意义就是任何情况都不 500）
+     */
+    private LocalDate safeDate(int year, int month, int day) {
+        try {
+            return LocalDate.of(year, month, day);
+        } catch (java.time.DateTimeException e) {
+            return null;
+        }
     }
 
     /** 周中文名 → DayOfWeek（周天/周日 → SUNDAY） */

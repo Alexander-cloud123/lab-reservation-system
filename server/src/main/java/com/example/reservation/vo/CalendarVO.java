@@ -41,6 +41,9 @@ public class CalendarVO {
     /** 预约用途 */
     private String purpose;
 
+    /** 是否为当前登录用户本人的预约（R3：前端据此决定是否显示用途；他人且非管理员时为 null） */
+    private Boolean mine;
+
     /** 状态：0-待审核，1-已通过，2-已驳回，3-已取消 */
     private Integer status;
 

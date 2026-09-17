@@ -1,12 +1,22 @@
 <template>
-  <div class="classroom-detail-page" v-loading="loading">
-    <el-page-header class="page-header" content="教室详情" @back="goBack" />
+  <div class="classroom-detail-page page-container" v-loading="loading">
+    <!-- 返回栏 -->
+    <div class="detail-nav">
+      <el-button text :icon="ArrowLeft" @click="goBack">返回列表</el-button>
+      <span class="nav-title">教室详情</span>
+    </div>
 
     <!-- 教室基础信息 -->
     <el-card shadow="never" class="info-card">
       <div class="info-head">
-        <h2>{{ classroom.name }}</h2>
-        <el-tag :type="statusTagType(classroom.statusLabel)" size="small">
+        <div class="room-type-icon" :class="`type-${classroom.type}`">
+          <el-icon :size="24"><component :is="typeIcon(classroom.type)" /></el-icon>
+        </div>
+        <div class="room-name-wrap">
+          <h2>{{ classroom.name }}</h2>
+          <span class="room-no">{{ classroom.building }} · {{ classroom.roomNo }}</span>
+        </div>
+        <el-tag :type="statusTagType(classroom.statusLabel)" effect="light" round size="small">
           {{ classroom.statusLabel }}
         </el-tag>
         <el-button
@@ -15,7 +25,6 @@
           :icon="favorited ? StarFilled : Star"
           :loading="favoriteLoading"
           :disabled="favoriteLoading"
-          round
           @click="handleToggleFavorite"
         >
           {{ favorited ? '已收藏' : '收藏' }}
@@ -59,7 +68,7 @@
             :key="idx"
             class="timeline-slot"
             :style="slotStyle(slot.startTime, slot.endTime)"
-            :title="`${slot.startTime}-${slot.endTime} ${slot.purpose || ''}`"
+            :title="slot.mine && slot.purpose ? `${slot.startTime}-${slot.endTime} ${slot.purpose}` : `${slot.startTime}-${slot.endTime}`"
           >
             {{ slot.startTime }}-{{ slot.endTime }}
           </div>
@@ -73,7 +82,9 @@
       <el-table v-if="(classroom.occupiedSlots || []).length" :data="classroom.occupiedSlots" size="small" stripe>
         <el-table-column prop="startTime" label="开始时间" width="120" />
         <el-table-column prop="endTime" label="结束时间" width="120" />
-        <el-table-column prop="purpose" label="预约用途" min-width="200" />
+        <el-table-column label="预约用途" min-width="200">
+          <template #default="{ row }">{{ row.mine ? (row.purpose || '-') : '-' }}</template>
+        </el-table-column>
       </el-table>
     </el-card>
 
@@ -116,19 +127,21 @@
           />
         </el-form-item>
         <el-form-item label="开始时间" prop="startTime">
-          <el-time-picker
+          <el-time-select
             v-model="reserveForm.startTime"
-            format="HH:mm"
-            value-format="HH:mm"
+            start="08:00"
+            end="21:00"
+            step="01:00"
             placeholder="选择开始时间"
             style="width: 100%"
           />
         </el-form-item>
         <el-form-item label="结束时间" prop="endTime">
-          <el-time-picker
+          <el-time-select
             v-model="reserveForm.endTime"
-            format="HH:mm"
-            value-format="HH:mm"
+            start="09:00"
+            end="22:00"
+            step="01:00"
             placeholder="选择结束时间"
             style="width: 100%"
           />
@@ -180,7 +193,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Calendar, Star, StarFilled } from '@element-plus/icons-vue'
+import { ArrowLeft, Calendar, Notebook, Cpu, School, Star, StarFilled } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { getClassroomDetail } from '@/api/classroom'
 import { checkConflict, submitReservation } from '@/api/reservation'
@@ -368,7 +381,9 @@ function resetReserveForm() {
 /**
  * 实时冲突校验（R3 前端双重校验第一层）：
  * 日期与时段齐全时调用冲突检测接口，冲突则禁用提交并提示
+ * 竞态保护：每次发请求前自增序号，仅采纳序号最新一次的响应（快速调整时段时旧响应不覆盖新结果）
  */
+let conflictSeq = 0
 watch(
   () => [reserveForm.reserveDate, reserveForm.startTime, reserveForm.endTime],
   async ([date, start, end]) => {
@@ -384,6 +399,7 @@ watch(
       return
     }
     timeError.value = ''
+    const seq = ++conflictSeq
     try {
       const res = await checkConflict({
         classroomId: classroom.value.id,
@@ -391,8 +407,15 @@ watch(
         startTime: start,
         endTime: end
       })
+      if (seq !== conflictSeq) {
+        // 已有更新的请求发出，丢弃本次过期响应
+        return
+      }
       conflictInfo.value = res.data
     } catch (e) {
+      if (seq !== conflictSeq) {
+        return
+      }
       conflictInfo.value = null
     }
   }
@@ -409,6 +432,15 @@ async function handleSubmitReserve() {
   if (reserveForm.startTime && reserveForm.endTime && reserveForm.startTime >= reserveForm.endTime) {
     ElMessage.warning('开始时间必须早于结束时间')
     return
+  }
+  // H3 前端配合：单次时长上限（与后端 Constants.MAX_RESERVATION_HOURS=8 双重校验口径一致，超长在提交前即提示）
+  if (reserveForm.startTime && reserveForm.endTime) {
+    const [sh, sm] = reserveForm.startTime.split(':').map(Number)
+    const [eh, em] = reserveForm.endTime.split(':').map(Number)
+    if (eh + em / 60 - (sh + sm / 60) > 8) {
+      ElMessage.warning('单次预约时长不能超过 8 小时')
+      return
+    }
   }
   submitting.value = true
   try {
@@ -440,6 +472,11 @@ function typeText(type) {
   return { 1: '普通教室', 2: '实验室', 3: '机房' }[type] || '未知'
 }
 
+/** 类型图标 */
+function typeIcon(type) {
+  return { 1: School, 2: Cpu, 3: Notebook }[type] || School
+}
+
 /** 实时状态标签色（R4 三态：空闲绿/使用中红/已结束灰） */
 function statusTagType(label) {
   return { 当前空闲: 'success', 使用中: 'danger', 已结束: 'info' }[label] || 'info'
@@ -452,41 +489,81 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.classroom-detail-page {
-  max-width: 900px;
-  margin: 0 auto;
+.detail-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
 }
-
-.page-header {
-  margin-bottom: 12px;
+.nav-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-regular);
 }
 
 .info-card {
   margin-bottom: 16px;
+  border-radius: var(--radius-lg);
 }
 
 .info-head {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: 14px;
+  margin-bottom: 16px;
 }
 
-.info-head h2 {
+.room-type-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.room-type-icon.type-1 {
+  background: var(--brand-primary-light);
+  color: var(--brand-primary);
+}
+.room-type-icon.type-2 {
+  background: var(--brand-success-light);
+  color: var(--brand-success);
+}
+.room-type-icon.type-3 {
+  background: var(--brand-warning-light);
+  color: var(--brand-warning);
+}
+
+.room-name-wrap {
+  flex: 1;
+  min-width: 0;
+}
+.room-name-wrap h2 {
   margin: 0;
-  color: #1f3a93;
+  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 700;
+}
+.room-no {
+  font-size: 12px;
+  color: var(--text-placeholder);
 }
 
 .fav-btn {
-  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .info-table {
   margin-top: 4px;
 }
+.info-table :deep(.el-descriptions__label) {
+  font-weight: 600;
+}
 
 .slots-card {
   margin-bottom: 16px;
+  border-radius: var(--radius-lg);
 }
 
 .slots-head {
@@ -499,6 +576,7 @@ onMounted(() => {
 .slots-title {
   font-size: 15px;
   font-weight: 600;
+  color: var(--text-primary);
 }
 
 .timeline {
@@ -516,14 +594,14 @@ onMounted(() => {
   position: absolute;
   transform: translateX(-50%);
   font-size: 11px;
-  color: #909399;
+  color: var(--text-placeholder);
 }
 
 .timeline-bar {
   position: relative;
-  height: 30px;
-  background: #f0f2f5;
-  border-radius: 4px;
+  height: 32px;
+  background: var(--brand-info-light);
+  border-radius: 8px;
   overflow: hidden;
 }
 
@@ -531,20 +609,25 @@ onMounted(() => {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: #f56c6c;
+  background: var(--brand-danger);
   color: #fff;
   font-size: 11px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   white-space: nowrap;
 }
 
 .slots-empty {
-  color: #909399;
+  color: var(--text-secondary);
   font-size: 13px;
+  background: var(--brand-success-light);
+  border: 1px dashed var(--el-color-success-light-7);
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: inline-block;
 }
 
 .action-bar {

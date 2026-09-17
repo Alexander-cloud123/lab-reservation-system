@@ -1,5 +1,11 @@
 <template>
-  <div class="classroom-list-page">
+  <div class="classroom-list-page page-container">
+    <!-- 页面标题 -->
+    <div class="page-head">
+      <span class="page-title">教室列表</span>
+      <span class="page-tip">共 {{ total }} 间教室 · 支持关键词 / 楼栋 / 类型 / 日期筛选</span>
+    </div>
+
     <!-- AI 智能推荐卡片（R7，需求文档 2.4：教室列表页顶部「AI 为你推荐」；enabled=false 时整卡隐藏） -->
     <AiRecommendCard
       :ai-enabled="aiEnabled"
@@ -51,38 +57,58 @@
       </el-form>
     </el-card>
 
-    <!-- 教室卡片列表 -->
+    <!-- 教室卡片列表（Bento 卡片网格） -->
     <div v-loading="loading" class="card-grid">
-      <el-card
+      <div
         v-for="room in records"
         :key="room.id"
-        shadow="hover"
         class="room-card"
         @click="goDetail(room)"
       >
         <div class="room-card-head">
-          <span class="room-name">{{ room.name }}</span>
-          <el-tag :type="statusTagType(room.statusLabel)" size="small">
+          <div class="room-type-icon" :class="`type-${room.type}`">
+            <el-icon :size="22"><component :is="typeIcon(room.type)" /></el-icon>
+          </div>
+          <div class="room-name-wrap">
+            <span class="room-name">{{ room.name }}</span>
+            <span class="room-no">{{ room.roomNo }}</span>
+          </div>
+          <el-tag :type="statusTagType(room.statusLabel)" effect="light" size="small" round>
+            <span class="status-dot" :class="statusDot(room.statusLabel)"></span>
             {{ room.statusLabel }}
           </el-tag>
         </div>
+
         <div class="room-meta">
-          <span class="room-no">编号：{{ room.roomNo }}</span>
-          <span class="room-building">楼栋：{{ room.building }}</span>
+          <span class="meta-item">
+            <el-icon><Location /></el-icon>{{ room.building || '-' }} 楼栋
+          </span>
+          <span class="meta-item">
+            <el-icon><User /></el-icon>容量 {{ room.capacity }} 人
+          </span>
+          <el-tag :type="typeTagType(room.type)" size="small" effect="plain" round>{{ typeText(room.type) }}</el-tag>
         </div>
-        <div class="room-tags">
-          <el-tag :type="typeTagType(room.type)" size="small">{{ typeText(room.type) }}</el-tag>
-          <el-tag size="small" type="info">容量 {{ room.capacity }} 人</el-tag>
-          <el-tag v-if="query.date && room.occupiedSlots && room.occupiedSlots.length" size="small" type="warning">
-            {{ query.date }} 已约 {{ room.occupiedSlots.length }} 个时段
-          </el-tag>
+
+        <!-- 今日剩余可预约时段（需求 1.3 冲优项；后端返回 null/undefined 时隐藏，向后兼容） -->
+        <div v-if="room.todayRemainingSlots !== undefined && room.todayRemainingSlots !== null" class="remain-slots">
+          <el-icon><Clock /></el-icon>今日剩余 <b>{{ room.todayRemainingSlots }}</b> 时段可约
         </div>
-        <p class="room-equipment">设备：{{ room.equipment || '-' }}</p>
+
+        <div v-if="query.date && room.occupiedSlots && room.occupiedSlots.length" class="occupied-bar">
+          <span>{{ query.date }} 当天已有 <b>{{ room.occupiedSlots.length }}</b> 个时段被预约</span>
+        </div>
+
+        <p class="room-equipment" v-if="room.equipment">
+          <el-icon><Monitor /></el-icon>设备：{{ room.equipment }}
+        </p>
         <p class="room-desc">{{ room.description || '暂无备注' }}</p>
+
         <div class="room-foot">
-          <el-button type="primary" size="small" plain @click.stop="goDetail(room)">查看详情并预约</el-button>
+          <el-button type="primary" size="small" plain @click.stop="goDetail(room)">
+            查看详情并预约
+          </el-button>
         </div>
-      </el-card>
+      </div>
 
       <!-- 空状态 -->
       <el-empty v-if="!loading && !records.length" description="没有找到符合条件的教室，换个条件试试吧">
@@ -109,7 +135,8 @@
 <script setup>
 import { onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, Refresh } from '@element-plus/icons-vue'
+import { Clock, Location, Monitor, Refresh, Search, User } from '@element-plus/icons-vue'
+import { Notebook, Cpu, School } from '@element-plus/icons-vue'
 import { listClassrooms } from '@/api/classroom'
 import { aiRecommend } from '@/api/ai'
 import AiRecommendCard from '@/components/ai/AiRecommendCard.vue'
@@ -136,7 +163,9 @@ async function loadRecommend() {
   }
   aiLoading.value = true
   try {
-    const res = await aiRecommend({ userId })
+    // L13 修复：不再发送 { userId }（后端 AiController 一律取 UserContext 当前登录用户，忽略请求体；
+    // 冗余字段会误导维护者以为后端信任客户端传参）
+    const res = await aiRecommend({})
     aiEnabled.value = !!(res.data && res.data.enabled === true)
     if (aiEnabled.value) {
       recommendations.value = (res.data && res.data.recommendations) || []
@@ -257,9 +286,19 @@ function typeTagType(type) {
   return { 1: 'primary', 2: 'success', 3: 'warning' }[type] || 'info'
 }
 
+/** 类型图标 */
+function typeIcon(type) {
+  return { 1: School, 2: Cpu, 3: Notebook }[type] || School
+}
+
 /** 实时状态标签色（R4 三态：空闲绿/使用中红/已结束灰） */
 function statusTagType(label) {
   return { 当前空闲: 'success', 使用中: 'danger', 已结束: 'info' }[label] || 'info'
+}
+
+/** 状态圆点 */
+function statusDot(label) {
+  return { 当前空闲: 'dot-free', 使用中: 'dot-busy', 已结束: 'dot-done' }[label] || 'dot-done'
 }
 
 /** 筛选条件变化时自动记忆（还原后不再触发保存的抖动已由条件一致规避） */
@@ -276,74 +315,210 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.classroom-list-page {
-  max-width: 1100px;
-  margin: 0 auto;
+.page-tip {
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 .search-card {
-  margin-bottom: 16px;
+  margin-bottom: 18px;
+  border-radius: var(--radius-lg);
+}
+.search-card :deep(.el-form-item) {
+  margin-bottom: 0;
 }
 
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 18px;
   min-height: 200px;
 }
 
+/* ---- 教室卡片（扁平面板：无顶部装饰条、无浮起） ---- */
 .room-card {
+  background: #fff;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color-light);
+  box-shadow: var(--shadow-card);
+  padding: 18px 18px 14px;
   cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  display: flex;
+  flex-direction: column;
+}
+.room-card:hover {
+  box-shadow: var(--shadow-hover);
+  border-color: var(--border-color);
 }
 
 .room-card-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
+.room-type-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.room-type-icon.type-1 {
+  background: var(--brand-primary-light);
+  color: var(--brand-primary);
+}
+.room-type-icon.type-2 {
+  background: var(--brand-success-light);
+  color: var(--brand-success);
+}
+.room-type-icon.type-3 {
+  background: var(--brand-warning-light);
+  color: var(--brand-warning);
+}
+
+.room-name-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 .room-name {
   font-size: 16px;
-  font-weight: 600;
-  color: #1f3a93;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.room-no {
+  font-size: 12px;
+  color: var(--text-placeholder);
+}
+
+.status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: 1px;
+}
+.dot-free {
+  background: var(--brand-success);
+}
+.dot-busy {
+  background: var(--brand-danger);
+}
+.dot-done {
+  background: var(--brand-info);
 }
 
 .room-meta {
   display: flex;
-  gap: 16px;
-  color: #606266;
+  align-items: center;
+  gap: 14px;
+  color: var(--text-regular);
   font-size: 13px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.meta-item .el-icon {
+  color: var(--text-placeholder);
+  font-size: 14px;
 }
 
-.room-tags {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
+.remain-slots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  margin-bottom: 10px;
+}
+.remain-slots .el-icon {
+  color: var(--brand-info);
+  font-size: 14px;
+}
+.remain-slots b {
+  color: var(--brand-primary);
+  font-weight: 600;
+}
+
+.occupied-bar {
+  background: var(--brand-warning-light);
+  border: 1px solid var(--brand-warning-light);
+  color: var(--brand-warning);
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+.occupied-bar b {
+  font-weight: 700;
 }
 
 .room-equipment {
   font-size: 13px;
-  color: #909399;
-  margin-bottom: 4px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.room-equipment .el-icon {
+  font-size: 14px;
+  color: var(--text-placeholder);
 }
 
 .room-desc {
   font-size: 13px;
-  color: #606266;
-  margin-bottom: 8px;
+  color: var(--text-regular);
+  margin-bottom: 12px;
+  flex: 1;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .room-foot {
   display: flex;
   justify-content: flex-end;
+  border-top: 1px dashed var(--border-color-light);
+  padding-top: 12px;
 }
 
 .pagination-wrap {
   display: flex;
   justify-content: flex-end;
-  margin-top: 16px;
+  margin-top: 20px;
+}
+
+/* ---------- 窄屏适配（P3-8：<480px 单列卡片 + 分页换行，避免横向溢出） ---------- */
+@media (max-width: 480px) {
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+  .pagination-wrap {
+    justify-content: center;
+  }
+  .pagination-wrap :deep(.el-pagination) {
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 6px;
+  }
 }
 </style>

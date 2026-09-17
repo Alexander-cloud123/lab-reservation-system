@@ -33,7 +33,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -129,8 +131,14 @@ public class ReservationServiceImpl implements ReservationService {
         if (StrUtil.isBlank(dto.getStartTime()) || StrUtil.isBlank(dto.getEndTime())) {
             throw new BusinessException("预约时间不能为空");
         }
-        if (StrUtil.isBlank(dto.getPurpose())) {
+        // R4 修复：用途去空格后做空值 + 长度校验（与 reservation.purpose VARCHAR(255) 对齐，
+        // 防直调接口传超长文本触发数据库 Data too long → 500）
+        String purpose = dto.getPurpose() == null ? "" : dto.getPurpose().trim();
+        if (purpose.isBlank()) {
             throw new BusinessException("预约用途不能为空");
+        }
+        if (purpose.length() > Constants.PURPOSE_MAX_LENGTH) {
+            throw new BusinessException("预约用途过长（不超过 " + Constants.PURPOSE_MAX_LENGTH + " 字）");
         }
         LocalDate reserveDate = TimeUtil.parseDate(dto.getReserveDate());
         LocalTime start = TimeUtil.parseTime(dto.getStartTime());
@@ -138,9 +146,23 @@ public class ReservationServiceImpl implements ReservationService {
         if (!start.isBefore(end)) {
             throw new BusinessException("开始时间必须早于结束时间");
         }
+        // H3 修复：可预约时段窗口后端强制（需求文档 1.4「每日 08:00-22:00 可预约」此前仅在统计分母体现，提交侧零校验；
+        // 现在作为后端兜底强制，前端绕过直接调用本接口同样被拒绝，杜绝"凌晨占用教室"与使用率超 100%）
+        if (start.isBefore(Constants.DAILY_SLOT_START) || end.isAfter(Constants.DAILY_SLOT_END)) {
+            throw new BusinessException("可预约时段为每日 " + TimeUtil.formatTime(Constants.DAILY_SLOT_START)
+                    + "-" + TimeUtil.formatTime(Constants.DAILY_SLOT_END));
+        }
+        // H3 修复：单次预约时长上限（防止单条记录占满全天，答辩口径：防恶意占满资源）
+        if (ChronoUnit.MINUTES.between(start, end) > Constants.MAX_RESERVATION_HOURS * 60L) {
+            throw new BusinessException("单次预约时长不能超过 " + Constants.MAX_RESERVATION_HOURS + " 小时");
+        }
         // 禁止预约过去日期（与前端 disabled-date 口径一致：允许今天及以后，后端强制兜底）
         if (reserveDate.isBefore(LocalDate.now())) {
             throw new BusinessException("预约日期不能早于今天");
+        }
+        // M12 修复：预约日期为今天时，开始时刻必须晚于当前时刻（此前仅拦截过去日期、未拦今天已过去的时刻）
+        if (reserveDate.isEqual(LocalDate.now()) && !start.isAfter(LocalTime.now())) {
+            throw new BusinessException("预约开始时间必须晚于当前时间");
         }
 
         // 后端二次冲突检测（强制兜底：绕过前端直接调用本接口仍会被拒绝）
@@ -156,7 +178,7 @@ public class ReservationServiceImpl implements ReservationService {
         reservation.setReserveDate(reserveDate);
         reservation.setStartTime(start);
         reservation.setEndTime(end);
-        reservation.setPurpose(dto.getPurpose().trim());
+        reservation.setPurpose(purpose);
         reservation.setStatus(Constants.RES_STATUS_PENDING);
         reservationMapper.insert(reservation);
         // 缓存一致性：预约提交（月度趋势按全部状态统计，随之变化），失效看板 + 教室列表缓存
@@ -206,10 +228,17 @@ public class ReservationServiceImpl implements ReservationService {
         }
 
         // 待审核(0)/已通过(1) → 已取消(3)
-        Reservation update = new Reservation();
-        update.setId(id);
-        update.setStatus(Constants.RES_STATUS_CANCELED);
-        reservationMapper.updateById(update);
+        // M1 修复：条件更新 + 影响行数校验（UPDATE ... WHERE id=? AND status IN (0,1)），
+        // 并发下学生取消与管理员审核互踩时，后写者不再覆盖前写（已被审核的记录不会被"取消"覆盖，已被取消的也不会被"复活"）
+        LambdaUpdateWrapper<Reservation> cancelWrapper = new LambdaUpdateWrapper<Reservation>()
+                .eq(Reservation::getId, id)
+                .and(w -> w.eq(Reservation::getStatus, Constants.RES_STATUS_PENDING)
+                        .or().eq(Reservation::getStatus, Constants.RES_STATUS_APPROVED))
+                .set(Reservation::getStatus, Constants.RES_STATUS_CANCELED);
+        int updated = reservationMapper.update(null, cancelWrapper);
+        if (updated != 1) {
+            throw new BusinessException("预约状态已变更，请刷新后重试");
+        }
         // 缓存一致性：取消预约影响看板与教室今日占用，失效相关缓存
         redisCache.evictBusinessCaches();
     }
@@ -269,7 +298,11 @@ public class ReservationServiceImpl implements ReservationService {
             // 锁教室行串行化同教室审核：并发审核时后者重读已通过列表，杜绝复查冲突的 TOCTOU 竞态
             classroomMapper.selectOne(new LambdaQueryWrapper<Classroom>()
                     .eq(Classroom::getId, reservation.getClassroomId()).last("FOR UPDATE"));
-            List<Reservation> approved = listApprovedByClassAndDate(reservation.getClassroomId(), reservation.getReserveDate());
+            // H2 修复：复审列表改为【加锁读】（SELECT ... FOR UPDATE，读最新已提交），
+            // 此前先普通 SELECT（selectById）建立旧快照、再加锁，FOR UPDATE 只提供互斥、复查仍读旧快照，
+            // 并发事务刚提交的"已通过"不可见 → 改为加锁读后复查必然读到最新已提交结果，闭合快照顺序缺口
+            List<Reservation> approved = listApprovedByClassAndDateForUpdate(
+                    reservation.getClassroomId(), reservation.getReserveDate());
             for (Reservation r : approved) {
                 // 重叠公式（需求文档 1.4）：新开始 < 旧结束 AND 新结束 > 旧开始
                 if (reservation.getStartTime().isBefore(r.getEndTime()) && reservation.getEndTime().isAfter(r.getStartTime())) {
@@ -279,14 +312,21 @@ public class ReservationServiceImpl implements ReservationService {
             }
         }
 
-        Reservation update = new Reservation();
-        update.setId(id);
-        update.setStatus(dto.getStatus());
-        // 通过不写备注；驳回写入管理员备注
-        update.setAuditRemark(dto.getStatus() == Constants.RES_STATUS_REJECTED ? dto.getAuditRemark().trim() : null);
-        update.setAuditorId(UserContext.getUserId());
-        update.setAuditTime(LocalDateTime.now());
-        reservationMapper.updateById(update);
+        // M1 修复：条件更新 + 影响行数校验（UPDATE ... SET status=? WHERE id=? AND status=0），
+        // 防止并发下覆盖他人已完成的审核结果（如学生并发取消后仍被置为已通过）
+        LambdaUpdateWrapper<Reservation> auditWrapper = new LambdaUpdateWrapper<Reservation>()
+                .eq(Reservation::getId, id)
+                .eq(Reservation::getStatus, Constants.RES_STATUS_PENDING)
+                .set(Reservation::getStatus, dto.getStatus())
+                // 通过不写备注；驳回写入管理员备注
+                .set(Reservation::getAuditRemark,
+                        dto.getStatus() == Constants.RES_STATUS_REJECTED ? dto.getAuditRemark().trim() : null)
+                .set(Reservation::getAuditorId, UserContext.getUserId())
+                .set(Reservation::getAuditTime, LocalDateTime.now());
+        int updated = reservationMapper.update(null, auditWrapper);
+        if (updated != 1) {
+            throw new BusinessException("预约状态已变更，请刷新后重试");
+        }
         // 缓存一致性：审核改变预约状态（已通过/已驳回），影响看板与教室今日占用，失效相关缓存
         redisCache.evictBusinessCaches();
     }
@@ -308,11 +348,39 @@ public class ReservationServiceImpl implements ReservationService {
             targets.stream().map(Reservation::getClassroomId).filter(Objects::nonNull).distinct().sorted()
                     .forEach(cid -> classroomMapper.selectOne(
                             new LambdaQueryWrapper<Classroom>().eq(Classroom::getId, cid).last("FOR UPDATE")));
-            for (Reservation r : targets) {
-                if (r.getStatus() != Constants.RES_STATUS_PENDING) {
-                    continue;
+            List<Reservation> pendingTargets = targets.stream()
+                    .filter(r -> r.getStatus() != null && r.getStatus() == Constants.RES_STATUS_PENDING)
+                    .toList();
+            // H1 修复：批内互斥校验——同批待通过记录按（教室, 日期）分组两两判定重叠。
+            // 此前循环体只与库中 status=1 比对，同批 A、B 此时均为待审核(0)、互不在对方比对集合内，
+            // 一次 UI 操作即可产生"同一教室同一时段两条已通过"；现对组内排序后线性两两判定，冲突整批拒绝并指名 ID
+            Map<Long, Map<LocalDate, List<Reservation>>> byClassAndDate = pendingTargets.stream()
+                    .collect(Collectors.groupingBy(Reservation::getClassroomId,
+                            Collectors.groupingBy(Reservation::getReserveDate)));
+            for (Map<LocalDate, List<Reservation>> dateGroups : byClassAndDate.values()) {
+                for (List<Reservation> group : dateGroups.values()) {
+                    if (group.size() < 2) {
+                        continue;
+                    }
+                    List<Reservation> sorted = new ArrayList<>(group);
+                    sorted.sort(Comparator.comparing(Reservation::getStartTime));
+                    for (int i = 0; i < sorted.size() - 1; i++) {
+                        Reservation a = sorted.get(i);
+                        // 重叠公式（需求文档 1.4）：新开始 < 旧结束 AND 新结束 > 旧开始
+                        for (int j = i + 1; j < sorted.size(); j++) {
+                            Reservation b = sorted.get(j);
+                            if (b.getStartTime().isBefore(a.getEndTime()) && b.getEndTime().isAfter(a.getStartTime())) {
+                                throw new BusinessException("批量审核失败：预约 ID=" + b.getId()
+                                        + " 与同批预约 ID=" + a.getId()
+                                        + " 时段重叠（同一教室同一日期），请单独处理");
+                            }
+                        }
+                    }
                 }
-                List<Reservation> approved = listApprovedByClassAndDate(r.getClassroomId(), r.getReserveDate());
+            }
+            for (Reservation r : pendingTargets) {
+                // H2 修复：复审已通过列表改用【加锁读】（读最新已提交），闭合"快照读早于加锁"的并发缺口
+                List<Reservation> approved = listApprovedByClassAndDateForUpdate(r.getClassroomId(), r.getReserveDate());
                 for (Reservation ap : approved) {
                     // 重叠公式（需求文档 1.4）：新开始 < 旧结束 AND 新结束 > 旧开始
                     if (r.getStartTime().isBefore(ap.getEndTime()) && r.getEndTime().isAfter(ap.getStartTime())) {
@@ -374,6 +442,10 @@ public class ReservationServiceImpl implements ReservationService {
         Map<Long, Classroom> roomMap = classroomMapper.selectList(new LambdaQueryWrapper<Classroom>())
                 .stream().collect(Collectors.toMap(Classroom::getId, Function.identity()));
 
+        // M8 修复 + R3 收敛：日历接口对任意登录用户开放（学生/管理员均可查看占用）；
+        // 用途与审核备注仅【管理员或本人】可见，其余学生只见时段与状态（避免越权可见他人用途与驳回备注）
+        boolean isAdmin = UserContext.isAdmin();
+
         return list.stream().map(r -> {
             CalendarVO vo = new CalendarVO();
             vo.setId(r.getId());
@@ -381,9 +453,15 @@ public class ReservationServiceImpl implements ReservationService {
             vo.setReserveDate(r.getReserveDate());
             vo.setStartTime(TimeUtil.formatTime(r.getStartTime()));
             vo.setEndTime(TimeUtil.formatTime(r.getEndTime()));
-            vo.setPurpose(r.getPurpose());
+            // R3 修复：本人预约标记（前端据此决定是否显示用途）；仅管理员或本人可见完整信息
+            boolean mine = UserContext.isSelf(r.getUserId());
+            vo.setMine(mine);
+            if (isAdmin || mine) {
+                // 管理员可见完整信息（含用途与审核备注，供审核与溯源）；本人仅可见自己预约的完整信息
+                vo.setPurpose(r.getPurpose());
+                vo.setAuditRemark(r.getAuditRemark());
+            }
             vo.setStatus(r.getStatus());
-            vo.setAuditRemark(r.getAuditRemark());
             Classroom room = roomMap.get(r.getClassroomId());
             if (room != null) {
                 vo.setClassroomName(room.getName());
@@ -406,17 +484,18 @@ public class ReservationServiceImpl implements ReservationService {
         }
     }
 
-    /** 预约状态合法性校验 */
+    /** 预约状态合法性校验（L10 修复：Integer 相等比较，null 直接返回 false，避免拆箱 NPE） */
     private boolean isValidResStatus(Integer status) {
-        return status == Constants.RES_STATUS_PENDING
-                || status == Constants.RES_STATUS_APPROVED
-                || status == Constants.RES_STATUS_REJECTED
-                || status == Constants.RES_STATUS_CANCELED;
+        return Integer.valueOf(Constants.RES_STATUS_PENDING).equals(status)
+                || Integer.valueOf(Constants.RES_STATUS_APPROVED).equals(status)
+                || Integer.valueOf(Constants.RES_STATUS_REJECTED).equals(status)
+                || Integer.valueOf(Constants.RES_STATUS_CANCELED).equals(status);
     }
 
-    /** 审核状态校验：1-通过，2-驳回 */
+    /** 审核状态校验：1-通过，2-驳回（L10 修复：Integer 相等比较，防拆箱 NPE） */
     private void validateAuditStatus(Integer status) {
-        if (status == null || (status != Constants.RES_STATUS_APPROVED && status != Constants.RES_STATUS_REJECTED)) {
+        if (status == null || (!Integer.valueOf(Constants.RES_STATUS_APPROVED).equals(status)
+                && !Integer.valueOf(Constants.RES_STATUS_REJECTED).equals(status))) {
             throw new BusinessException("审核状态参数不合法（1-通过，2-驳回）");
         }
     }
@@ -498,6 +577,21 @@ public class ReservationServiceImpl implements ReservationService {
                 .eq(Reservation::getReserveDate, date)
                 .eq(Reservation::getStatus, Constants.RES_STATUS_APPROVED)
                 .orderByAsc(Reservation::getStartTime));
+    }
+
+    /**
+     * 查询某教室某日期【已通过】预约（加锁读，审核复查专用）
+     * H2 修复：审核路径先普通 SELECT 已建立旧快照，再 FOR UPDATE 只提供互斥；此处用 SELECT ... FOR UPDATE
+     * 做"当前读"（读最新已提交），保证复查能看到并发事务刚提交的"已通过"结果，闭合快照顺序缺口。
+     * 不影响 checkConflict 等实时校验语义（那里不需要加锁，快照读更轻量）。
+     */
+    private List<Reservation> listApprovedByClassAndDateForUpdate(Long classroomId, LocalDate date) {
+        return reservationMapper.selectList(new LambdaQueryWrapper<Reservation>()
+                .eq(Reservation::getClassroomId, classroomId)
+                .eq(Reservation::getReserveDate, date)
+                .eq(Reservation::getStatus, Constants.RES_STATUS_APPROVED)
+                .orderByAsc(Reservation::getStartTime)
+                .last("FOR UPDATE"));
     }
 
     /** 批量预查教室信息 → id→Classroom Map（空集合安全，避免逐行 selectById 造成 N+1） */

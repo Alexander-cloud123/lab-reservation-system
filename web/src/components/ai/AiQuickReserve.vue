@@ -1,7 +1,9 @@
 <template>
   <!-- AI 快速预约（需求文档 2.4 教室列表页搜索栏旁入口） -->
   <div class="ai-quick-reserve">
-    <el-button v-if="aiEnabled" type="warning" plain @click="openDialog">AI 快速预约</el-button>
+    <el-button v-if="aiEnabled" type="primary" plain @click="openDialog">
+      <el-icon class="ai-btn-icon"><MagicStick /></el-icon>AI 快速预约
+    </el-button>
 
     <el-dialog v-model="dialogVisible" title="AI 快速预约" width="640px" :close-on-click-modal="false" @closed="resetAll">
       <el-steps :active="step" finish-status="success" simple class="steps">
@@ -38,9 +40,9 @@
             <el-date-picker v-model="parseForm.date" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width: 100%" />
           </el-form-item>
           <el-form-item label="时段">
-            <el-time-picker v-model="parseForm.startTime" format="HH:mm" value-format="HH:mm" placeholder="开始" style="width: 48%" />
+            <el-time-select v-model="parseForm.startTime" start="08:00" end="21:00" step="01:00" placeholder="开始" style="width: 48%" />
             <span class="time-sep">至</span>
-            <el-time-picker v-model="parseForm.endTime" format="HH:mm" value-format="HH:mm" placeholder="结束" style="width: 48%" />
+            <el-time-select v-model="parseForm.endTime" start="09:00" end="22:00" step="01:00" placeholder="结束" style="width: 48%" />
           </el-form-item>
           <el-form-item label="人数">
             <el-input-number v-model="parseForm.capacity" :min="1" :max="500" />
@@ -54,7 +56,7 @@
             </el-select>
           </el-form-item>
           <el-form-item label="预约用途">
-            <el-input v-model="parseForm.purpose" placeholder="如：课程设计 / 实验 / 自习" />
+            <el-input v-model="parseForm.purpose" maxlength="255" placeholder="如：课程设计 / 实验 / 自习" />
           </el-form-item>
         </el-form>
       </div>
@@ -92,13 +94,13 @@
             <el-date-picker v-model="reserveForm.reserveDate" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width: 100%" />
           </el-form-item>
           <el-form-item label="开始时间" prop="startTime">
-            <el-time-picker v-model="reserveForm.startTime" format="HH:mm" value-format="HH:mm" placeholder="开始时间" style="width: 100%" />
+            <el-time-select v-model="reserveForm.startTime" start="08:00" end="21:00" step="01:00" placeholder="开始时间" style="width: 100%" />
           </el-form-item>
           <el-form-item label="结束时间" prop="endTime">
-            <el-time-picker v-model="reserveForm.endTime" format="HH:mm" value-format="HH:mm" placeholder="结束时间" style="width: 100%" />
+            <el-time-select v-model="reserveForm.endTime" start="09:00" end="22:00" step="01:00" placeholder="结束时间" style="width: 100%" />
           </el-form-item>
           <el-form-item label="预约用途" prop="purpose">
-            <el-input v-model="reserveForm.purpose" type="textarea" :rows="2" placeholder="请填写预约用途" />
+            <el-input v-model="reserveForm.purpose" type="textarea" :rows="2" maxlength="255" placeholder="请填写预约用途" />
           </el-form-item>
           <el-form-item>
             <el-alert
@@ -138,6 +140,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { MagicStick } from '@element-plus/icons-vue'
 import { aiParseReservation } from '@/api/ai'
 import { listClassrooms } from '@/api/classroom'
 import { checkConflict, submitReservation } from '@/api/reservation'
@@ -233,6 +236,10 @@ async function goStep2() {
     }
     rooms.value = list
     step.value = 2
+  } catch (e) {
+    // 接口失败：统一错误提示已由 request.js 处理，回退步骤一，可修改描述后重试
+    rooms.value = []
+    step.value = 1
   } finally {
     roomsLoading.value = false
   }
@@ -303,10 +310,20 @@ async function handleSubmit() {
   if (!pickedRoom.value) {
     return
   }
-  await reserveFormRef.value.validate()
+  // 表单校验失败时静默返回（与 ClassroomDetail.handleSubmitReserve 写法对齐，避免未处理 Promise 拒绝）
+  try {
+    await reserveFormRef.value.validate()
+  } catch (e) {
+    return
+  }
   // 前端时间合理性校验（L9 优化，后端仍强制兜底）
   if (reserveForm.startTime && reserveForm.endTime && reserveForm.startTime >= reserveForm.endTime) {
     ElMessage.warning('开始时间必须早于结束时间')
+    return
+  }
+  // 可预约时段口径校验（与日历页/详情页 el-time-select 08:00-22:00 一致；AI 解析值可能超窗，提交前兜底）
+  if (reserveForm.startTime < '08:00' || reserveForm.startTime > '21:00' || reserveForm.endTime > '22:00') {
+    ElMessage.warning('可预约时段为 08:00-22:00，请调整开始/结束时间')
     return
   }
   submitting.value = true
@@ -368,21 +385,21 @@ function typeText(type) {
   display: inline-block;
   width: 4%;
   text-align: center;
-  color: #909399;
+  color: var(--text-placeholder);
 }
 
 .room-pick-item {
   padding: 10px 12px;
-  border: 1px solid #ebeef5;
-  border-radius: 6px;
+  border: 1px solid var(--border-color-light);
+  border-radius: var(--radius-md);
   margin-bottom: 8px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .room-pick-item:hover {
-  border-color: #e6a23c;
-  background: #fdf6ec;
+  border-color: var(--border-color);
+  background: var(--brand-primary-lighter);
 }
 
 .room-pick-head {
@@ -393,27 +410,32 @@ function typeText(type) {
 
 .room-pick-name {
   font-weight: 600;
-  color: #1f3a93;
+  color: var(--text-primary);
 }
 
 .room-pick-meta {
   font-size: 12px;
-  color: #909399;
+  color: var(--text-secondary);
   margin-top: 4px;
 }
 
 .room-pick-occupied {
   font-size: 12px;
-  color: #e6a23c;
+  color: var(--brand-warning);
   margin-top: 4px;
 }
 
 .picked-room {
   font-weight: 600;
-  color: #1f3a93;
+  color: var(--text-primary);
 }
 
 .conflict-tip {
   width: 100%;
+}
+
+.ai-btn-icon {
+  margin-right: 4px;
+  font-size: 14px;
 }
 </style>

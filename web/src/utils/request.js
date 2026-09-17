@@ -53,19 +53,32 @@ request.interceptors.response.use(
     const status = error.response && error.response.status
     // silent 请求（如退出登录）失败时不弹错误提示，交由调用方静默处理
     const silent = error.config && error.config.silent
+    // M13 修复：Blob 响应错误（如导出命中上限返回 400）在任何状态码下都先解析 JSON 错误信息；
+    // 此前仅 403 分支解析 Blob，400 分支取 error.response.data.message 得到 undefined，
+    // 用户只看到通用"网络异常"，不知道要"缩小筛选范围"
+    const isBlobError =
+      error.config &&
+      error.config.responseType === 'blob' &&
+      error.response &&
+      error.response.data
+    if (isBlobError) {
+      readBlobMessage(error.response.data).then((msg) => {
+        if (status === 401) {
+          // blob 请求同样处理登录过期：清登录态并跳转
+          clearAuth()
+          redirectToLogin()
+        } else if (!silent) {
+          ElMessage.error(msg || '操作失败，请稍后重试')
+        }
+      })
+      return Promise.reject(error)
+    }
     if (status === 401) {
-      // 后端拦截器返回的 401：清登录态并跳转（blob 请求同样处理）
+      // 后端拦截器返回的 401：清登录态并跳转
       clearAuth()
       redirectToLogin()
     } else if (status === 403) {
-      if (silent) {
-        // 静默请求：不提示
-      } else if (error.config && error.config.responseType === 'blob' && error.response && error.response.data) {
-        // blob 响应体为文件流，需先解析 JSON 再提示
-        readBlobMessage(error.response.data).then((msg) => ElMessage.error(msg || '无权限访问该功能'))
-      } else {
-        ElMessage.error('无权限访问该功能')
-      }
+      if (!silent) ElMessage.error('无权限访问该功能')
     } else if (!silent) {
       const message =
         (error.response && error.response.data && error.response.data.message) || '网络异常，请稍后重试'

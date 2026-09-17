@@ -8,19 +8,23 @@ import com.example.reservation.common.BusinessException;
 import com.example.reservation.common.Constants;
 import com.example.reservation.common.PageResult;
 import com.example.reservation.common.TimeUtil;
+import com.example.reservation.common.UserContext;
 import com.example.reservation.config.RedisCache;
 import com.example.reservation.config.RedisProperties;
 import com.example.reservation.dto.ClassroomDTO;
 import com.example.reservation.entity.Classroom;
 import com.example.reservation.entity.Reservation;
+import com.example.reservation.entity.UserFavorite;
 import com.example.reservation.mapper.ClassroomMapper;
 import com.example.reservation.mapper.ReservationMapper;
+import com.example.reservation.mapper.UserFavoriteMapper;
 import com.example.reservation.service.ClassroomService;
 import com.example.reservation.vo.ClassroomVO;
 import com.example.reservation.vo.OccupiedSlotVO;
 import com.fasterxml.jackson.core.type.TypeReference;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -43,11 +47,17 @@ public class ClassroomServiceImpl implements ClassroomService {
     private static final int DAILY_SLOT_START_HOUR = 8;
     private static final int DAILY_SLOT_END_HOUR = 22;
 
+    /** 教室列表缓存 Key 版本号（R5：旧版缓存条目仍含他人 purpose，升版本号使旧 Key 部署即失效、重建为裁剪后数据） */
+    private static final String LIST_CACHE_VERSION = "v2:";
+
     @Resource
     private ClassroomMapper classroomMapper;
 
     @Resource
     private ReservationMapper reservationMapper;
+
+    @Resource
+    private UserFavoriteMapper favoriteMapper;
 
     @Resource
     private RedisCache redisCache;
@@ -123,11 +133,18 @@ public class ClassroomServiceImpl implements ClassroomService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void deleteClassroom(Long id) {
         if (id == null) {
             throw new BusinessException("教室 ID 不能为空");
         }
-        Classroom exists = classroomMapper.selectById(id);
+        // R2 修复：存在性校验改为加锁读（SELECT ... FOR UPDATE），与 createReservation:120 争抢同一把教室行锁，
+        // 删除与并发预约提交互斥——删除先拿锁 → 预约阻塞且删后查不到教室；预约先拿锁 → 删除阻塞，
+        // 待其提交后计数必 > 0 → 正确拒绝。仅 @Transactional 只提供原子性、不提供互斥。
+        // 此句同时成为本事务首条语句（加锁读不建 read view），后续 selectCount 读到最新已提交数据，
+        // 避免"计数 0 → 并发插入 → 删除成功"的悬挂引用。
+        Classroom exists = classroomMapper.selectOne(new LambdaQueryWrapper<Classroom>()
+                .eq(Classroom::getId, id).last("FOR UPDATE"));
         if (exists == null) {
             throw new BusinessException("教室不存在");
         }
@@ -137,6 +154,10 @@ public class ClassroomServiceImpl implements ClassroomService {
         if (reservationCount > 0) {
             throw new BusinessException("该教室存在预约记录，禁止删除");
         }
+        // H4 修复：删除教室时一并清理该教室的收藏记录（user_favorite 无外键、无级联删除），
+        // 否则学生个人中心出现字段为空的"幽灵收藏卡"（无法取消、永久占用收藏配额 10 间）。
+        // M5 修复：删除保护检查与删除动作置于同一事务，避免检查与删除之间并发提交的预约悬挂 classroomId
+        favoriteMapper.delete(new LambdaQueryWrapper<UserFavorite>().eq(UserFavorite::getClassroomId, id));
         classroomMapper.deleteById(id);
         // 缓存一致性：教室删除，失效看板 + 教室列表缓存
         redisCache.evictBusinessCaches();
@@ -237,7 +258,9 @@ public class ClassroomServiceImpl implements ClassroomService {
                     .orderByAsc(Reservation::getStartTime));
             occupiedMap = dayApproved.stream()
                     .collect(Collectors.groupingBy(Reservation::getClassroomId,
-                            Collectors.mapping(this::toSlotVO, Collectors.toList())));
+                            // R5 修复：列表路径（共享缓存）只带时段，不返回用途与 mine——
+                            // 缓存 Key 不含用户维度，存"依赖请求者身份"的字段会把首个请求者固化进缓存、泄露给他人
+                            Collectors.mapping(this::toSlotVOForList, Collectors.toList())));
         } else {
             occupiedMap = Map.of();
         }
@@ -281,7 +304,9 @@ public class ClassroomServiceImpl implements ClassroomService {
 
         ClassroomVO vo = toStudentVO(classroom);
         vo.setStatusLabel(calcStatusLabel(id, todayApproved));
-        vo.setOccupiedSlots(dayApproved.stream().map(this::toSlotVO).toList());
+        // R5 修复：详情路径（无缓存）按身份裁剪——仅管理员或本人可见用途，其余学生时段仍可查看但用途为 null
+        boolean isAdmin = UserContext.isAdmin();
+        vo.setOccupiedSlots(dayApproved.stream().map(r -> toSlotVO(r, isAdmin)).toList());
         return vo;
     }
 
@@ -353,21 +378,35 @@ public class ClassroomServiceImpl implements ClassroomService {
         return DAILY_SLOT_END_HOUR - DAILY_SLOT_START_HOUR - occupied.size();
     }
 
-    /** 预约实体 → 占用时段 VO（时间统一 HH:mm） */
-    private OccupiedSlotVO toSlotVO(Reservation r) {
+    /** 预约实体 → 占用时段 VO（时间统一 HH:mm）；详情路径（无缓存）按身份裁剪：
+     *  仅管理员或本人可见用途与 mine 标记，其余学生时段仍可查看但 purpose 为 null */
+    private OccupiedSlotVO toSlotVO(Reservation r, boolean isAdmin) {
         OccupiedSlotVO slot = new OccupiedSlotVO();
         slot.setStartTime(TimeUtil.formatTime(r.getStartTime()));
         slot.setEndTime(TimeUtil.formatTime(r.getEndTime()));
-        slot.setPurpose(r.getPurpose());
+        boolean mine = UserContext.isSelf(r.getUserId());
+        slot.setMine(mine);
+        slot.setPurpose((isAdmin || mine) ? r.getPurpose() : null);
         return slot;
     }
 
+    /** 预约实体 → 占用时段 VO（列表路径专用）：共享缓存不含用户维度，只带时段、不带用途与 mine */
+    private OccupiedSlotVO toSlotVOForList(Reservation r) {
+        OccupiedSlotVO slot = new OccupiedSlotVO();
+        slot.setStartTime(TimeUtil.formatTime(r.getStartTime()));
+        slot.setEndTime(TimeUtil.formatTime(r.getEndTime()));
+        return slot;   // purpose / mine 恒为 null
+    }
+
     /**
-     * 组装学生端教室列表缓存 Key：cache:classroom:list:{分页与筛选参数指纹}；
-     * 空参数以 "-" 占位，保证不同筛选/分页/日期条件互不串缓存
+     * 组装学生端教室列表缓存 Key：cache:classroom:list:v2:{分页与筛选参数指纹}；
+     * 空参数以 "-" 占位，保证不同筛选/分页/日期条件互不串缓存。
+     * Key 含版本号：R5 后列表数据不再携带用途（依赖请求者身份的字段不得进共享缓存），
+     * 旧版缓存（部署前写入）的 occupiedSlots 仍含他人 purpose、命中分支直接 return 会继续泄露最多一个 TTL（60s），
+     * 升级版本号即让旧 Key 全部失效，无需人工清缓存。
      */
     private String classroomListKey(long page, long size, String keyword, String building, Integer type, String date) {
-        return RedisCache.CLASSROOM_LIST_KEY_PREFIX
+        return RedisCache.CLASSROOM_LIST_KEY_PREFIX + LIST_CACHE_VERSION
                 + page + ":" + size + ":"
                 + (StrUtil.isBlank(keyword) ? "-" : keyword.trim()) + ":"
                 + (StrUtil.isBlank(building) ? "-" : building.trim()) + ":"

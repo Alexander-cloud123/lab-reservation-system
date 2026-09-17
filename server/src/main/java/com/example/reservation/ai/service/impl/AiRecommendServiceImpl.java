@@ -106,7 +106,8 @@ public class AiRecommendServiceImpl implements AiRecommendService {
 
         // 4. 尝试大模型排序（候选 + 偏好作为上下文，输出 Top3 及理由）
         String userMessage = buildModelContext(targetDate, pref, candidates);
-        AgnesClient.AgnesResponse resp = agnesClient.chat(SYSTEM_PROMPT, userMessage, true);
+        // M7 修复：传入当前用户 ID，限流按用户维度隔离
+        AgnesClient.AgnesResponse resp = agnesClient.chat(userId, SYSTEM_PROMPT, userMessage, true);
         if (resp.ok()) {
             List<AiRecommendItemVO> llmTop = parseModelTop(resp.content(), candidates);
             if (llmTop != null) {
@@ -181,7 +182,9 @@ public class AiRecommendServiceImpl implements AiRecommendService {
     }
 
     /**
-     * 构建候选教室：全部可用教室 + 明日已通过预约占用特征（实时空闲状态）
+     * 构建候选教室：可用教室（规则预筛） + 明日已通过预约占用特征（实时空闲状态）
+     * L11 修复：候选数量受 RECOMMEND_CANDIDATE_LIMIT 上限约束，防止 Prompt 随教室数量线性膨胀
+     * （此前把所有启用教室逐行拼进 Prompt，token 与耗时随教室增长线性上升）
      */
     private List<AiFallbackEngine.RecommendCandidate> buildCandidates(LocalDate targetDate) {
         List<Classroom> rooms = classroomMapper.selectList(
@@ -190,6 +193,10 @@ public class AiRecommendServiceImpl implements AiRecommendService {
                         .orderByAsc(Classroom::getId));
         if (rooms.isEmpty()) {
             return List.of();
+        }
+        // L11：按 ID 升序截取候选上限（规则预筛后再进大模型排序）
+        if (rooms.size() > AiConstants.RECOMMEND_CANDIDATE_LIMIT) {
+            rooms = rooms.subList(0, AiConstants.RECOMMEND_CANDIDATE_LIMIT);
         }
         List<Long> roomIds = rooms.stream().map(Classroom::getId).toList();
         List<Reservation> dayApproved = reservationMapper.selectList(

@@ -1,5 +1,10 @@
 <template>
   <div class="audit-page">
+    <!-- 页面标题栏 -->
+    <div class="page-head">
+      <span class="page-title">预约审核</span>
+      <span class="page-tip">处理待审核预约申请与批量操作</span>
+    </div>
     <!-- 搜索栏：状态 / 日期范围 / 关键词 -->
     <el-card shadow="never" class="search-card">
       <el-form :inline="true" :model="query" @submit.prevent>
@@ -98,9 +103,14 @@
                 effect="plain"
                 class="ai-tag"
               >AI 校验{{ isViolation(row) ? '：违规' : '：通过' }}</el-tag>
-              <el-tag v-else-if="row.status === 0 && aiEnabled && !complianceInfo(row)" size="small" type="info" effect="plain" class="ai-tag">
-                AI 校验中…
-              </el-tag>
+              <el-tag
+                v-else-if="row.status === 0 && aiEnabled && !complianceInfo(row)"
+                size="small"
+                type="info"
+                effect="plain"
+                class="ai-tag ai-tag-clickable"
+                @click="checkSingle(row)"
+              >{{ isChecking(row) ? '校验中…' : 'AI 校验' }}</el-tag>
             </div>
           </template>
         </el-table-column>
@@ -200,10 +210,21 @@ const dateRange = ref(null)
 const aiEnabled = ref(false)
 /** 校验结果缓存：key=预约 ID → { compliant, reason }（Map 保证按行读取，不写库） */
 const complianceMap = ref(new Map())
+/** 进行中校验的预约 ID 集合（M9：行级 loading，防重复点击重复请求） */
+const checkingIds = ref(new Set())
+/** 页面加载时自动校验条数上限（M9 修复：此前对整页全部待审核记录并发发起请求，页长 50 时必然触发后端限流，多数请求失败且界面长期停在"校验中"） */
+const AUTO_CHECK_LIMIT = 5
+/** 自动校验并发上限（M9：小并发，避免一次性耗尽后端 RPM 额度） */
+const AUTO_CHECK_CONCURRENCY = 2
 
 /** 获取某条记录的 AI 校验结果 */
 function complianceInfo(row) {
   return complianceMap.value.get(row.id) || null
+}
+
+/** 该行是否正在校验（M9：行级 loading 态） */
+function isChecking(row) {
+  return checkingIds.value.has(row.id)
 }
 
 /** 是否违规（用途红色高亮） */
@@ -213,32 +234,49 @@ function isViolation(row) {
 }
 
 /**
- * 对当前页待审核记录批量 AI 合规校验（只读不改状态；enabled=false 时关闭 AI 标签）
- * 失败静默：不阻断列表加载与人工审核
+ * 单行按需 AI 合规校验（M9：点击行内「AI 校验」标签触发；结果缓存，已校验/校验中的行不重复请求；
+ * 失败静默，标签保持可点击重试，不阻断列表加载与人工审核）
  */
-async function runComplianceCheck(list) {
-  const pending = list.filter((r) => r.status === 0)
+async function checkSingle(row) {
+  if (!row || row.status !== 0 || isChecking(row) || complianceInfo(row)) {
+    return
+  }
+  checkingIds.value.add(row.id)
+  try {
+    const res = await aiComplianceCheck({ purpose: row.purpose })
+    if (res.data && res.data.enabled === false) {
+      aiEnabled.value = false
+      return
+    }
+    aiEnabled.value = true
+    complianceMap.value.set(row.id, {
+      compliant: res.data.compliant,
+      reason: res.data.reason || '合规校验完成'
+    })
+  } catch (e) {
+    // 校验失败静默，标签保持「AI 校验」可点击重试
+  } finally {
+    checkingIds.value.delete(row.id)
+  }
+}
+
+/**
+ * 页面加载后对当前页前 N 条待审核记录限量自动校验（M9：小并发串行队列，
+ * 保留 R7「AI 校验」亮点展示，又不触发自身限流；其余行点击标签按需校验）
+ */
+async function autoComplianceCheck(list) {
+  const pending = list.filter((r) => r.status === 0).slice(0, AUTO_CHECK_LIMIT)
   if (!pending.length) {
     return
   }
-  await Promise.allSettled(
-    pending.map(async (r) => {
-      try {
-        const res = await aiComplianceCheck({ purpose: r.purpose })
-        if (res.data && res.data.enabled === false) {
-          aiEnabled.value = false
-          return
-        }
-        aiEnabled.value = true
-        complianceMap.value.set(r.id, {
-          compliant: res.data.compliant,
-          reason: res.data.reason || '合规校验完成'
-        })
-      } catch (e) {
-        // 校验失败静默，标签保持「校验中…」
-      }
-    })
-  )
+  let idx = 0
+  const workers = Array.from({ length: Math.min(AUTO_CHECK_CONCURRENCY, pending.length) }, async () => {
+    while (idx < pending.length) {
+      const r = pending[idx++]
+      await checkSingle(r)
+    }
+  })
+  await Promise.all(workers)
 }
 
 /** 查询条件（含分页） */
@@ -276,8 +314,11 @@ async function loadData() {
     const res = await pageManageReservations(params)
     records.value = res.data.records
     total.value = res.data.total
-    // 当前页待审核记录加载完成后，自动发起 AI 合规校验（只读，不阻断）
-    runComplianceCheck(records.value)
+    // M9：翻页/刷新时清空校验缓存与进行中标记（防 complianceMap 只增不减的持续累积）
+    complianceMap.value.clear()
+    checkingIds.value.clear()
+    // 当前页前 N 条待审核记录限量自动 AI 合规校验（只读，不阻断）
+    autoComplianceCheck(records.value)
   } catch (e) {
     // 统一错误提示已由 request.js 处理
   } finally {
@@ -407,6 +448,11 @@ onMounted(loadData)
   padding: 4px;
 }
 
+.page-tip {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
 .search-card {
   margin-bottom: 16px;
 }
@@ -424,15 +470,16 @@ onMounted(loadData)
 .user-account,
 .room-no {
   font-size: 12px;
-  color: #909399;
+  color: var(--text-placeholder);
 }
 
 .room-name {
-  color: #1f3a93;
+  color: var(--text-primary);
+  font-weight: 600;
 }
 
 .no-action {
-  color: #c0c4cc;
+  color: var(--text-placeholder);
 }
 
 .quick-reasons {
@@ -454,12 +501,22 @@ onMounted(loadData)
 }
 
 .purpose-violation {
-  color: #f56c6c;
+  color: var(--brand-danger);
   font-weight: 600;
 }
 
 .ai-tag {
   flex-shrink: 0;
+}
+
+/* M9：未校验行的「AI 校验」标签可点击按需触发 */
+.ai-tag-clickable {
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.ai-tag-clickable:hover {
+  filter: brightness(0.92);
 }
 
 .pagination-wrap {

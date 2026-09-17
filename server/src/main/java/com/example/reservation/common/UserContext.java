@@ -29,6 +29,18 @@ public class UserContext {
         return user == null ? null : user.userId();
     }
 
+    /** 当前登录用户是否为管理员（未登录返回 false；R3/R5 用途可见性共用） */
+    public static boolean isAdmin() {
+        LoginUser user = HOLDER.get();
+        return user != null && user.role() != null && user.role() == Constants.ROLE_ADMIN;
+    }
+
+    /** 给定用户 ID 是否为当前登录用户本人（未登录返回 false；R3/R5 用途可见性共用） */
+    public static boolean isSelf(Long userId) {
+        LoginUser user = HOLDER.get();
+        return user != null && user.userId() != null && user.userId().equals(userId);
+    }
+
     /** 请求结束后清除 */
     public static void clear() {
         HOLDER.remove();

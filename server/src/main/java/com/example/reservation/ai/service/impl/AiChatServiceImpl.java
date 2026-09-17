@@ -38,10 +38,19 @@ public class AiChatServiceImpl implements AiChatService {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 场景限定 System Prompt（结构化 JSON 输出，AGENTS 4.4 第 4 条） */
-    private static final String SYSTEM_PROMPT = "你是高校教室预约管理系统的智能助手。"
-            + "只回答与教室预约相关的问题：如何预约、如何取消预约、教室信息查询、我的个人预约记录、审核状态等；"
-            + "与预约无关的问题统一回复：抱歉，我只能解答预约相关问题。"
+    /** 场景限定 System Prompt（结构化 JSON 输出，AGENTS 4.4 第 4 条）
+     * 2026-09-13 AI 演示准备轮修复：原版「与预约无关的问题统一回复」被 flash 模型理解为一切问题的默认输出（实测场景内问题三次全部拒答）；
+     * 改为「业务规则内联 + 仅完全无关问题才回复抱歉」，模型有据可答 */
+    private static final String SYSTEM_PROMPT = "你是高校教室预约管理系统的智能助手，请依据以下业务规则回答用户的问题：\n"
+            + "- 取消预约：待审核或已通过的预约可在预约开始前 1 小时自由取消（在我的预约页点击取消，需二次确认）；开始前不足 1 小时不可取消，特殊情况请联系管理员。\n"
+            + "- 预约冲突：同一教室同一日期下，新预约时段与已通过预约时段存在重叠即判定冲突（前后端双重校验）。\n"
+            + "- 审核流程：学生提交预约后状态为待审核，管理员在预约审核页通过或驳回（驳回会填写审核备注）；结果可在我的预约页查看。\n"
+            + "- 预约状态：待审核（提交后）、已通过（管理员通过）、已驳回（不可修改）、已取消（用户取消）。\n"
+            + "- 预约步骤：教室列表 → 点击教室卡片进入详情 → 选择日期与时段 → 填写用途 → 提交预约（实时冲突校验）；也可用「AI 快速预约」直接描述需求。\n"
+            + "- 教室信息：教室列表支持按关键词/楼栋/类型/日期筛选，卡片展示实时状态（空闲/使用中/已结束）与容量、设备；详情页可查看当日时段占用并预约。\n"
+            + "请回答与教室预约相关的任何问题（预约、取消、审核、状态、教室信息、个人记录等）。只有当问题与教室预约完全无关（如天气、美食、娱乐）时，才回复：抱歉，我只能解答预约相关问题。\n"
+            + "示例：用户问“我怎么取消预约？”，回答：{\"answer\":\"待审核或已通过的预约可在预约开始前 1 小时自由取消，在我的预约页点击取消并二次确认即可；开始前不足 1 小时不可取消。\"}\n"
+            + "示例：用户问“预约审核多久有结果？”，回答：{\"answer\":\"学生提交预约后状态为待审核，管理员在预约审核页通过或驳回，结果可在我的预约页查看。\"}\n"
             + "请用简洁的中文回答，并以JSON格式输出：{\"answer\":\"回答内容\"}";
 
     @Resource
@@ -59,10 +68,17 @@ public class AiChatServiceImpl implements AiChatService {
     @Resource
     private ClassroomMapper classroomMapper;
 
+    /** 提问文本最大长度（M11 修复：防超长输入放大 token 消耗与超时概率） */
+    private static final int QUESTION_MAX_LENGTH = 200;
+
     @Override
     public AiChatVO chat(String question) {
         if (StrUtil.isBlank(question)) {
             throw new BusinessException("请输入您的问题");
+        }
+        // M11 修复：AI 入参长度上限
+        if (question.length() > QUESTION_MAX_LENGTH) {
+            throw new BusinessException("问题过长（不超过 " + QUESTION_MAX_LENGTH + " 字）");
         }
         // 双开关关闭：返回友好提示，不报 500（前端隐藏悬浮助手）
         if (!aiConfigService.isAiEnabled()) {
@@ -71,7 +87,8 @@ public class AiChatServiceImpl implements AiChatService {
 
         // 1. 尝试大模型问答（检索增强注入个人预约上下文）
         String userMessage = buildContext() + "\n【用户问题】" + question;
-        AgnesClient.AgnesResponse resp = agnesClient.chat(SYSTEM_PROMPT, userMessage, true);
+        // M7 修复：传入当前用户 ID，限流按用户维度隔离
+        AgnesClient.AgnesResponse resp = agnesClient.chat(UserContext.getUserId(), SYSTEM_PROMPT, userMessage, true);
         if (resp.ok()) {
             AiChatVO vo = parseModelOutput(resp.content());
             if (vo != null) {

@@ -71,11 +71,18 @@ public class AuthInterceptor implements HandlerInterceptor {
         }
 
         // 用户状态校验：账号被禁用/删除后，已签发 Token 立即失效（登录只在登录时校验状态，此处每请求兜底）
-        SysUser user = sysUserMapper.selectById(userId);
-        if (user == null) {
-            return reject(response, ResultCode.UNAUTHORIZED.getCode(), ResultCode.UNAUTHORIZED.getMessage());
+        // M10 修复：用户状态先读 Redis 短缓存（60s TTL），未命中才回源查库并回填，
+        // 消除"每请求一次 selectById"的数据库单点开销；管理员禁用账号时主动删缓存，禁用仍即时生效
+        Integer userStatus = redisCache.getUserStatus(userId);
+        if (userStatus == null) {
+            SysUser user = sysUserMapper.selectById(userId);
+            if (user == null) {
+                return reject(response, ResultCode.UNAUTHORIZED.getCode(), ResultCode.UNAUTHORIZED.getMessage());
+            }
+            userStatus = user.getStatus();
+            redisCache.saveUserStatus(userId, userStatus);
         }
-        if (user.getStatus() == Constants.USER_STATUS_DISABLED) {
+        if (userStatus == Constants.USER_STATUS_DISABLED) {
             return reject(response, ResultCode.FORBIDDEN.getCode(), "账号已被禁用，请联系管理员");
         }
 

@@ -9,12 +9,14 @@ import com.example.reservation.ai.service.AiFallbackEngine;
 import com.example.reservation.ai.service.AiParseService;
 import com.example.reservation.common.BusinessException;
 import com.example.reservation.common.TimeUtil;
+import com.example.reservation.common.UserContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalTime;
 
 /**
@@ -38,10 +40,17 @@ public class AiParseServiceImpl implements AiParseService {
     @Resource
     private AiFallbackEngine fallbackEngine;
 
+    /** 解析请求文本最大长度（M11 修复：防超长输入放大 token 消耗与超时概率） */
+    private static final int PARSE_TEXT_MAX_LENGTH = 200;
+
     @Override
     public AiParseVO parse(String text) {
         if (StrUtil.isBlank(text)) {
             throw new BusinessException("请输入预约需求描述");
+        }
+        // M11 修复：AI 入参长度上限（无 Bean Validation 场景下手写校验兜底，与表字段/前端 maxlength 口径一致）
+        if (text.length() > PARSE_TEXT_MAX_LENGTH) {
+            throw new BusinessException("预约需求描述过长（不超过 " + PARSE_TEXT_MAX_LENGTH + " 字）");
         }
         // 双开关关闭：返回友好提示，不报 500、不阻断核心（前端据此隐藏 AI 入口）
         if (!aiConfigService.isAiEnabled()) {
@@ -49,11 +58,14 @@ public class AiParseServiceImpl implements AiParseService {
         }
 
         // 1. 尝试大模型解析（Prompt 严格限定场景与结构化 JSON 输出，AGENTS 4.4）
-        String system = aiConfigService.getPromptParse();
-        if (StrUtil.isBlank(system)) {
-            system = "你是教室预约解析器，只输出JSON：{\"date\":\"YYYY-MM-DD\",\"startTime\":\"HH:mm\",\"endTime\":\"HH:mm\",\"capacity\":int,\"roomType\":\"普通教室|实验室|机房|null\",\"purpose\":\"string\"}";
-        }
-        AgnesClient.AgnesResponse resp = agnesClient.chat(system, text, true);
+        // 模板来自 ai_config.prompt_parse；追加当前日期上下文（模型知识不含实时日期，不注入会幻觉输出绝对日期，
+        // 实测 2026-09-13 曾返回 2024-04-04 —— 2026-09-13 AI 演示准备轮修复）
+        String template = aiConfigService.getPromptParse();
+        String system = StrUtil.isBlank(template)
+                ? "你是教室预约解析器，只输出JSON：{\"date\":\"YYYY-MM-DD\",\"startTime\":\"HH:mm\",\"endTime\":\"HH:mm\",\"capacity\":int,\"roomType\":\"普通教室|实验室|机房|null\",\"purpose\":\"string\"}"
+                : template + "（今天是" + LocalDate.now() + "，用户说“今天/明天/后天/周X”时按此日期推算）";
+        // M7 修复：传入当前用户 ID，限流按用户维度隔离
+        AgnesClient.AgnesResponse resp = agnesClient.chat(UserContext.getUserId(), system, text, true);
         if (resp.ok()) {
             AiParseVO vo = parseModelOutput(resp.content());
             if (vo != null) {

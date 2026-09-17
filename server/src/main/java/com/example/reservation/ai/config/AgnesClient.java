@@ -14,8 +14,8 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Agnes AI 客户端封装（R7，ai 包内低耦合，spec.md 6.1 接入规格）
@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *  - 请求体：model、messages（system/user）、temperature、response_format={"type":"json_object"}（结构化输出）
  * 调用保护（AGENTS 4.4 / spec.md 6.1）：
  *  - 超时控制：读 AiProperties.timeoutSeconds（默认 60s，连接超时固定 10s），超时/报错自动降级
- *  - 限流保护：固定窗口 1 分钟 RPM 计数（rpmLimit），触发限流返回降级
+ *  - 限流保护：按用户维度的固定窗口 1 分钟 RPM 计数（M7 修复，key=userId），触发限流返回降级
  *  - 密钥缺失：apiKey 为空直接降级，前端零接触密钥
  *
  * @author reservation-team
@@ -36,27 +36,28 @@ public class AgnesClient {
     /** JSON 序列化/解析（Spring Boot 自带 Jackson） */
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    /** 超过该用户数时清理限流窗口 Map，防止长期运行内存泄漏（演示规模远小于此） */
+    private static final int MAX_TRACKED_USERS = 10_000;
+
     @Resource
     private AiProperties aiProperties;
 
-    /** 限流计数：当前窗口内调用次数 */
-    private final AtomicInteger windowCount = new AtomicInteger(0);
-
-    /** 限流窗口开始时间戳（毫秒） */
-    private final AtomicLong windowStart = new AtomicLong(System.currentTimeMillis());
+    /** 按用户维度的限流窗口（M7 修复：key=userId，此前为进程级共享固定窗口，任意单用户即可耗尽全站额度） */
+    private final ConcurrentHashMap<Long, WindowCounter> userWindows = new ConcurrentHashMap<>();
 
     /**
      * 调用 Agnes 大模型对话补全
      *
+     * @param userId   当前登录用户 ID（M7：按用户限流维度；null 时退化为共享窗口）
      * @param system   System 角色消息（Prompt 限定场景与结构化输出，AGENTS 4.4 第 4 条）
      * @param user      User 角色消息（实际业务内容）
      * @param jsonMode 是否要求 JSON 结构化输出（response_format={"type":"json_object"}）
      * @return 调用结果：ok=true 携带模型输出 content；ok=false 携带降级原因 reason（调用方据此切换本地规则模拟）
      */
-    public AgnesResponse chat(String system, String user, boolean jsonMode) {
-        // 1. 限流保护（任何调用均计数，RPM≈20；触发返回降级）
-        if (!tryAcquire()) {
-            log.warn("Agnes 调用触发限流（rpm-limit={}），切换降级", aiProperties.getRpmLimit());
+    public AgnesResponse chat(Long userId, String system, String user, boolean jsonMode) {
+        // 1. 限流保护（按用户计数，RPM≈20/用户/分钟；触发返回降级）
+        if (!tryAcquire(userId)) {
+            log.warn("Agnes 调用触发限流（rpm-limit={}，userId={}），切换降级", aiProperties.getRpmLimit(), userId);
             return AgnesResponse.degraded(AiConstants.AI_RATE_LIMITED_MESSAGE);
         }
         // 2. 密钥缺失保护（环境变量 AGNES_API_KEY 未配置）
@@ -160,19 +161,34 @@ public class AgnesClient {
     }
 
     /**
-     * 限流窗口计数（固定窗口 1 分钟，窗口滑动后重置计数）
+     * 按用户限流窗口计数（固定窗口 1 分钟，M7：用户维度隔离，窗口滑动后重置计数）
      *
+     * @param userId 当前用户 ID；null 时退化为共享窗口（未登录场景理论不可达，AI 接口登录即可）
      * @return true=允许调用；false=触发限流
      */
-    private synchronized boolean tryAcquire() {
+    private boolean tryAcquire(Long userId) {
         long now = System.currentTimeMillis();
-        long start = windowStart.get();
-        if (now - start >= AiConstants.RATE_LIMIT_WINDOW_MS) {
-            windowStart.set(now);
-            windowCount.set(0);
+        WindowCounter wc = userWindows.computeIfAbsent(userId, k -> new WindowCounter());
+        // 窗口滑动与计数在同一把锁内完成，避免并发下重复重置导致计数错乱
+        synchronized (wc) {
+            if (now - wc.windowStart >= AiConstants.RATE_LIMIT_WINDOW_MS) {
+                wc.windowStart = now;
+                wc.count.set(0);
+            }
+            int limit = Math.max(aiProperties.getRpmLimit(), 1);
+            boolean allowed = wc.count.incrementAndGet() <= limit;
+            // 防内存泄漏：跟踪用户数超上限时清空重建（重置所有窗口计数，演示规模远小于阈值）
+            if (userWindows.size() > MAX_TRACKED_USERS) {
+                userWindows.clear();
+            }
+            return allowed;
         }
-        int limit = Math.max(aiProperties.getRpmLimit(), 1);
-        return windowCount.incrementAndGet() <= limit;
+    }
+
+    /** 单用户限流窗口载体（固定窗口 1 分钟） */
+    private static final class WindowCounter {
+        private final AtomicInteger count = new AtomicInteger(0);
+        private volatile long windowStart = System.currentTimeMillis();
     }
 
     /**

@@ -104,6 +104,14 @@
 6. 全局配置项 `ai.enable` 一键启停所有 AI 功能，关闭后不影响核心系统运行。
 7. 所有 AI 生成内容，前端标注「AI 生成，仅供参考」。
 
+### 4.5 前端 UI 去 AI 味规范（项目级技能强制使用）
+1. 项目级技能统一存放于 `.agents/skills/`（frontend-design、avoid-ai-design），所有前端开发 Agent 必须使用，禁止凭默认审美直接写页面。
+2. 新建页面/组件：开发前必须先读取 `.agents/skills/frontend-design/SKILL.md`，按「设计计划 → token 系统 → 对照需求复核 → 编码」流程执行；禁止 AI 默认套路（Inter/Roboto/Arial 默认字体、紫蓝渐变、千篇一律圆角卡片、全大写 eyebrow 标签、'A · B · C' 元信息、滥用数字编号）。
+3. 已有页面/组件评审与交付前：必须用 `.agents/skills/avoid-ai-design/SKILL.md` 的 detect 模式自检，对照 `references/ai-tells-catalog.md` 逐项检查，P0/P1 级 AI 痕迹必须清零后方可提交。
+4. 前端文案遵循 frontend-design 写作原则：用户视角命名、主动语态、同一操作全程同名（如按钮「保存」则提示「已保存」）、错误信息不道歉不模糊、空状态给出操作引导。
+5. Element Plus 组件不得裸用默认主题（默认蓝色 + 白底 + 圆角卡片），必须基于设计 token 定制主题变量后再使用。
+6. 页面/组件评审时，应使用 `.agents/skills/web-design-guidelines/SKILL.md`（Vercel 官方）做 100+ 条 Web 界面最佳实践合规审计（可访问性、焦点状态、表单、动效、性能、暗色模式等），与 avoid-ai-design 的 detect 自检配合，作为质量兜底。
+
 ---
 
 ## 5. 交付物标准

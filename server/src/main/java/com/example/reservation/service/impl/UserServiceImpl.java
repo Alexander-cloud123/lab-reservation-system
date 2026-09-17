@@ -28,6 +28,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 用户业务实现
@@ -36,6 +38,11 @@ import java.time.YearMonth;
  */
 @Service
 public class UserServiceImpl implements UserService {
+
+    /** 登录失败计数（内存 Map，M3 修复）：key=账号:角色 → 连续失败次数；单实例部署足够，防对已知账号无限次爆破 */
+    private static final Map<String, Integer> LOGIN_FAIL_COUNT = new ConcurrentHashMap<>();
+    /** 账号锁定截止时间戳（内存 Map，M3 修复）：key=账号:角色 → 解锁时刻；达到阈值后锁定 N 分钟 */
+    private static final Map<String, Long> LOGIN_LOCK_UNTIL = new ConcurrentHashMap<>();
 
     @Resource
     private SysUserMapper userMapper;
@@ -59,10 +66,24 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException("角色参数不合法");
         }
 
+        // M3 修复：账号锁定检查（连续失败达阈值后锁定 N 分钟，防对已知账号无限次爆破尝试）
+        String failKey = dto.getUsername() + ":" + dto.getRole();
+        Long lockUntil = LOGIN_LOCK_UNTIL.get(failKey);
+        if (lockUntil != null && System.currentTimeMillis() < lockUntil) {
+            long remainMinutes = (lockUntil - System.currentTimeMillis()) / 60_000L + 1;
+            throw new BusinessException("登录失败次数过多，账号已临时锁定，请约 " + remainMinutes + " 分钟后再试");
+        }
+
         SysUser user = userMapper.selectOne(
                 new LambdaQueryWrapper<SysUser>().eq(SysUser::getUsername, dto.getUsername()));
         // 账号不存在与密码错误统一提示，避免账号枚举
         if (user == null || !BCrypt.checkpw(dto.getPassword(), user.getPassword())) {
+            // M3：失败计数 +1，达到阈值进入锁定窗口（计数清零，锁定期间直接拦截）
+            int fails = LOGIN_FAIL_COUNT.merge(failKey, 1, Integer::sum);
+            if (fails >= Constants.LOGIN_FAIL_MAX_TIMES) {
+                LOGIN_LOCK_UNTIL.put(failKey, System.currentTimeMillis() + Constants.LOGIN_LOCK_MINUTES * 60_000L);
+                LOGIN_FAIL_COUNT.remove(failKey);
+            }
             throw new BusinessException("账号或密码错误");
         }
         // 状态校验
@@ -73,6 +94,10 @@ public class UserServiceImpl implements UserService {
         if (user.getRole() != dto.getRole()) {
             throw new BusinessException("角色选择与账号类型不匹配");
         }
+
+        // 登录成功：清除失败计数与锁定状态（M3）
+        LOGIN_FAIL_COUNT.remove(failKey);
+        LOGIN_LOCK_UNTIL.remove(failKey);
 
         String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
         // Redis 加分项：登录会话写入 Redis（Key=auth:token:{userId}，TTL 与 JWT 一致）；
@@ -202,6 +227,8 @@ public class UserServiceImpl implements UserService {
         update.setId(id);
         update.setStatus(status);
         userMapper.updateById(update);
+        // M10 配合：用户状态变更（禁用/启用）后主动失效状态缓存，保证下次请求即时生效（不等 60s TTL）
+        redisCache.removeUserStatus(id);
     }
 
     @Override
@@ -222,6 +249,12 @@ public class UserServiceImpl implements UserService {
         update.setId(id);
         update.setPassword(BCrypt.hashpw(Constants.DEFAULT_PASSWORD));
         userMapper.updateById(update);
+        // M2 修复：重置密码后立即失效该用户 Redis 会话（"改密即下线"），旧 Token 不再可用；
+        // 同时清除其登录失败计数与锁定（管理员重置即人工解锁，以用户名为键与 login 口径一致）
+        redisCache.removeToken(id);
+        String failKey = user.getUsername() + ":" + user.getRole();
+        LOGIN_FAIL_COUNT.remove(failKey);
+        LOGIN_LOCK_UNTIL.remove(failKey);
     }
 
     @Override
@@ -319,5 +352,8 @@ public class UserServiceImpl implements UserService {
         update.setId(user.getId());
         update.setPassword(BCrypt.hashpw(dto.getNewPassword()));
         userMapper.updateById(update);
+        // M2 修复：修改密码后立即失效本人 Redis 会话（"改密即下线"），
+        // 旧 Token 在改密瞬间即不可用（此前可继续使用最长 24 小时）
+        redisCache.removeToken(user.getId());
     }
 }

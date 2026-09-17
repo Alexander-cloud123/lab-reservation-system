@@ -206,6 +206,85 @@ public class RedisCache {
         deleteByPattern(CLASSROOM_LIST_KEY_PREFIX + "*");
     }
 
+    /* ==================== 分布式互斥锁（M4 修复：收藏上限"先查后写"的并发互斥） ==================== */
+
+    /**
+     * 尝试获取互斥锁（SETNX + TTL）：Redis 未启用或异常时降级为"视为获取成功"（不加锁，靠唯一索引兜底），不阻断业务。
+     *
+     * @return true=获取成功（或 Redis 不可用降级放行）；false=锁已被占用
+     */
+    public boolean tryLock(String key, long ttlSeconds) {
+        if (!isEnabled()) {
+            return true;
+        }
+        try {
+            return Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key, "1", ttlSeconds, TimeUnit.SECONDS));
+        } catch (Exception e) {
+            // Redis 异常：降级放行，靠数据库唯一索引兜底（降级纪律：Redis 不阻断核心业务）
+            log.warn("Redis 获取互斥锁失败，降级放行（key={}）：{}", key, e.getMessage());
+            return true;
+        }
+    }
+
+    /**
+     * 释放互斥锁（删除 Key；异常空转）。
+     */
+    public void unlock(String key) {
+        delete(key);
+    }
+
+    /* ==================== 用户状态缓存（M10 修复：鉴权拦截器每请求查库的优化） ==================== */
+
+    /** 用户状态缓存 Key 前缀 */
+    private static final String USER_STATUS_KEY_PREFIX = "cache:user:status:";
+
+    /** 用户状态缓存 TTL（秒）：短 TTL 防状态失真；管理员禁用账号时主动删缓存，保证禁用即时生效 */
+    private static final long USER_STATUS_TTL_SECONDS = 60;
+
+    /**
+     * 缓存用户状态（存整数文本；异常空转）。
+     */
+    public void saveUserStatus(Long userId, Integer status) {
+        if (!isEnabled() || userId == null || status == null) {
+            return;
+        }
+        try {
+            redisTemplate.opsForValue().set(USER_STATUS_KEY_PREFIX + userId, String.valueOf(status),
+                    USER_STATUS_TTL_SECONDS, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.warn("Redis 写入用户状态缓存失败（userId={}）：{}", userId, e.getMessage());
+        }
+    }
+
+    /**
+     * 读取用户状态缓存：命中返回状态值；未命中 / 未启用 / 异常返回 null（调用方回源查库，即降级）。
+     */
+    public Integer getUserStatus(Long userId) {
+        if (!isEnabled() || userId == null) {
+            return null;
+        }
+        try {
+            String v = redisTemplate.opsForValue().get(USER_STATUS_KEY_PREFIX + userId);
+            if (v == null || v.isBlank()) {
+                return null;
+            }
+            return Integer.valueOf(v);
+        } catch (Exception e) {
+            log.warn("Redis 读取用户状态缓存失败（userId={}）：{}", userId, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 删除用户状态缓存（用户状态变更/账号删除时主动失效，保证禁用即时生效；异常空转）。
+     */
+    public void removeUserStatus(Long userId) {
+        if (userId == null) {
+            return;
+        }
+        delete(USER_STATUS_KEY_PREFIX + userId);
+    }
+
     /** 组装登录会话 Key：auth:token:{userId} */
     private String tokenKey(Long userId) {
         return redisProperties.getToken().getKeyPrefix() + userId;

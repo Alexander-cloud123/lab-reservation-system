@@ -1,4 +1,117 @@
-/* 全局基础样式 */
+/* ============================================================
+   全局主题（前端 UI 去 AI 味整改轮）
+   设计语言：排课表 Timetable —— 冷纸 + 墨蓝黑 + 深普鲁士蓝
+   依据：.agents/skills/avoid-ai-design（detect/rewrite）+ frontend-design
+   实现：CSS 变量（Design Tokens）+ Element Plus 主题变量覆盖
+   原则：单一承诺主色、扁平面板、圆角分级、无渐变/辉光/玻璃、动效克制
+   ============================================================ */
+
+/* ---------- 1. 设计 Token ---------- */
+:root {
+  /* 主操作色：深普鲁士蓝（单一承诺色，替代默认蓝与渐变；进 Element Plus 主色） */
+  --brand-primary: #1e6091;
+  --brand-primary-hover: #174f78;
+  --brand-primary-active: #123e5f;
+  --brand-primary-light: #e8f0f6;
+  --brand-primary-lighter: #f2f7fa;
+
+  /* 语义状态色（低饱和，进 token，消除散点紫/青/橙） */
+  --brand-success: #2e8b57;
+  --brand-success-light: #e6f4ec;
+  --brand-warning: #b45309;
+  --brand-warning-light: #fdf0e0;
+  --brand-danger: #b3261e;
+  --brand-danger-light: #fbeae9;
+  --brand-info: #64748b;
+  --brand-info-light: #eef1f4;
+
+  /* 中性色（冷纸 + 墨蓝黑） */
+  --text-primary: #1c2733;
+  --text-regular: #3d4a5a;
+  --text-secondary: #64748b;
+  --text-placeholder: #8b98a8;
+  --border-color: #d8dee6;
+  --border-color-light: #e7ebf0;
+  --bg-page: #f3f5f7;
+  --bg-card: #ffffff;
+
+  /* 圆角分级（容器 > 控件 > 徽标）与阴影（仅抬升、无色） */
+  --radius-lg: 10px;
+  --radius-md: 8px;
+  --radius-sm: 6px;
+  --shadow-card: 0 1px 2px rgba(28, 39, 51, 0.05);
+  --shadow-hover: 0 2px 6px rgba(28, 39, 51, 0.09);
+}
+
+/* ---------- 2. Element Plus 主题变量覆盖 ---------- */
+:root {
+  --el-color-primary: var(--brand-primary);
+  --el-color-primary-light-3: #6290b2;
+  --el-color-primary-light-5: #8eb0c8;
+  --el-color-primary-light-7: #bccfde;
+  --el-color-primary-light-8: #d2dfe9;
+  --el-color-primary-light-9: #e9eff4;
+  --el-color-primary-dark-2: #184d74;
+
+  --el-color-success: var(--brand-success);
+  --el-color-success-light-3: #6dae89;
+  --el-color-success-light-5: #97c5ab;
+  --el-color-success-light-7: #c0dccd;
+  --el-color-success-light-8: #d5e8dd;
+  --el-color-success-light-9: #eaf3ee;
+
+  --el-color-warning: var(--brand-warning);
+  --el-color-warning-light-3: #cb8753;
+  --el-color-warning-light-5: #daa984;
+  --el-color-warning-light-7: #e9cbb5;
+  --el-color-warning-light-8: #f0ddce;
+  --el-color-warning-light-9: #f8eee6;
+
+  --el-color-danger: var(--brand-danger);
+  --el-color-danger-light-3: #ca6762;
+  --el-color-danger-light-5: #d9938f;
+  --el-color-danger-light-7: #e8bebc;
+  --el-color-danger-light-8: #f0d4d2;
+  --el-color-danger-light-9: #f7e9e9;
+
+  --el-color-error: var(--brand-danger);
+  --el-color-error-light-3: #ca6762;
+  --el-color-error-light-5: #d9938f;
+  --el-color-error-light-7: #e8bebc;
+  --el-color-error-light-8: #f0d4d2;
+  --el-color-error-light-9: #f7e9e9;
+
+  --el-color-info: var(--brand-info);
+  --el-color-info-light-3: #939eae;
+  --el-color-info-light-5: #b2bac5;
+  --el-color-info-light-7: #d1d5dc;
+  --el-color-info-light-8: #e0e3e8;
+  --el-color-info-light-9: #f0f1f3;
+
+  --el-text-color-primary: var(--text-primary);
+  --el-text-color-regular: var(--text-regular);
+  --el-text-color-secondary: var(--text-secondary);
+  --el-text-color-placeholder: var(--text-placeholder);
+
+  --el-border-color: var(--border-color);
+  --el-border-color-light: var(--border-color-light);
+  --el-border-color-lighter: var(--border-color-light);
+  --el-border-color-extra-light: #f1f3f6;
+  --el-border-color-hover: #b9c3cf;
+
+  --el-border-radius-base: 8px;
+  --el-border-radius-small: 6px;
+  --el-border-radius-round: 16px;
+
+  --el-fill-color-light: #f7f9fb;
+  --el-fill-color-lighter: #fafbfc;
+  --el-bg-color-page: var(--bg-page);
+
+  --el-font-family: 'HarmonyOS Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+/* ---------- 3. 基础 ---------- */
 * {
   margin: 0;
   padding: 0;
@@ -9,57 +122,240 @@ html,
 body,
 #app {
   height: 100%;
-  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
+  font-family: var(--el-font-family);
   -webkit-font-smoothing: antialiased;
-  background-color: #f5f7fa;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg-page);
+  color: var(--text-primary);
 }
 
-/* 登录 / 注册页公共布局 */
-.login-page,
-.register-page {
-  height: 100%;
+/* 键盘焦点全局兜底（无边框/无阴影的交互元素） */
+a:focus-visible,
+button:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+/* 数字 / 时间 / 统计值：等宽数字，避免跳动 */
+.tabular-nums,
+.stat-value,
+.el-table .cell,
+.el-pagination {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 细滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #c6cfd9;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a9b4c0;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---------- 4. Element Plus 组件统一视觉 ---------- */
+
+/* 卡片：扁平面板（1px 边框 + 轻抬升，无重阴影） */
+.el-card {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color-light);
+  box-shadow: var(--shadow-card);
+}
+.el-card.is-hover-shadow:hover {
+  box-shadow: var(--shadow-hover);
+  border-color: var(--border-color);
+}
+.el-card__header {
+  border-bottom: 1px solid var(--border-color-light);
+  padding: 14px 18px;
+  font-weight: 600;
+}
+
+/* 按钮：扁平主色 + 真实 hover/active/focus 状态 */
+.el-button {
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.el-button--primary:not(.is-plain):not(.is-text):not(.is-link) {
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
+}
+.el-button--primary:not(.is-plain):not(.is-text):not(.is-link):hover {
+  background: var(--brand-primary-hover);
+  border-color: var(--brand-primary-hover);
+}
+.el-button--primary:not(.is-plain):not(.is-text):not(.is-link):active {
+  background: var(--brand-primary-active);
+  border-color: var(--brand-primary-active);
+}
+.el-button--primary.is-plain {
+  --el-button-hover-bg-color: var(--brand-primary-light);
+  --el-button-hover-border-color: #86a8c4;
+  --el-button-hover-text-color: var(--brand-primary);
+}
+
+/* 标签：状态即印章（语义色块；实心/描边两种克制样式） */
+.el-tag {
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+}
+
+/* 表格：中性表头、柔和行 hover、无重装饰 */
+.el-table {
+  --el-table-header-bg-color: #f7f9fb;
+  --el-table-header-text-color: var(--text-regular);
+  --el-table-row-hover-bg-color: var(--brand-primary-lighter);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.el-table th.el-table__cell {
+  font-weight: 600;
+  font-size: 13px;
+}
+.el-table .el-table__cell {
+  padding: 12px 0;
+}
+
+/* 输入框 / 选择器：聚焦环（主色描边，非辉光） */
+.el-input__wrapper,
+.el-select__wrapper,
+.el-textarea__inner,
+.el-date-editor.el-input__wrapper {
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 1px var(--el-border-color) inset;
+  transition: box-shadow 0.15s ease;
+}
+.el-input__wrapper.is-focus,
+.el-select__wrapper.is-focused,
+.el-textarea__inner:focus {
+  box-shadow: 0 0 0 1px var(--brand-primary) inset;
+}
+
+/* 分页 */
+.el-pagination.is-background .el-pager li {
+  border-radius: var(--radius-sm);
+}
+
+/* 标签页：下划线 + 激活字色 */
+.el-tabs__item {
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: color 0.15s;
+}
+.el-tabs__item.is-active {
+  color: var(--brand-primary);
+}
+.el-tabs__active-bar {
+  background-color: var(--brand-primary);
+  height: 3px;
+}
+
+/* 弹窗 / 抽屉 / 消息：扁平方角，无重投影 */
+.el-message-box,
+.el-dialog,
+.el-drawer {
+  border-radius: var(--radius-lg);
+}
+
+/* 下拉菜单项 hover */
+.el-dropdown-menu__item:hover,
+.el-dropdown-menu__item:focus {
+  background-color: var(--brand-primary-light);
+  color: var(--brand-primary);
+}
+
+/* 空状态 */
+.el-empty__description p {
+  color: var(--text-secondary);
+}
+
+/* ---------- 5. 通用工具类 ---------- */
+
+/* 页面容器：居中限宽 */
+.page-container {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+/* 页面标题栏：纯墨色大字重，无渐变装饰条 */
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.page-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.2px;
+}
+
+/* 数据统计卡片（扁平 KPI 卡：无浮起、无辉光） */
+.stat-card {
+  background: #fff;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color-light);
+  box-shadow: var(--shadow-card);
+  padding: 20px;
+  position: relative;
+  transition: border-color 0.15s ease;
+}
+.stat-card:hover {
+  border-color: var(--border-color);
+}
+.stat-card .stat-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1f3a93 0%, #2b5cd9 55%, #4f8cff 100%);
+  font-size: 20px;
+  margin-bottom: 14px;
+  background: var(--brand-primary-light);
+  color: var(--brand-primary);
 }
-
-.login-card,
-.register-card {
-  width: 420px;
-  padding: 40px 36px 28px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
-}
-
-.login-title {
-  text-align: center;
-  font-size: 22px;
-  color: #1f3a93;
-  margin-bottom: 4px;
-}
-
-.login-subtitle {
-  text-align: center;
+.stat-card .stat-label {
   font-size: 13px;
-  color: #909399;
-  margin-bottom: 28px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.stat-card .stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-card .stat-trend {
+  font-size: 12px;
+  color: var(--text-placeholder);
+  margin-top: 6px;
 }
 
-.login-btn,
-.register-btn {
-  width: 100%;
-}
+/* ---------- 6. 动效克制 ---------- */
 
-.login-footer {
-  margin-top: 16px;
-  text-align: center;
-  font-size: 13px;
-  color: #909399;
-}
-
-.login-footer a {
-  color: #2b5cd9;
-  text-decoration: none;
+/* 用户偏好减少动效：关闭全部过渡与动画 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

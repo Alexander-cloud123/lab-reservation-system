@@ -1,5 +1,10 @@
 <template>
   <div class="manage-page">
+    <!-- 页面标题栏 -->
+    <div class="page-head">
+      <span class="page-title">教室管理</span>
+      <span class="page-tip">新增、编辑、启用/停用与批量管理教室资源</span>
+    </div>
     <!-- 搜索栏 -->
     <el-card shadow="never" class="search-card">
       <el-form :inline="true" :model="query" @submit.prevent>
@@ -101,6 +106,11 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- 空状态 -->
+      <el-empty v-if="!loading && !records.length" description="没有找到符合条件的教室">
+        <el-button type="primary" @click="handleReset">重置筛选</el-button>
+      </el-empty>
 
       <!-- 分页 -->
       <div class="pagination-wrap">
@@ -380,6 +390,11 @@ onMounted(loadData)
 <style scoped>
 .manage-page {
   padding: 4px;
+}
+
+.page-tip {
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 .search-card {

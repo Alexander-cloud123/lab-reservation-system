@@ -1,5 +1,10 @@
 <template>
   <div class="record-page">
+    <!-- 页面标题栏 -->
+    <div class="page-head">
+      <span class="page-title">预约记录</span>
+      <span class="page-tip">全量预约记录查询与 Excel 导出</span>
+    </div>
     <!-- 搜索栏：日期范围 / 教室 / 用户 / 状态 多条件筛选（需求文档 2.4 第 12 页） -->
     <el-card shadow="never" class="search-card">
       <el-form :inline="true" :model="query" @submit.prevent>
@@ -249,6 +254,11 @@ onMounted(() => {
   padding: 4px;
 }
 
+.page-tip {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
 .search-card {
   margin-bottom: 16px;
 }
@@ -262,7 +272,7 @@ onMounted(() => {
 
 .toolbar-tip {
   font-size: 13px;
-  color: #909399;
+  color: var(--text-secondary);
 }
 
 .user-cell,
@@ -274,11 +284,12 @@ onMounted(() => {
 .user-account,
 .room-no {
   font-size: 12px;
-  color: #909399;
+  color: var(--text-placeholder);
 }
 
 .room-name {
-  color: #1f3a93;
+  color: var(--text-primary);
+  font-weight: 600;
 }
 
 .pagination-wrap {

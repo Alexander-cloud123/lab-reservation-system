@@ -3,8 +3,9 @@
   <el-card v-if="aiEnabled" shadow="never" class="ai-recommend-card">
     <template #header>
       <div class="ai-recommend-head">
+        <span class="ai-icon"><el-icon :size="16"><MagicStick /></el-icon></span>
         <span class="ai-title">AI 为你推荐</span>
-        <el-tag size="small" type="warning" effect="plain">AI 生成，仅供参考</el-tag>
+        <el-tag size="small" type="warning" effect="plain" round>AI 生成，仅供参考</el-tag>
       </div>
     </template>
 
@@ -21,7 +22,7 @@
         <div class="recommend-info">
           <div class="recommend-name">
             <span class="room-name">{{ item.name }}</span>
-            <el-tag size="small" type="info" effect="plain">{{ typeText(item.type) }}</el-tag>
+            <el-tag size="small" type="info" effect="plain" round>{{ typeText(item.type) }}</el-tag>
             <span class="room-meta">{{ item.building }} · {{ item.roomNo }} · 容量 {{ item.capacity }} 人</span>
           </div>
           <p class="recommend-reason">{{ item.reason }}</p>
@@ -38,6 +39,7 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
+import { MagicStick } from '@element-plus/icons-vue'
 
 /**
  * AI 智能推荐卡片（R7，需求文档 2.4 教室列表页「AI 为你推荐」卡片区）
@@ -68,8 +70,14 @@ function typeText(type) {
 
 <style scoped>
 .ai-recommend-card {
-  margin-bottom: 16px;
-  border: 1px solid #e6a23c;
+  margin-bottom: 18px;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  border: 1px solid var(--border-color-light);
+}
+
+.ai-recommend-card :deep(.el-card__header) {
+  border-bottom: 1px solid var(--border-color-light);
 }
 
 .ai-recommend-head {
@@ -78,10 +86,21 @@ function typeText(type) {
   gap: 10px;
 }
 
+.ai-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--brand-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .ai-title {
   font-size: 15px;
-  font-weight: 600;
-  color: #b88230;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .recommend-list {
@@ -95,15 +114,15 @@ function typeText(type) {
   align-items: flex-start;
   gap: 12px;
   padding: 10px 12px;
-  border: 1px solid #ebeef5;
-  border-radius: 6px;
+  border: 1px solid var(--border-color-light);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .recommend-item:hover {
-  border-color: #e6a23c;
-  background: #fdf6ec;
+  border-color: var(--border-color);
+  background: var(--brand-primary-lighter);
 }
 
 .rank {
@@ -111,8 +130,8 @@ function typeText(type) {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #e6a23c, #f7d08a);
-  color: #fff;
+  background: var(--brand-primary-light);
+  color: var(--brand-primary);
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -135,18 +154,18 @@ function typeText(type) {
 .room-name {
   font-size: 14px;
   font-weight: 600;
-  color: #1f3a93;
+  color: var(--text-primary);
 }
 
 .room-meta {
   font-size: 12px;
-  color: #909399;
+  color: var(--text-secondary);
 }
 
 .recommend-reason {
   margin: 4px 0 0;
   font-size: 13px;
-  color: #606266;
+  color: var(--text-regular);
 }
 
 .ai-recommend-foot {

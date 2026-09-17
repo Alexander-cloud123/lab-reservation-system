@@ -1,6 +1,10 @@
 <template>
-  <div class="my-reservation-page">
-    <el-card shadow="never">
+  <div class="my-reservation-page page-container">
+    <div class="page-head">
+      <span class="page-title">我的预约</span>
+      <span class="page-tip">今日预约已置顶显示 · 待审核 / 已通过可取消</span>
+    </div>
+    <el-card shadow="never" class="reserve-card">
       <!-- 状态分类查看 -->
       <el-tabs v-model="activeStatus" @tab-change="handleTabChange">
         <el-tab-pane label="全部" name="all" />
@@ -196,8 +200,17 @@ onMounted(loadData)
 
 <style scoped>
 .my-reservation-page {
-  max-width: 1000px;
+  max-width: 1080px;
   margin: 0 auto;
+}
+
+.page-tip {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.reserve-card {
+  border-radius: var(--radius-lg);
 }
 
 .room-cell {
@@ -206,22 +219,25 @@ onMounted(loadData)
 }
 
 .room-name {
-  color: #1f3a93;
-  font-weight: 500;
+  color: var(--text-primary);
+  font-weight: 600;
 }
 
 .room-no {
   font-size: 12px;
-  color: #909399;
+  color: var(--text-placeholder);
 }
 
 .no-action {
-  color: #c0c4cc;
+  color: var(--text-placeholder);
 }
 
 /* 今日预约置顶突出显示（R4） */
 .today-row td {
-  background: #fdf0ef !important;
+  background: var(--brand-primary-lighter) !important;
+}
+.today-row:hover td {
+  background: var(--brand-primary-light) !important;
 }
 
 .today-tag {
@@ -232,5 +248,17 @@ onMounted(loadData)
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+}
+
+/* ---------- 窄屏适配（P3-8：<480px 分页换行，避免横向溢出） ---------- */
+@media (max-width: 480px) {
+  .pagination-wrap {
+    justify-content: center;
+  }
+  .pagination-wrap :deep(.el-pagination) {
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 6px;
+  }
 }
 </style>

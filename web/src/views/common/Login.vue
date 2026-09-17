@@ -1,29 +1,49 @@
 <template>
   <div class="login-page">
-    <div class="login-card">
-      <h2 class="login-title">高校实验室预约管理系统</h2>
-      <p class="login-subtitle">基于双重校验机制 · 学生/管理员双端</p>
+    <!-- 左侧品牌区（扁平深蓝面板，无渐变/光晕） -->
+    <div class="login-brand">
+      <div class="brand-inner">
+        <div class="brand-logo">
+          <el-icon :size="30"><OfficeBuilding /></el-icon>
+        </div>
+        <h1 class="brand-name">高校实验室预约管理系统</h1>
+        <p class="brand-slogan">让每一间教室，都在最需要的时候被使用</p>
+        <ul class="brand-points">
+          <li><el-icon><CircleCheckFilled /></el-icon>双重冲突校验，预约零冲突</li>
+          <li><el-icon><Calendar /></el-icon>日历总览 + AI 智能推荐</li>
+          <li><el-icon><DataLine /></el-icon>可视化数据看板，资源一目了然</li>
+        </ul>
+      </div>
+      <div class="brand-footer">@ 2026 高校实验室预约管理系统 · 课程设计项目</div>
+    </div>
 
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="0" size="large" @keyup.enter="handleLogin">
-        <el-form-item prop="role">
-          <el-radio-group v-model="form.role">
-            <el-radio-button :value="0">学 生</el-radio-button>
-            <el-radio-button :value="1">管理员</el-radio-button>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item prop="username">
-          <el-input v-model="form.username" placeholder="请输入登录账号" :prefix-icon="User" clearable />
-        </el-form-item>
-        <el-form-item prop="password">
-          <el-input v-model="form.password" type="password" placeholder="请输入密码" :prefix-icon="Lock" show-password clearable />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" class="login-btn" :loading="loading" @click="handleLogin">登 录</el-button>
-        </el-form-item>
-      </el-form>
+    <!-- 右侧登录表单区 -->
+    <div class="login-panel">
+      <div class="login-card">
+        <h2 class="login-title">欢迎回来</h2>
+        <p class="login-subtitle">请选择身份并登录您的账号</p>
 
-      <div class="login-footer">
-        还没有账号？<router-link to="/register">立即注册</router-link>
+        <el-form ref="formRef" :model="form" :rules="rules" label-width="0" size="large" @keyup.enter="handleLogin">
+          <el-form-item prop="role">
+            <el-radio-group v-model="form.role" class="role-group">
+              <el-radio-button :value="0">学 生</el-radio-button>
+              <el-radio-button :value="1">管理员</el-radio-button>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item prop="username">
+            <el-input v-model="form.username" placeholder="请输入登录账号" aria-label="登录账号" :prefix-icon="User" clearable />
+          </el-form-item>
+          <el-form-item prop="password">
+            <el-input v-model="form.password" type="password" placeholder="请输入密码" aria-label="密码" :prefix-icon="Lock" show-password clearable />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" class="login-btn" :loading="loading" @click="handleLogin">登 录</el-button>
+          </el-form-item>
+        </el-form>
+
+        <div class="login-footer">
+          还没有账号？<router-link to="/register">立即注册</router-link>
+        </div>
       </div>
     </div>
   </div>
@@ -33,7 +53,7 @@
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Lock, User } from '@element-plus/icons-vue'
+import { Lock, User, OfficeBuilding, CircleCheckFilled, Calendar, DataLine } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { useUserStore } from '@/stores/user'
 import { getMyReservations } from '@/api/reservation'
@@ -91,7 +111,14 @@ async function handleLogin() {
     const user = await userStore.login({ ...form })
     ElMessage.success('登录成功')
     const redirect = route.query.redirect
-    const target = redirect && typeof redirect === 'string' ? redirect : user.role === 1 ? '/admin/home' : '/student/home'
+    // L12 修复：回跳地址仅接受站内路径（以单个 / 开头且非协议相对路径），
+    // 防止外部构造 ?redirect=https://evil.com 造成开放重定向
+    const isSafeRedirect =
+      typeof redirect === 'string' &&
+      redirect.startsWith('/') &&
+      !redirect.startsWith('//') &&
+      !redirect.startsWith('/http')
+    const target = isSafeRedirect ? redirect : user.role === 1 ? '/admin/home' : '/student/home'
     router.push(target)
     if (user.role === 0) {
       checkUpcomingReminder()
@@ -103,3 +130,171 @@ async function handleLogin() {
   }
 }
 </script>
+
+<style scoped>
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  background: var(--bg-page);
+}
+
+/* ---- 左侧品牌区：扁平深蓝面板 + 规则圆环（排课表母题） ---- */
+.login-brand {
+  flex: 1.15;
+  min-width: 0;
+  background: var(--brand-primary);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 48px 7%;
+  position: relative;
+  overflow: hidden;
+}
+.login-brand::after {
+  content: '';
+  position: absolute;
+  right: -120px;
+  bottom: -120px;
+  width: 340px;
+  height: 340px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+}
+.login-brand::before {
+  content: '';
+  position: absolute;
+  right: -40px;
+  bottom: -40px;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.16);
+}
+
+.brand-logo {
+  width: 58px;
+  height: 58px;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 22px;
+}
+.brand-name {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+}
+.brand-slogan {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.82);
+  margin-bottom: 34px;
+  letter-spacing: 0.5px;
+}
+.brand-points {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.brand-points li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.92);
+}
+.brand-points li .el-icon {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.7);
+}
+.brand-footer {
+  position: absolute;
+  bottom: 28px;
+  left: 7%;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* ---- 右侧表单区 ---- */
+.login-panel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+}
+.login-card {
+  width: 400px;
+  max-width: 100%;
+  background: #fff;
+  border-radius: var(--radius-lg);
+  padding: 40px 36px 30px;
+  box-shadow: 0 6px 24px rgba(28, 39, 51, 0.08);
+  border: 1px solid var(--border-color-light);
+}
+.login-title {
+  text-align: center;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+.login-subtitle {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 26px;
+}
+.role-group {
+  display: flex;
+  width: 100%;
+}
+.role-group .el-radio-button {
+  flex: 1;
+  text-align: center;
+}
+/* 按钮内文字 span 属 Element Plus 组件内部元素，须 :deep 穿透 scoped 才能命中 */
+.role-group :deep(.el-radio-button__inner) {
+  width: 100%;
+  border-radius: var(--radius-md) !important;
+  font-weight: 500;
+}
+.role-group .el-radio-button:first-child :deep(.el-radio-button__inner) {
+  border-radius: var(--radius-md) 0 0 var(--radius-md) !important;
+}
+.role-group .el-radio-button:last-child :deep(.el-radio-button__inner) {
+  border-radius: 0 var(--radius-md) var(--radius-md) 0 !important;
+}
+.login-btn {
+  width: 100%;
+  height: 44px;
+  font-size: 15px;
+  letter-spacing: 2px;
+}
+.login-footer {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.login-footer a {
+  color: var(--brand-primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+.login-footer a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 900px) {
+  .login-brand {
+    display: none;
+  }
+}
+</style>

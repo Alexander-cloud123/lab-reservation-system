@@ -2,7 +2,15 @@
   <!-- 全局悬浮 AI 预约助手（需求文档 2.4：学生端所有页面右下角悬浮球 → 侧边对话窗口） -->
   <div class="ai-assistant">
     <!-- AI 未启用时悬浮球不渲染，系统完全退化为纯预约系统 -->
-    <el-button v-if="aiEnabled" class="assistant-ball" type="warning" circle :icon="ChatDotRound" @click="drawerVisible = true" />
+    <el-button
+      v-if="aiEnabled"
+      class="assistant-ball"
+      type="primary"
+      circle
+      aria-label="打开 AI 预约助手"
+      :icon="ChatDotRound"
+      @click="drawerVisible = true"
+    />
 
     <el-drawer v-model="drawerVisible" title="AI 预约助手" size="380px" class="assistant-drawer">
       <div class="chat-body" ref="chatBodyRef">
@@ -104,7 +112,12 @@ function scrollToBottom() {
   width: 52px;
   height: 52px;
   font-size: 22px;
-  box-shadow: 0 4px 14px rgba(230, 162, 60, 0.45);
+  background: var(--brand-primary) !important;
+  border: none !important;
+  transition: background-color 0.15s ease;
+}
+.assistant-ball:hover {
+  background: var(--brand-primary-hover) !important;
 }
 
 .assistant-drawer {
@@ -144,17 +157,19 @@ function scrollToBottom() {
 }
 
 .chat-msg.ai .chat-bubble {
-  background: #f4f4f5;
-  color: #303133;
+  background: var(--brand-info-light);
+  color: var(--text-regular);
+  border-top-left-radius: 4px;
 }
 
 .chat-msg.user .chat-bubble {
-  background: #e6a23c;
+  background: var(--brand-primary);
   color: #fff;
+  border-top-right-radius: 4px;
 }
 
 .chat-footer {
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid var(--border-color-light);
   padding-top: 12px;
 }
 
@@ -166,7 +181,7 @@ function scrollToBottom() {
 .chat-tip {
   margin-top: 8px;
   font-size: 12px;
-  color: #c0c4cc;
+  color: var(--text-placeholder);
   text-align: center;
 }
 </style>

@@ -8,6 +8,8 @@ import com.example.reservation.common.BusinessException;
 import com.example.reservation.common.Constants;
 import com.example.reservation.common.PageResult;
 import com.example.reservation.common.TimeUtil;
+import com.example.reservation.config.RedisCache;
+import com.example.reservation.config.RedisProperties;
 import com.example.reservation.dto.ClassroomDTO;
 import com.example.reservation.entity.Classroom;
 import com.example.reservation.entity.Reservation;
@@ -16,13 +18,16 @@ import com.example.reservation.mapper.ReservationMapper;
 import com.example.reservation.service.ClassroomService;
 import com.example.reservation.vo.ClassroomVO;
 import com.example.reservation.vo.OccupiedSlotVO;
+import com.fasterxml.jackson.core.type.TypeReference;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -34,11 +39,21 @@ import java.util.stream.Collectors;
 @Service
 public class ClassroomServiceImpl implements ClassroomService {
 
+    /** 今日可预约时段口径（与前端日历/详情页一致）：08:00-22:00，按整点划分为 14 个时段 */
+    private static final int DAILY_SLOT_START_HOUR = 8;
+    private static final int DAILY_SLOT_END_HOUR = 22;
+
     @Resource
     private ClassroomMapper classroomMapper;
 
     @Resource
     private ReservationMapper reservationMapper;
+
+    @Resource
+    private RedisCache redisCache;
+
+    @Resource
+    private RedisProperties redisProperties;
 
     @Override
     public PageResult<Classroom> pageClassrooms(long page, long size, String keyword, String building, Integer type, Integer status) {
@@ -78,6 +93,8 @@ public class ClassroomServiceImpl implements ClassroomService {
         // 新增默认可用状态
         classroom.setStatus(Constants.CLASSROOM_STATUS_ENABLED);
         classroomMapper.insert(classroom);
+        // 缓存一致性：教室基础数据变更，失效看板 + 教室列表缓存（下次读回源重建）
+        redisCache.evictBusinessCaches();
         return classroom.getId();
     }
 
@@ -101,6 +118,8 @@ public class ClassroomServiceImpl implements ClassroomService {
         classroom.setEquipment(dto.getEquipment());
         classroom.setDescription(dto.getDescription());
         classroomMapper.updateById(classroom);
+        // 缓存一致性：教室基础数据变更，失效看板 + 教室列表缓存
+        redisCache.evictBusinessCaches();
     }
 
     @Override
@@ -119,6 +138,8 @@ public class ClassroomServiceImpl implements ClassroomService {
             throw new BusinessException("该教室存在预约记录，禁止删除");
         }
         classroomMapper.deleteById(id);
+        // 缓存一致性：教室删除，失效看板 + 教室列表缓存
+        redisCache.evictBusinessCaches();
     }
 
     @Override
@@ -141,6 +162,8 @@ public class ClassroomServiceImpl implements ClassroomService {
         update.setId(id);
         update.setStatus(status);
         classroomMapper.updateById(update);
+        // 缓存一致性：教室启停影响学生端可见性与看板，失效相关缓存
+        redisCache.evictBusinessCaches();
     }
 
     @Override
@@ -155,7 +178,10 @@ public class ClassroomServiceImpl implements ClassroomService {
         LambdaUpdateWrapper<Classroom> wrapper = new LambdaUpdateWrapper<Classroom>()
                 .in(Classroom::getId, ids)
                 .set(Classroom::getStatus, status);
-        return classroomMapper.update(null, wrapper);
+        int updated = classroomMapper.update(null, wrapper);
+        // 缓存一致性：批量启停影响学生端可见性与看板，失效相关缓存
+        redisCache.evictBusinessCaches();
+        return updated;
     }
 
     @Override
@@ -170,6 +196,15 @@ public class ClassroomServiceImpl implements ClassroomService {
         }
         // 可选日期参数（传了才解析，用于返回该日期的占用时段；非法格式 400）
         LocalDate queryDate = StrUtil.isBlank(date) ? null : TimeUtil.parseDate(date);
+
+        // Redis 加分项：教室列表为高频读，按查询参数指纹做短缓存（含今日剩余时段等动态数据，仅短 TTL，不做长缓存）；
+        // Redis 异常时 getObject 返回 null，自动回源查库，接口行为与不启用缓存完全一致
+        String cacheKey = classroomListKey(page, size, keyword, building, type, date);
+        PageResult<ClassroomVO> cached = redisCache.getObject(cacheKey, new TypeReference<>() {
+        });
+        if (cached != null) {
+            return cached;
+        }
 
         LambdaQueryWrapper<Classroom> wrapper = new LambdaQueryWrapper<Classroom>()
                 // 关键词：名称 / 编号 模糊匹配
@@ -210,10 +245,14 @@ public class ClassroomServiceImpl implements ClassroomService {
         List<ClassroomVO> vos = result.getRecords().stream().map(c -> {
             ClassroomVO vo = toStudentVO(c);
             vo.setStatusLabel(calcStatusLabel(c.getId(), todayApproved));
+            vo.setTodayRemainingSlots(calcRemainingSlots(c.getId(), todayApproved));
             vo.setOccupiedSlots(occupiedMap.getOrDefault(c.getId(), List.of()));
             return vo;
         }).toList();
-        return new PageResult<>(result.getTotal(), vos);
+        PageResult<ClassroomVO> pageResult = new PageResult<>(result.getTotal(), vos);
+        // 回填短缓存（教室增改/停用、预约提交/审核/取消时主动失效，保证核心数据一致性）
+        redisCache.setObject(cacheKey, pageResult, redisProperties.getCache().getClassroomTtlSeconds());
+        return pageResult;
     }
 
     @Override
@@ -289,6 +328,31 @@ public class ClassroomServiceImpl implements ClassroomService {
         return allEnded ? Constants.STATUS_LABEL_ENDED : Constants.STATUS_LABEL_FREE;
     }
 
+    /**
+     * 今日剩余可预约整点时段数（需求文档 1.3 冲优项「今日剩余 X 时段」，负责人 2026-09-12 授权）：
+     * 08:00-22:00 按整点划分为 14 个时段；某时段与任一今日已通过预约重叠
+     * （R1 冲突检测公式：时段开始 < 预约结束 AND 时段结束 > 预约开始）即视为不可约；
+     * 剩余 = 14 - 不可约时段数。仅与「今天」绑定，与列表页日期筛选参数无关。
+     */
+    private int calcRemainingSlots(Long classroomId, List<Reservation> todayApproved) {
+        List<Reservation> mine = todayApproved.stream()
+                .filter(r -> r.getClassroomId().equals(classroomId))
+                .toList();
+        if (mine.isEmpty()) {
+            return DAILY_SLOT_END_HOUR - DAILY_SLOT_START_HOUR;
+        }
+        Set<Integer> occupied = new HashSet<>();
+        for (int i = DAILY_SLOT_START_HOUR; i < DAILY_SLOT_END_HOUR; i++) {
+            LocalTime slotStart = LocalTime.of(i, 0);
+            LocalTime slotEnd = LocalTime.of(i + 1, 0);
+            boolean busy = mine.stream().anyMatch(r -> r.getStartTime().isBefore(slotEnd) && r.getEndTime().isAfter(slotStart));
+            if (busy) {
+                occupied.add(i);
+            }
+        }
+        return DAILY_SLOT_END_HOUR - DAILY_SLOT_START_HOUR - occupied.size();
+    }
+
     /** 预约实体 → 占用时段 VO（时间统一 HH:mm） */
     private OccupiedSlotVO toSlotVO(Reservation r) {
         OccupiedSlotVO slot = new OccupiedSlotVO();
@@ -296,6 +360,19 @@ public class ClassroomServiceImpl implements ClassroomService {
         slot.setEndTime(TimeUtil.formatTime(r.getEndTime()));
         slot.setPurpose(r.getPurpose());
         return slot;
+    }
+
+    /**
+     * 组装学生端教室列表缓存 Key：cache:classroom:list:{分页与筛选参数指纹}；
+     * 空参数以 "-" 占位，保证不同筛选/分页/日期条件互不串缓存
+     */
+    private String classroomListKey(long page, long size, String keyword, String building, Integer type, String date) {
+        return RedisCache.CLASSROOM_LIST_KEY_PREFIX
+                + page + ":" + size + ":"
+                + (StrUtil.isBlank(keyword) ? "-" : keyword.trim()) + ":"
+                + (StrUtil.isBlank(building) ? "-" : building.trim()) + ":"
+                + (type == null ? "-" : type) + ":"
+                + (StrUtil.isBlank(date) ? "-" : date.trim());
     }
 
     /**

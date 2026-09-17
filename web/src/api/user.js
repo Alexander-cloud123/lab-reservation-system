@@ -5,6 +5,11 @@ export function login(data) {
   return request.post('/user/login', data)
 }
 
+/** 退出登录：POST /api/user/logout（删除服务端 Redis 会话，登出后 Token 立即失效；silent：失败不弹错误提示） */
+export function logout() {
+  return request.post('/user/logout', {}, { silent: true })
+}
+
 /** 学生注册：POST /api/user/register */
 export function register(data) {
   return request.post('/user/register', data)

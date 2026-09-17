@@ -22,6 +22,12 @@ public interface UserService {
     LoginVO login(LoginDTO dto);
 
     /**
+     * 退出登录：删除 Redis 中的登录会话（Redis 加分项），登出后当前 Token 立即失效；
+     * Redis 未启用/异常时由封装层降级为空操作，不影响前端清除本地登录态。
+     */
+    void logout();
+
+    /**
      * 学生注册：账号唯一、两次密码一致、密码 BCrypt 加密存储
      */
     void register(RegisterDTO dto);

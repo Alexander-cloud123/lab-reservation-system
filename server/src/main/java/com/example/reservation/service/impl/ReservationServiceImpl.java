@@ -9,6 +9,7 @@ import com.example.reservation.common.Constants;
 import com.example.reservation.common.PageResult;
 import com.example.reservation.common.TimeUtil;
 import com.example.reservation.common.UserContext;
+import com.example.reservation.config.RedisCache;
 import com.example.reservation.dto.AuditDTO;
 import com.example.reservation.dto.BatchAuditDTO;
 import com.example.reservation.dto.ReservationDTO;
@@ -67,6 +68,9 @@ public class ReservationServiceImpl implements ReservationService {
 
     @Resource
     private SysUserMapper userMapper;
+
+    @Resource
+    private RedisCache redisCache;
 
     @Override
     public ConflictVO checkConflict(Long classroomId, String date, String startTime, String endTime) {
@@ -155,6 +159,8 @@ public class ReservationServiceImpl implements ReservationService {
         reservation.setPurpose(dto.getPurpose().trim());
         reservation.setStatus(Constants.RES_STATUS_PENDING);
         reservationMapper.insert(reservation);
+        // 缓存一致性：预约提交（月度趋势按全部状态统计，随之变化），失效看板 + 教室列表缓存
+        redisCache.evictBusinessCaches();
         return reservation.getId();
     }
 
@@ -204,6 +210,8 @@ public class ReservationServiceImpl implements ReservationService {
         update.setId(id);
         update.setStatus(Constants.RES_STATUS_CANCELED);
         reservationMapper.updateById(update);
+        // 缓存一致性：取消预约影响看板与教室今日占用，失效相关缓存
+        redisCache.evictBusinessCaches();
     }
 
     @Override
@@ -279,6 +287,8 @@ public class ReservationServiceImpl implements ReservationService {
         update.setAuditorId(UserContext.getUserId());
         update.setAuditTime(LocalDateTime.now());
         reservationMapper.updateById(update);
+        // 缓存一致性：审核改变预约状态（已通过/已驳回），影响看板与教室今日占用，失效相关缓存
+        redisCache.evictBusinessCaches();
     }
 
     @Override
@@ -322,7 +332,10 @@ public class ReservationServiceImpl implements ReservationService {
                         dto.getStatus() == Constants.RES_STATUS_REJECTED ? dto.getAuditRemark().trim() : null)
                 .set(Reservation::getAuditorId, UserContext.getUserId())
                 .set(Reservation::getAuditTime, LocalDateTime.now());
-        return reservationMapper.update(null, wrapper);
+        int updated = reservationMapper.update(null, wrapper);
+        // 缓存一致性：批量审核改变预约状态，失效看板 + 教室列表缓存
+        redisCache.evictBusinessCaches();
+        return updated;
     }
 
     @Override

@@ -1,6 +1,7 @@
 package com.example.reservation.common;
 
 import cn.hutool.core.util.StrUtil;
+import com.example.reservation.config.RedisCache;
 import com.example.reservation.entity.SysUser;
 import com.example.reservation.mapper.SysUserMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -33,6 +34,9 @@ public class AuthInterceptor implements HandlerInterceptor {
 
     @Resource
     private SysUserMapper sysUserMapper;
+
+    @Resource
+    private RedisCache redisCache;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
@@ -73,6 +77,16 @@ public class AuthInterceptor implements HandlerInterceptor {
         }
         if (user.getStatus() == Constants.USER_STATUS_DISABLED) {
             return reject(response, ResultCode.FORBIDDEN.getCode(), "账号已被禁用，请联系管理员");
+        }
+
+        // Redis 会话校验（需求设计文档 2.2 第 145 行加分项）：JWT 合法、账号状态正常后，
+        // 再确认该 Token 仍是服务端当前有效会话——
+        //  VALID：会话存在且一致，放行；
+        //  INVALID：Redis 正常但无此会话（已登出 / 会话过期 / 被同账号新登录顶掉）→ 401；
+        //  SKIP：redis.enable=false 或 Redis 连接异常 → 降级为仅 JWT 校验，不阻断业务。
+        RedisCache.SessionStatus sessionStatus = redisCache.validateToken(userId, token);
+        if (sessionStatus == RedisCache.SessionStatus.INVALID) {
+            return reject(response, ResultCode.UNAUTHORIZED.getCode(), "登录已过期，请重新登录");
         }
 
         UserContext.set(userId, username, role);

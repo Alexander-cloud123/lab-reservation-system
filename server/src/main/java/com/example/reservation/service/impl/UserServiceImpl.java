@@ -10,6 +10,7 @@ import com.example.reservation.common.JwtUtil;
 import com.example.reservation.common.PageResult;
 import com.example.reservation.common.ResultCode;
 import com.example.reservation.common.UserContext;
+import com.example.reservation.config.RedisCache;
 import com.example.reservation.dto.LoginDTO;
 import com.example.reservation.dto.PasswordDTO;
 import com.example.reservation.dto.RegisterDTO;
@@ -45,6 +46,9 @@ public class UserServiceImpl implements UserService {
     @Resource
     private JwtUtil jwtUtil;
 
+    @Resource
+    private RedisCache redisCache;
+
     @Override
     public LoginVO login(LoginDTO dto) {
         // 参数校验
@@ -71,7 +75,20 @@ public class UserServiceImpl implements UserService {
         }
 
         String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
+        // Redis 加分项：登录会话写入 Redis（Key=auth:token:{userId}，TTL 与 JWT 一致）；
+        // 同一用户重复登录覆盖旧 Token，实现「单点会话」（旧 Token 立即失效）；Redis 异常时封装层自动降级
+        redisCache.saveToken(user.getId(), token, jwtUtil.getExpireSeconds());
         return new LoginVO(token, UserVO.from(user));
+    }
+
+    @Override
+    public void logout() {
+        // 删除 Redis 会话，登出后该 Token 立即失效（拦截器查不到会话即返回 401）；
+        // 未登录场景 UserContext 无用户，直接返回；Redis 未启用/异常由封装层降级为空操作
+        Long userId = UserContext.getUserId();
+        if (userId != null) {
+            redisCache.removeToken(userId);
+        }
     }
 
     @Override

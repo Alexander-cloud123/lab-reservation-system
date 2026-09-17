@@ -32,6 +32,14 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
+        <!-- Redis（需求设计文档 2.2 第 145 行可选加分项，经负责人确认实施；
+             版本由 spring-boot-starter-parent 统一管理，不单独写版本号；
+             使用 Spring Boot 默认 Lettuce 客户端，禁止引入 Redisson 等额外组件） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
         <!-- MySQL 驱动 -->
         <dependency>
             <groupId>com.mysql</groupId>

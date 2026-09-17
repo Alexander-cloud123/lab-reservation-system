@@ -1,8 +1,8 @@
 # R8 标准演示脚本（核心业务闭环）
 
 > 适用：实训/答辩现场演示。演示数据全部使用数据库**初始基线**（详见「测试数据说明」），禁止新增或修改基线数据；演示中产生的写操作在「恢复基线」小节统一还原。
-> 前置：Docker 容器 `reservation-mysql` 运行中；后端启动（交付配置，`ai.enable=false`）；前端 `npm run dev` 访问 http://localhost:5173。
-> 环境命令见 `startup-guide.md`。
+> 前置：Docker 容器 `reservation-mysql` 与 `reservation-redis` 运行中；后端启动（交付配置，`ai.enable=false`）；前端 `npm run dev` 访问 http://localhost:5173。Redis 健康检查：`docker exec reservation-redis redis-cli ping` 应返回 PONG。
+> 环境命令见 `startup-guide.md`；Redis 设计细节见 `docs/Redis加分项接入说明.md`，现场问答口径与根目录 `docs/演示脚本.md` 5.6 节一致。
 
 ## 演示流程总览（先核心闭环，AI 做压轴）
 
@@ -101,6 +101,41 @@
 | 数据用例 | 基线预约的日期分布（今日 1/2/4/12/13、明日 3/7、历史 5/6/8/9/10/11） |
 | 操作 | 月/周视图切换；色块对应不同状态；点击某日快速发起预约 |
 | 预期结果 | 日历色块与预约数据一致；点击快速预约弹窗可用 |
+
+## 第 10 步（可选压轴）：Redis 加分项现场演示
+
+> 目的：把「Redis 真的接上了」现场坐实。30 秒讲完四讲点：容器化 / 可注销会话 / 缓存一致性 / 故障降级。与根目录 `docs/演示脚本.md` 5.6 节问答口径一致。
+
+| 项 | 内容 |
+|---|---|
+| 操作位置 | 学生账号登录态 + 一个 PowerShell 窗口跑 docker exec |
+| 数据用例 | 学生 `zhangsan / 123456` |
+
+**现场步骤**：
+
+1. **登录写会话**：学生端登录 zhangsan/123456 后，PowerShell 执行
+   ```powershell
+   docker exec reservation-redis redis-cli keys "auth:token:*"
+   ```
+   预期返回 `auth:token:2`（zhangsan 的 user_id=2），话术：登录瞬间后端把 Token 写进 Redis，TTL 与 JWT 24 小时一致。
+2. **单点会话（二次登录顶旧）**：另开一个浏览器无痕窗口，再用 zhangsan 登录，回到原窗口刷新 → 原 Token 立即 401 被踢回登录页。话术：同账号新登录顶掉旧会话，实现单点在线。
+3. **登出删 Key**：学生端点退出登录，再执行
+   ```powershell
+   docker exec reservation-redis redis-cli keys "auth:token:*"
+   ```
+   预期返回空列表。话术：登出删 Key，旧 Token 立刻失效——解决 JWT 本身无法注销的问题。
+4. **缓存一致性（可选）**：管理端进数据看板一次（缓存命中），学生端提交一笔预约后，看板接口被主动清 Key，下一次请求重建缓存。话术：Cache-Aside，写后 SCAN 批量清，库与缓存强一致；实测冷 37ms → 热 17ms。
+5. **故障降级（可选，最有说服力）**：
+   ```powershell
+   docker stop reservation-redis
+   ```
+   继续在前端操作：登录、刷新教室列表、进看板，全部正常（自动降级为纯 JWT 校验 + 直接查库）。再
+   ```powershell
+   docker start reservation-redis
+   ```
+   恢复。话术：redis.enable 开关 + RedisCache 全 try-catch + 三态校验 VALID/INVALID/SKIP，Redis 挂了业务不阻断，它不是持久化依赖。
+
+> 用途严格限定：只做「缓存热门教室数据 + 存储登录 Token」（需求文档 2.2 第 145 行），没上分布式锁/消息队列/排行榜，避免过度设计。
 
 ---
 

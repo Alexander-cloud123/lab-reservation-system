@@ -46,6 +46,17 @@ public class UserController {
     }
 
     /**
+     * 退出登录（Redis 加分项）：删除服务端会话，登出后当前 Token 立即失效；
+     * 需携带 Token（拦截器据此识别用户并写入 UserContext）；接口路径/参数风格与现有接口保持一致
+     */
+    @Operation(summary = "退出登录", description = "删除 Redis 登录会话，登出后当前 Token 立即失效（需携带 Token）")
+    @PostMapping("/logout")
+    public Result<Void> logout() {
+        userService.logout();
+        return Result.<Void>success("已退出登录", null);
+    }
+
+    /**
      * 学生注册（账号唯一 / 两次密码一致 / BCrypt 加密存储）
      */
     @Operation(summary = "注册", description = "学生自主注册，账号唯一、两次密码一致，密码 BCrypt 加密")

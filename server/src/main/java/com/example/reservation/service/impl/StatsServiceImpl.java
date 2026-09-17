@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.reservation.common.BusinessException;
 import com.example.reservation.common.Constants;
 import com.example.reservation.common.TimeUtil;
+import com.example.reservation.config.RedisCache;
+import com.example.reservation.config.RedisProperties;
 import com.example.reservation.entity.Classroom;
 import com.example.reservation.entity.Reservation;
 import com.example.reservation.mapper.ClassroomMapper;
@@ -12,6 +14,7 @@ import com.example.reservation.service.StatsService;
 import com.example.reservation.vo.TimeDistributionVO;
 import com.example.reservation.vo.TrendVO;
 import com.example.reservation.vo.UsageRateVO;
+import com.fasterxml.jackson.core.type.TypeReference;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
@@ -59,9 +62,22 @@ public class StatsServiceImpl implements StatsService {
     @Resource
     private ClassroomMapper classroomMapper;
 
+    @Resource
+    private RedisCache redisCache;
+
+    @Resource
+    private RedisProperties redisProperties;
+
     @Override
     public List<UsageRateVO> usageRate(String startDate, String endDate) {
         DateRange range = resolveRange(startDate, endDate);
+        // Redis 加分项：看板聚合结果读缓存（命中直接返回，未命中回源后回填）；Redis 异常时 getObject 返回 null 自动回源
+        String cacheKey = statsCacheKey("usage-rate", range);
+        List<UsageRateVO> cached = redisCache.getObject(cacheKey, new TypeReference<>() {
+        });
+        if (cached != null) {
+            return cached;
+        }
         // 区间内【已通过】预约（使用率口径：实际占用）
         List<Reservation> approved = reservationMapper.selectList(new LambdaQueryWrapper<Reservation>()
                 .ge(Reservation::getReserveDate, range.start)
@@ -96,12 +112,21 @@ public class StatsServiceImpl implements StatsService {
         result.sort(Comparator.comparing(UsageRateVO::getUsageRate, Comparator.reverseOrder())
                 .thenComparing(UsageRateVO::getApprovedHours, Comparator.reverseOrder())
                 .thenComparing(UsageRateVO::getClassroomId));
+        // 回填缓存（短 TTL；预约/教室变更时由业务写操作主动失效，保证一致性）
+        redisCache.setObject(cacheKey, result, redisProperties.getCache().getStatsTtlSeconds());
         return result;
     }
 
     @Override
     public List<TrendVO> trend(String startDate, String endDate) {
         DateRange range = resolveRange(startDate, endDate);
+        // Redis 加分项：看板聚合结果读缓存（命中直接返回，未命中回源后回填）
+        String cacheKey = statsCacheKey("trend", range);
+        List<TrendVO> cached = redisCache.getObject(cacheKey, new TypeReference<>() {
+        });
+        if (cached != null) {
+            return cached;
+        }
         // 区间内【全部状态】预约（趋势口径：预约提交活跃度）
         List<Reservation> all = reservationMapper.selectList(new LambdaQueryWrapper<Reservation>()
                 .ge(Reservation::getReserveDate, range.start)
@@ -118,12 +143,23 @@ public class StatsServiceImpl implements StatsService {
                     vo.setCount(e.getValue());
                     return vo;
                 })
-                .collect(Collectors.toList());
+                .collect(Collectors.collectingAndThen(Collectors.toList(), result -> {
+                    // 回填缓存（短 TTL；预约/教室变更时主动失效）
+                    redisCache.setObject(cacheKey, result, redisProperties.getCache().getStatsTtlSeconds());
+                    return result;
+                }));
     }
 
     @Override
     public List<TimeDistributionVO> timeDistribution(String startDate, String endDate) {
         DateRange range = resolveRange(startDate, endDate);
+        // Redis 加分项：看板聚合结果读缓存（命中直接返回，未命中回源后回填）
+        String cacheKey = statsCacheKey("time-distribution", range);
+        List<TimeDistributionVO> cached = redisCache.getObject(cacheKey, new TypeReference<>() {
+        });
+        if (cached != null) {
+            return cached;
+        }
         // 区间内【已通过】预约（时段分布口径：实际占用时段）
         List<Reservation> approved = reservationMapper.selectList(new LambdaQueryWrapper<Reservation>()
                 .ge(Reservation::getReserveDate, range.start)
@@ -147,10 +183,17 @@ public class StatsServiceImpl implements StatsService {
             vo.setPercentage(round1(total == 0 ? 0 : counts[i] * 100.0 / total));
             result.add(vo);
         }
+        // 回填缓存（短 TTL；预约/教室变更时主动失效）
+        redisCache.setObject(cacheKey, result, redisProperties.getCache().getStatsTtlSeconds());
         return result;
     }
 
     /* ==================== 私有工具方法 ==================== */
+
+    /** 组装看板统计缓存 Key：cache:stats:{接口名}:{开始日期}:{结束日期}（区间经 resolveRange 归一化，相同区间共享同一份缓存） */
+    private String statsCacheKey(String api, DateRange range) {
+        return RedisCache.STATS_KEY_PREFIX + api + ":" + range.start + ":" + range.end;
+    }
 
     /** 开始时间 → 时段桶下标（0-4 对应前 5 桶，5 为「其他」） */
     private int slotIndex(LocalTime start) {

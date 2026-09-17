@@ -41,6 +41,13 @@ public class JwtUtil {
     }
 
     /**
+     * Token 有效期（秒）：供 Redis 会话 Key 设置一致 TTL（Redis 加分项，需求设计文档 2.2 第 145 行）
+     */
+    public long getExpireSeconds() {
+        return expireHours * 3600L;
+    }
+
+    /**
      * 校验并解析 Token，返回载荷；非法/过期抛业务异常(401)
      */
     public Map<String, Object> parseToken(String token) {

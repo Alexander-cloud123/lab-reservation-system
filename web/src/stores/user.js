@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { login as loginApi, getInfo as getInfoApi } from '@/api/user'
+import { login as loginApi, logout as logoutApi, getInfo as getInfoApi } from '@/api/user'
 import { getToken, getStoredUser, saveAuth, clearAuth } from '@/utils/auth'
 
 /**
@@ -35,11 +35,20 @@ export const useUserStore = defineStore('user', {
       return res.data
     },
 
-    /** 退出登录：清除本地登录态 */
-    logout() {
-      clearAuth()
-      this.token = ''
-      this.userInfo = null
+    /**
+     * 退出登录：先请求后端删除 Redis 会话（登出后 Token 立即失效），无论成败都清除本地登录态。
+     * 注意：后端注销请求需在 clearAuth 之前发起，请求拦截器才能携带当前 Token。
+     */
+    async logout() {
+      try {
+        await logoutApi()
+      } catch (e) {
+        // 后端不可用 / Redis 降级时不阻断退出，本地照常清除
+      } finally {
+        clearAuth()
+        this.token = ''
+        this.userInfo = null
+      }
     }
   }
 })

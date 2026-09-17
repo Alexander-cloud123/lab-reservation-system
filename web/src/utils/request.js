@@ -42,26 +42,31 @@ request.interceptors.response.use(
       return Promise.reject(new Error(res.message || '登录已过期'))
     }
     if (res.code === 403) {
-      ElMessage.error(res.message || '无权限访问该功能')
+      // silent 请求（如退出登录）不弹错误提示，仅拒绝
+      if (!response.config.silent) ElMessage.error(res.message || '无权限访问该功能')
       return Promise.reject(new Error(res.message || '无权限访问'))
     }
-    ElMessage.error(res.message || '操作失败，请稍后重试')
+    if (!response.config.silent) ElMessage.error(res.message || '操作失败，请稍后重试')
     return Promise.reject(new Error(res.message || '操作失败'))
   },
   (error) => {
     const status = error.response && error.response.status
+    // silent 请求（如退出登录）失败时不弹错误提示，交由调用方静默处理
+    const silent = error.config && error.config.silent
     if (status === 401) {
       // 后端拦截器返回的 401：清登录态并跳转（blob 请求同样处理）
       clearAuth()
       redirectToLogin()
     } else if (status === 403) {
-      // blob 响应体为文件流，需先解析 JSON 再提示
-      if (error.config && error.config.responseType === 'blob' && error.response && error.response.data) {
+      if (silent) {
+        // 静默请求：不提示
+      } else if (error.config && error.config.responseType === 'blob' && error.response && error.response.data) {
+        // blob 响应体为文件流，需先解析 JSON 再提示
         readBlobMessage(error.response.data).then((msg) => ElMessage.error(msg || '无权限访问该功能'))
       } else {
         ElMessage.error('无权限访问该功能')
       }
-    } else {
+    } else if (!silent) {
       const message =
         (error.response && error.response.data && error.response.data.message) || '网络异常，请稍后重试'
       ElMessage.error(message)

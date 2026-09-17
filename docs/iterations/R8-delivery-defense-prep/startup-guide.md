@@ -1,7 +1,8 @@
 # R8 交付启动说明 —— 高校实验室预约管理系统（答辩准备）
 
-> 项目根：`C:\Users\72797\Course\reservation-system\R8-delivery-defense-prep\`
-> 本轮为答辩准备轮：工程从 R7 复制（含 R7 工作区未提交修复：读取超时 60s、max-tokens 1024；base-url 经 R8 实测复核维持 `apihub.agnes-ai.cn/v1`，详见 `docs/task-description.md`），未修改业务代码。
+> 项目根：`C:\Users\72797\Course\reservation-system\`
+> 本轮为答辩准备轮：工程从 R7 复制（含 R7 工作区未提交修复：读取超时 60s、max-tokens 1024；base-url 经 R8 实测复核维持 `apihub.agnes-ai.cn/v1`，详见 `docs/task-description.md`），未修改业务代码；R8 收尾轮并入 Redis 加分项（会话 + 缓存），详见 `docs/Redis加分项接入说明.md`。
+> 工程目录：后端 `server/`，前端 `web/`。
 
 ## 一、环境要求
 
@@ -11,30 +12,33 @@
 | Maven | IDEA 内置 Maven 3.9.x（mvn 不在 PATH，命令行：`C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.3\plugins\maven\lib\maven3\bin\mvn.cmd`） |
 | Node.js | 22.x |
 | MySQL | Docker 运行 MySQL 8.0（reservation-mysql，映射 localhost:3306，库 reservation，root/root，utf8mb4，已设置 --restart unless-stopped） |
+| Redis | Docker 运行 redis:7.0（reservation-redis，映射 localhost:6379）。首次启动：`docker run -d --name reservation-redis -p 6379:6379 redis:7.0`；日常：`docker start reservation-redis` |
 | 浏览器 | Chrome（访问前端 http://localhost:5173） |
 
-禁止降级安装任何环境；禁止启动旧项目 Docker 容器（ssm-mysql / student-manage-mysql）。
+禁止降级安装任何环境；禁止启动旧项目 Docker 容器（ssm-mysql / student-manage-mysql）。Redis 为非持久化依赖，停掉不影响核心业务（自动降级纯 JWT）。
 
-## 二、数据库
+## 二、数据库与 Redis
 
-- 容器已就绪（`docker start reservation-mysql` 即可，**禁止重建容器、禁止重新导数据**）。
-- 初始基线：用户 5 / 教室 12 / 预约 13（待审核3·已通过6·已驳回2·已取消2）/ 收藏 6 / ai_config 5（ai_enable=false）。
+- 容器已就绪（`docker start reservation-mysql` / `docker start reservation-redis` 即可，**禁止重建容器、禁止重新导数据**）。
+- **后端启动前 Redis 健康检查**：`docker exec reservation-redis redis-cli ping`，期望返回 `PONG`。
+- 初始基线：用户 5 / 教室 12 / 预约 14（待审核3·已通过6·已驳回2·已取消3）/ 收藏 6 / ai_config 5（ai_enable=false）。
 - 若需初始化空库：执行 `database\init_db.sql`（自包含：五表 + 基线数据）。
 
 ## 三、后端启动（交付配置：AI 总开关默认关闭）
 
 ```powershell
-cd C:\Users\72797\Course\reservation-system\R8-delivery-defense-prep\code\reservation-server
+cd C:\Users\72797\Course\reservation-system\server
 & 'C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.3\plugins\maven\lib\maven3\bin\mvn.cmd' spring-boot:run
 ```
 
 - 端口 8080；application.yml 中 `ai.enable=false`（交付默认，核心系统完全正常）。
+- Redis：`redis.enable=true`（默认开），连接 `spring.data.redis.host=localhost`、`port=6379`；如不需要 Redis 可改 `redis.enable=false`，系统自动降级为纯 JWT 无会话模式。
 - 密钥零硬编码：`ai.api-key=${AGNES_API_KEY:}`，仅从环境变量读取。
 
 ## 四、前端启动
 
 ```powershell
-cd C:\Users\72797\Course\reservation-system\R8-delivery-defense-prep\code\reservation-web
+cd C:\Users\72797\Course\reservation-system\web
 npm install   # 首次（有 package-lock，约 107 packages）
 npm run dev   # http://localhost:5173
 ```
@@ -66,12 +70,25 @@ powershell -ExecutionPolicy Bypass -File C:\Users\72797\Course\reservation-syste
 
 测试脚本自动分支：检测到 AI 开启执行开启路径用例（T231-T241），否则执行关闭路径用例（T220-T224）；结束后删除测试数据恢复初始基线（预约 13 条四状态 / 收藏 6 条 / ai_config 5 行）。
 
-## 七、接口速览（详见 R7 docs/api-list.md，R8 无新增接口）
+## 七、接口速览（详见 R7 docs/api-list.md；R8 新增 POST /api/user/logout 用于 Redis 会话登出，共 36 个接口）
 
 | 模块 | 接口数 | 说明 |
 | --- | --- | --- |
-| 用户 | 10 | 登录/注册/信息/密码/管理/个人统计 |
+| 用户 | 11 | 登录/注册/信息/密码/登出(logout)/管理/个人统计 |
 | 教室 | 8 | 列表/详情/占用/管理/收藏 |
 | 预约 | 9 | 提交（后端二次冲突校验）/取消/我的/审核/批量/全量/冲突/导出 |
 | 统计 | 4 | 概览/使用率/趋势/时段分布 |
 | AI（只读） | 4 | 推荐/解析/问答/合规（登录即可，双开关 AND，限流/超时/密钥缺失自动降级） |
+
+## 八、Redis 加分项快速验证（可选，演示时讲）
+
+```powershell
+# 1) 学生登录后，会话 Key 应出现
+docker exec reservation-redis redis-cli keys "auth:token:*"
+# 2) 学生端退出登录后，Key 应消失
+docker exec reservation-redis redis-cli keys "auth:token:*"
+# 3) 可选：停 Redis 演示降级，页面仍正常
+docker stop reservation-redis; Start-Sleep 3; docker start reservation-redis
+```
+
+详细设计与实测数据见 `docs/Redis加分项接入说明.md`；现场演示话术见根目录 `docs/演示脚本.md` 5.6 节。

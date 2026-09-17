@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: reservation-server
+  # ===== Jackson 序列化（修复日历总览页事件不渲染：LocalDate 默认按数组 [2026,9,18] 输出，
+  # 前端 FullCalendar/登录提醒按字符串拼接日期导致 Invalid Date。改为 ISO 字符串 2026-09-18）=====
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
   # ===== Redis（需求设计文档 2.2 第 145 行可选加分项，Docker 容器 reservation-redis，映射 6379:6379）=====
   # 连接信息全部走环境变量占位，禁止硬编码；本机演示默认无密码（容器仅监听 localhost）
   data:

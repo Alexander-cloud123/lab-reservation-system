@@ -17,6 +17,10 @@ dist-ssr/
 *.log
 logs/
 
+# 评审临时证据（截图与端到端测试产物不入库；评审报告 md 保留入库）
+docs/*.png
+docs/e2e/
+
 # 系统
 .DS_Store
 Thumbs.db

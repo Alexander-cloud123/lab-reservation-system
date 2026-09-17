@@ -62,7 +62,19 @@ def db(query):
     return p.stdout.strip()
 
 
-import os
+def git_revision(base_dir):
+    """返回 (被测版本字符串, 是否有未提交改动)。取不到时返回 ("unknown", None)。"""
+    def run(args):
+        p = subprocess.run(args, cwd=base_dir, capture_output=True, text=True, timeout=10)
+        return p.stdout.strip()
+    try:
+        head = run(["git", "rev-parse", "--short", "HEAD"])
+        dirty = run(["git", "status", "--porcelain"])
+        return (head + ("+dirty" if dirty else ""), bool(dirty))
+    except Exception:
+        return ("unknown", None)
+
+
 def login(username, password, role):
     st, body = call("POST", "/api/user/login",
                     body={"username": username, "password": password, "role": role})
@@ -149,7 +161,6 @@ def main():
     check("R3 管理员日历：他人用途可见", other and other.get("purpose") is not None)
 
     # ========== R1：收藏上限并发 ==========
-    # ---------- R1 前置：自建前置态（收敛到恰好 2 条，不依赖历史数据）----------
     ALL_IDS = list(range(1, 13))
     _, r = call("GET", "/api/favorite/list", STU)
     favs = {x["classroomId"] for x in r.get("data", [])}
@@ -237,6 +248,9 @@ def main():
             f.write("# R1–R5 回归运行结果（%s）\n\n" % stamp.strftime("%Y-%m-%d %H:%M"))
             f.write("- 脚本：`docs/e2e/regression-r1r5.py`\n")
             f.write("- 命令：`python docs/e2e/regression-r1r5.py`\n")
+            rev, dirty = git_revision(base_dir)
+            marker = "（工作区有未提交改动，结果对应未定版代码）" if dirty else ""
+            f.write("- 被测版本：`%s`%s\n" % (rev, marker))
             f.write("- 环境：后端 `%s`、MySQL/Redis 容器、账号 admin/zhangsan/wangwu\n" % BASE)
             f.write("- 说明：R2 清理检查为条件项（教室仍在时多记 1 条），故总数可能为 22 或 21，通过率均为 100%\n\n")
             f.write("## 汇总：%d/%d 通过\n\n" % (passed, total))

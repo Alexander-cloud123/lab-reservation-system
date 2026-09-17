@@ -17,12 +17,13 @@ dist-ssr/
 *.log
 logs/
 
-# 回归测试临时令牌（不入库）
+# 回归令牌文件（已废弃：脚本改为自行登录，保留忽略以防误提交）
 server/.regression-tokens.txt
 
-# 评审临时证据（截图与端到端测试产物不入库；评审报告 md 保留入库）
+# 评审临时证据：只忽略截图与运行日志，脚本与报告入库
 docs/*.png
-docs/e2e/
+docs/e2e/*.png
+docs/e2e/*.log
 
 # 系统
 .DS_Store

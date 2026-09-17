@@ -9,6 +9,8 @@ spring:
   jackson:
     serialization:
       write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
   # ===== Redis（需求设计文档 2.2 第 145 行可选加分项，Docker 容器 reservation-redis，映射 6379:6379）=====
   # 连接信息全部走环境变量占位，禁止硬编码；本机演示默认无密码（容器仅监听 localhost）
   data:

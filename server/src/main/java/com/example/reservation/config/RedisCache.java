@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ScanOptions;
@@ -44,8 +43,7 @@ public class RedisCache {
     private RedisTemplate<String, String> redisTemplate;
 
     @Resource
-    @Qualifier("cacheObjectMapper")
-    private ObjectMapper cacheObjectMapper;
+    private ObjectMapper objectMapper;   // 与 Spring MVC 共用同一个主 mapper（Boot 自动配置）
 
     @Resource
     private RedisProperties redisProperties;
@@ -136,7 +134,7 @@ public class RedisCache {
             if (json == null || json.isBlank()) {
                 return null;
             }
-            return cacheObjectMapper.readValue(json, typeReference);
+            return objectMapper.readValue(json, typeReference);
         } catch (Exception e) {
             // 反序列化失败按缓存未命中处理，并顺手清除脏 Key，避免持续命中坏数据
             log.warn("Redis 读取缓存失败，回源查库（key={}）：{}", key, e.getMessage());
@@ -153,7 +151,7 @@ public class RedisCache {
             return;
         }
         try {
-            String json = cacheObjectMapper.writeValueAsString(value);
+            String json = objectMapper.writeValueAsString(value);
             redisTemplate.opsForValue().set(key, json, ttlSeconds, TimeUnit.SECONDS);
         } catch (Exception e) {
             log.warn("Redis 写入缓存失败（key={}）：{}", key, e.getMessage());

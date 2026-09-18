@@ -58,7 +58,8 @@ ai:
   model: agnes-2.0-flash
   timeout-seconds: 60          # 读取超时（实测模型响应可达数十秒，3s 过短会频繁降级）
   max-tokens: 1024             # 单次输出上限（防止推荐等场景输出打满 4096 出现乱码/超时）
-  rpm-limit: 20
+  rpm-limit: 20                # 每用户限流（次/分钟）
+  global-rpm-limit: 100        # N2：全站聚合上限（默认 rpmLimit×5=100；超限直接降级，不调用外部）
 
 # ===== Redis 加分项自定义配置（需求设计文档 2.2 第 145 行；一键启停 + 缓存 TTL）=====
 redis:

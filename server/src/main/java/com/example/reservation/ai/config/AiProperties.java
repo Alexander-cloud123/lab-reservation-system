@@ -34,6 +34,9 @@ public class AiProperties {
     /** 限流保护（次/分钟，RPM≈20，spec.md 6.1） */
     private int rpmLimit;
 
+    /** 全站聚合限流（次/分钟，N2：默认取 rpmLimit × 5；超限直接返回繁忙提示，不触发对外调用） */
+    private int globalRpmLimit;
+
     /** 单次响应最大 Token 数（防止长输出打满默认 4096 导致超时/乱码，默认 1024，≤0 时不限制） */
     private int maxTokens = 1024;
 }

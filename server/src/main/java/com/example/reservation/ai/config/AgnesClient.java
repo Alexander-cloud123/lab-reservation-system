@@ -140,7 +140,7 @@ public class AgnesClient {
     }
 
     /**
-     * 构建 RestClient（连接/读取超时 = timeoutSeconds，默认 3s）
+     * 构建 RestClient（连接超时固定 10s；读取超时 = timeoutSeconds，默认 60s）
      * 每次调用构建成本可忽略；保持超时参数来自配置，便于演示时调整
      */
     private RestClient buildClient() {

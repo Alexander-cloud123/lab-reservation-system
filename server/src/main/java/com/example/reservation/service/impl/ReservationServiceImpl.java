@@ -5,8 +5,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.reservation.common.BusinessException;
+import com.example.reservation.common.ClassroomValidator;
 import com.example.reservation.common.Constants;
 import com.example.reservation.common.PageResult;
+import com.example.reservation.common.PageValidator;
 import com.example.reservation.common.TimeUtil;
 import com.example.reservation.common.UserContext;
 import com.example.reservation.config.RedisCache;
@@ -80,9 +82,7 @@ public class ReservationServiceImpl implements ReservationService {
         if (classroomId == null) {
             throw new BusinessException("教室 ID 不能为空");
         }
-        if (classroomMapper.selectById(classroomId) == null) {
-            throw new BusinessException("教室不存在");
-        }
+        ClassroomValidator.requireExists(classroomMapper.selectById(classroomId));
         if (StrUtil.isBlank(date)) {
             throw new BusinessException("预约日期不能为空");
         }
@@ -119,9 +119,7 @@ public class ReservationServiceImpl implements ReservationService {
         // 对教室行加锁（SELECT ... FOR UPDATE）：同一教室的并发预约提交串行化，保证"冲突检测+插入"原子，杜绝双写
         Classroom room = classroomMapper.selectOne(
                 new LambdaQueryWrapper<Classroom>().eq(Classroom::getId, dto.getClassroomId()).last("FOR UPDATE"));
-        if (room == null) {
-            throw new BusinessException("教室不存在");
-        }
+        ClassroomValidator.requireExists(room);
         if (room.getStatus() != Constants.CLASSROOM_STATUS_ENABLED) {
             throw new BusinessException("该教室已停用，无法预约");
         }
@@ -425,8 +423,8 @@ public class ReservationServiceImpl implements ReservationService {
             throw new BusinessException(Constants.CALENDAR_RANGE_MSG);
         }
         // 教室筛选：传 classroomId 则校验教室存在
-        if (classroomId != null && classroomMapper.selectById(classroomId) == null) {
-            throw new BusinessException("教室不存在");
+        if (classroomId != null) {
+            ClassroomValidator.requireExists(classroomMapper.selectById(classroomId));
         }
 
         // 区间内全部状态预约（色块覆盖四状态），按教室/日期/开始时间排序，前端按月/周聚合
@@ -474,14 +472,9 @@ public class ReservationServiceImpl implements ReservationService {
 
     /* ==================== 私有工具方法 ==================== */
 
-    /** 分页参数合法性校验（防恶意传参） */
+    /** 分页参数合法性校验（防恶意传参，公共校验器） */
     private void validatePage(long page, long size) {
-        if (page < 1) {
-            throw new BusinessException("页码必须大于等于 1");
-        }
-        if (size < 1 || size > 500) {
-            throw new BusinessException("每页条数必须在 1-500 之间");
-        }
+        PageValidator.validate(page, size);
     }
 
     /** 预约状态合法性校验（L10 修复：Integer 相等比较，null 直接返回 false，避免拆箱 NPE） */
@@ -516,8 +509,8 @@ public class ReservationServiceImpl implements ReservationService {
         if (start != null && end != null && start.isAfter(end)) {
             throw new BusinessException("开始日期不能晚于结束日期");
         }
-        if (classroomId != null && classroomMapper.selectById(classroomId) == null) {
-            throw new BusinessException("教室不存在");
+        if (classroomId != null) {
+            ClassroomValidator.requireExists(classroomMapper.selectById(classroomId));
         }
     }
 

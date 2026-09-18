@@ -19,7 +19,7 @@ import java.util.Map;
  * 登录鉴权拦截器
  * 规则（spec.md 2.5）：
  *  1. 除登录/注册外，/api/** 全部要求携带合法 Token，否则返回 HTTP 401 + Result{code:401}
- *  2. 管理员专属接口前缀（/manage、/stats、/ai 等）额外校验角色，学生 Token 访问返回 403
+ *  2. 管理员专属接口前缀（/manage、/stats 等；R7 起 /api/ai 不再要求管理员角色）额外校验角色，学生 Token 访问返回 403
  *  3. 通过后写入 UserContext 供业务层获取当前用户
  *
  * @author reservation-team
@@ -106,7 +106,7 @@ public class AuthInterceptor implements HandlerInterceptor {
         UserContext.clear();
     }
 
-    /** 校验并解析 Token（复用 JwtUtil 逻辑，避免依赖注入循环） */
+    /** 校验并解析 Token（内联 JwtUtil 校验逻辑；拦截器不注入 JwtUtil，避免与 JwtUtil 依赖链形成循环依赖） */
     private Map<String, Object> parseAndVerify(String token) {
         cn.hutool.jwt.JWT jwt = cn.hutool.jwt.JWTUtil.parseToken(token);
         if (!jwt.setKey(secret.getBytes(StandardCharsets.UTF_8)).verify()) {

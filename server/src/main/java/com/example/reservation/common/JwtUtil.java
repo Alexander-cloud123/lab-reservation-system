@@ -1,13 +1,11 @@
 package com.example.reservation.common;
 
 import cn.hutool.jwt.JWT;
-import cn.hutool.jwt.JWTUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
-import java.util.Map;
 
 /**
  * JWT 工具类
@@ -45,35 +43,5 @@ public class JwtUtil {
      */
     public long getExpireSeconds() {
         return expireHours * 3600L;
-    }
-
-    /**
-     * 校验并解析 Token，返回载荷；非法/过期抛业务异常(401)
-     */
-    public Map<String, Object> parseToken(String token) {
-        try {
-            JWT jwt = JWTUtil.parseToken(token);
-            if (!jwt.setKey(secret.getBytes(StandardCharsets.UTF_8)).verify()) {
-                throw new BusinessException(ResultCode.UNAUTHORIZED.getCode(), ResultCode.UNAUTHORIZED.getMessage());
-            }
-            // 过期校验：verify() 仅验签名，需显式校验 exp（generateToken 设置 24h 有效期）
-            Object exp = jwt.getPayload("exp");
-            if (exp != null) {
-                long expMillis;
-                try {
-                    expMillis = Long.parseLong(String.valueOf(exp)) * 1000L;
-                } catch (NumberFormatException e) {
-                    throw new BusinessException(ResultCode.UNAUTHORIZED.getCode(), ResultCode.UNAUTHORIZED.getMessage());
-                }
-                if (System.currentTimeMillis() >= expMillis) {
-                    throw new BusinessException(ResultCode.UNAUTHORIZED.getCode(), ResultCode.UNAUTHORIZED.getMessage());
-                }
-            }
-            return jwt.getPayloads();
-        } catch (BusinessException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new BusinessException(ResultCode.UNAUTHORIZED.getCode(), ResultCode.UNAUTHORIZED.getMessage());
-        }
     }
 }

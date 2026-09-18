@@ -5,8 +5,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.reservation.common.BusinessException;
+import com.example.reservation.common.ClassroomValidator;
 import com.example.reservation.common.Constants;
 import com.example.reservation.common.PageResult;
+import com.example.reservation.common.PageValidator;
 import com.example.reservation.common.TimeUtil;
 import com.example.reservation.common.UserContext;
 import com.example.reservation.config.RedisCache;
@@ -63,13 +65,8 @@ public class ClassroomServiceImpl implements ClassroomService {
 
     @Override
     public PageResult<Classroom> pageClassrooms(long page, long size, String keyword, String building, Integer type, Integer status) {
-        // 分页参数合法性校验
-        if (page < 1) {
-            throw new BusinessException("页码必须大于等于 1");
-        }
-        if (size < 1 || size > 500) {
-            throw new BusinessException("每页条数必须在 1-500 之间");
-        }
+        // 分页参数合法性校验（公共校验器，与其余列表接口同口径）
+        PageValidator.validate(page, size);
         LambdaQueryWrapper<Classroom> wrapper = new LambdaQueryWrapper<Classroom>()
                 // 关键词：名称 / 编号 模糊匹配
                 .and(StrUtil.isNotBlank(keyword), w -> w
@@ -110,9 +107,7 @@ public class ClassroomServiceImpl implements ClassroomService {
             throw new BusinessException("教室 ID 不能为空");
         }
         Classroom exists = classroomMapper.selectById(dto.getId());
-        if (exists == null) {
-            throw new BusinessException("教室不存在");
-        }
+        ClassroomValidator.requireExists(exists);
         validateClassroomDTO(dto);
         Classroom classroom = new Classroom();
         classroom.setId(dto.getId());
@@ -141,9 +136,7 @@ public class ClassroomServiceImpl implements ClassroomService {
         // 避免"计数 0 → 并发插入 → 删除成功"的悬挂引用。
         Classroom exists = classroomMapper.selectOne(new LambdaQueryWrapper<Classroom>()
                 .eq(Classroom::getId, id).last("FOR UPDATE"));
-        if (exists == null) {
-            throw new BusinessException("教室不存在");
-        }
+        ClassroomValidator.requireExists(exists);
         // 删除保护：该教室存在任何预约记录（不限状态）时禁止删除
         Long reservationCount = reservationMapper.selectCount(
                 new LambdaQueryWrapper<Reservation>().eq(Reservation::getClassroomId, id));
@@ -168,9 +161,7 @@ public class ClassroomServiceImpl implements ClassroomService {
             throw new BusinessException("状态参数不合法（0-停用，1-可用）");
         }
         Classroom exists = classroomMapper.selectById(id);
-        if (exists == null) {
-            throw new BusinessException("教室不存在");
-        }
+        ClassroomValidator.requireExists(exists);
         // 目标状态与当前状态一致时直接返回（幂等）
         if (exists.getStatus() != null && exists.getStatus().equals(status)) {
             return;
@@ -204,13 +195,8 @@ public class ClassroomServiceImpl implements ClassroomService {
     @Override
     public PageResult<ClassroomVO> pageClassroomsForStudent(long page, long size, String keyword,
                                                             String building, Integer type, String date) {
-        // 分页参数合法性校验
-        if (page < 1) {
-            throw new BusinessException("页码必须大于等于 1");
-        }
-        if (size < 1 || size > 500) {
-            throw new BusinessException("每页条数必须在 1-500 之间");
-        }
+        // 分页参数合法性校验（公共校验器，与其余列表接口同口径）
+        PageValidator.validate(page, size);
         // 可选日期参数（传了才解析，用于返回该日期的占用时段；非法格式 400）
         LocalDate queryDate = StrUtil.isBlank(date) ? null : TimeUtil.parseDate(date);
 
@@ -280,9 +266,7 @@ public class ClassroomServiceImpl implements ClassroomService {
             throw new BusinessException("教室 ID 不能为空");
         }
         Classroom classroom = classroomMapper.selectById(id);
-        if (classroom == null) {
-            throw new BusinessException("教室不存在");
-        }
+        ClassroomValidator.requireExists(classroom);
         // 指定日期：不传默认当天
         LocalDate queryDate = StrUtil.isBlank(date) ? LocalDate.now() : TimeUtil.parseDate(date);
 

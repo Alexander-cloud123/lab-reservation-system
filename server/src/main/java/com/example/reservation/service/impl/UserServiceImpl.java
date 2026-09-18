@@ -8,6 +8,7 @@ import com.example.reservation.common.BusinessException;
 import com.example.reservation.common.Constants;
 import com.example.reservation.common.JwtUtil;
 import com.example.reservation.common.PageResult;
+import com.example.reservation.common.PageValidator;
 import com.example.reservation.common.ResultCode;
 import com.example.reservation.common.UserContext;
 import com.example.reservation.config.RedisCache;
@@ -187,13 +188,8 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public PageResult<UserVO> pageUsers(long page, long size, String keyword, Integer role, Integer status) {
-        // 分页参数合法性校验（防恶意传参）
-        if (page < 1) {
-            throw new BusinessException("页码必须大于等于 1");
-        }
-        if (size < 1 || size > 500) {
-            throw new BusinessException("每页条数必须在 1-500 之间");
-        }
+        // 分页参数合法性校验（防恶意传参，公共校验器）
+        PageValidator.validate(page, size);
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
                 // 关键词：账号 / 姓名 / 学号 模糊匹配
                 .and(StrUtil.isNotBlank(keyword), w -> w

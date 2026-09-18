@@ -2,6 +2,7 @@ package com.example.reservation.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.reservation.common.BusinessException;
+import com.example.reservation.common.ClassroomValidator;
 import com.example.reservation.common.Constants;
 import com.example.reservation.common.UserContext;
 import com.example.reservation.entity.Classroom;
@@ -79,9 +80,7 @@ public class FavoriteServiceImpl implements FavoriteService {
 
         // 未收藏 → 新增收藏：教室必须存在且可用
         Classroom room = classroomMapper.selectById(classroomId);
-        if (room == null) {
-            throw new BusinessException("教室不存在");
-        }
+        ClassroomValidator.requireExists(room);
         // 行锁串行化后，锁内计数为最新已提交值（前一个并发请求已完成的新增在此必可见）
         Long count = favoriteMapper.selectCount(
                 new LambdaQueryWrapper<UserFavorite>().eq(UserFavorite::getUserId, userId));

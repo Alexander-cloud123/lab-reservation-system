@@ -27,7 +27,7 @@ export function clearAuth() {
 export function getStoredUser() {
   try {
     return JSON.parse(localStorage.getItem(USER_KEY) || 'null')
-  } catch (e) {
+  } catch {
     return null
   }
 }

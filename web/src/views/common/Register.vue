@@ -117,7 +117,7 @@ const rules = {
 async function handleRegister() {
   try {
     await formRef.value.validate()
-  } catch (e) {
+  } catch {
     return
   }
   loading.value = true
@@ -125,7 +125,7 @@ async function handleRegister() {
     await registerApi({ ...form })
     ElMessage.success('注册成功，请登录')
     router.push('/login')
-  } catch (e) {
+  } catch {
     // 错误提示已由 request 拦截器统一处理
   } finally {
     loading.value = false

@@ -113,7 +113,7 @@ async function loadAll() {
     renderUsageRate(usageRes.data || [])
     renderTrend(trendRes.data || [])
     renderTimeDistribution(distRes.data || [])
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理
   } finally {
     loading.value = false

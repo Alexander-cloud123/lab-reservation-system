@@ -210,7 +210,7 @@ async function handleParse() {
       roomType: res.data.roomType || '',
       purpose: res.data.purpose || ''
     })
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理
     parsed.value = false
   } finally {
@@ -241,7 +241,7 @@ async function goStep2() {
     }
     rooms.value = list
     step.value = 2
-  } catch (e) {
+  } catch {
     // 接口失败：统一错误提示已由 request.js 处理，回退步骤一，可修改描述后重试
     rooms.value = []
     step.value = 1
@@ -305,7 +305,7 @@ watch(
         endTime: reserveForm.endTime
       })
       conflictInfo.value = res.data || null
-    } catch (e) {
+    } catch {
       conflictInfo.value = null
     }
   }
@@ -318,7 +318,7 @@ async function handleSubmit() {
   // 表单校验失败时静默返回（与 ClassroomDetail.handleSubmitReserve 写法对齐，避免未处理 Promise 拒绝）
   try {
     await reserveFormRef.value.validate()
-  } catch (e) {
+  } catch {
     return
   }
   // N3：预约校验统一为公共纯函数（含 8h 上限，此前该入口缺失；AI 解析值可能超窗，提交前兜底）
@@ -342,7 +342,7 @@ async function handleSubmit() {
     })
     ElMessage.success('预约提交成功，等待管理员审核')
     dialogVisible.value = false
-  } catch (e) {
+  } catch {
     // 统一错误提示（含后端二次冲突校验返回）
   } finally {
     submitting.value = false

@@ -254,7 +254,7 @@ async function checkSingle(row) {
       compliant: res.data.compliant,
       reason: res.data.reason || '合规校验完成'
     })
-  } catch (e) {
+  } catch {
     // 校验失败静默，标签保持「AI 校验」可点击重试
   } finally {
     checkingIds.value.delete(row.id)
@@ -320,7 +320,7 @@ async function loadData() {
     checkingIds.value.clear()
     // 当前页前 N 条待审核记录限量自动 AI 合规校验（只读，不阻断）
     autoComplianceCheck(records.value)
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理
   } finally {
     loading.value = false
@@ -360,7 +360,7 @@ async function handleAudit(row, status) {
       ElMessage.success('审核通过')
     }
     loadData()
-  } catch (e) {
+  } catch {
     // 用户取消或接口报错（统一提示）
   }
 }
@@ -405,7 +405,7 @@ async function confirmReject() {
     }
     rejectVisible.value = false
     loadData()
-  } catch (e) {
+  } catch {
     // 用户取消或接口报错（统一提示）
   } finally {
     submitting.value = false
@@ -425,7 +425,7 @@ async function handleBatchAudit(status) {
     const res = await batchAuditReservations({ ids: selectedIds.value, status: 1 })
     ElMessage.success(`批量通过成功，共 ${res.data} 条`)
     loadData()
-  } catch (e) {
+  } catch {
     // 用户取消或接口报错（统一提示）
   } finally {
     submitting.value = false

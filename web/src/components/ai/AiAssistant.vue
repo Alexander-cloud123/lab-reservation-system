@@ -76,7 +76,7 @@ async function send() {
     const res = await aiChat({ question })
     const answer = res.data && res.data.answer ? res.data.answer : '抱歉，暂时无法回答，请稍后再试'
     messages.value.push({ role: 'ai', content: answer })
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理
     messages.value.push({ role: 'ai', content: '抱歉，服务暂时不可用，请稍后再试' })
   } finally {

@@ -130,7 +130,7 @@ async function loadData() {
     list.sort((a, b) => (a.reserveDate === today ? 0 : 1) - (b.reserveDate === today ? 0 : 1))
     records.value = list
     total.value = res.data.total
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理
   } finally {
     loading.value = false
@@ -162,7 +162,7 @@ async function handleCancel(row) {
       '取消预约确认',
       { confirmButtonText: '确定取消', cancelButtonText: '再想想', type: 'warning' }
     )
-  } catch (e) {
+  } catch {
     // 用户点了「再想想」
     return
   }
@@ -174,7 +174,7 @@ async function handleCancel(row) {
     await cancelReservation(row.id)
     ElMessage.success('取消成功')
     loadData()
-  } catch (e) {
+  } catch {
     // 接口报错（统一提示：如已过审核时间不可取消等）
   } finally {
     cancelingId.value = null

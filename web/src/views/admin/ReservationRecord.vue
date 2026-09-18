@@ -174,7 +174,7 @@ async function loadClassrooms() {
   try {
     const res = await pageClassrooms({ page: 1, size: 500 })
     classroomOptions.value = res.data.records || []
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理
   }
 }
@@ -186,7 +186,7 @@ async function loadData() {
     const res = await pageManageReservations(buildParams())
     records.value = res.data.records
     total.value = res.data.total
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理
   } finally {
     loading.value = false
@@ -223,7 +223,7 @@ async function handleExport() {
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
     ElMessage.success('导出成功，请查看下载文件')
-  } catch (e) {
+  } catch {
     // 错误提示已由 request.js 统一处理（含 401/403/业务错误）
   } finally {
     exporting.value = false

@@ -382,7 +382,7 @@ const READ_KEY = () => `reservation_msg_read_${userInfo.value ? userInfo.value.i
 function getReadIds() {
   try {
     return JSON.parse(localStorage.getItem(READ_KEY()) || '[]')
-  } catch (e) {
+  } catch {
     return []
   }
 }
@@ -399,7 +399,7 @@ async function loadStats() {
   try {
     const res = await getUserStats()
     stats.value = res.data
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理
   }
 }
@@ -410,7 +410,7 @@ async function loadFavorites() {
   try {
     const res = await getFavoriteList()
     favorites.value = res.data
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理
   } finally {
     favLoading.value = false
@@ -473,7 +473,7 @@ async function loadNotifications() {
     // 按时间倒序（无时间视为最早）
     messages.sort((a, b) => dayjs(b.time || 0).valueOf() - dayjs(a.time || 0).valueOf())
     notifications.value = messages
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理
   } finally {
     msgLoading.value = false
@@ -498,7 +498,7 @@ function markAllRead() {
 async function handleSaveInfo() {
   try {
     await infoFormRef.value.validate()
-  } catch (e) {
+  } catch {
     return
   }
   infoSaving.value = true
@@ -511,7 +511,7 @@ async function handleSaveInfo() {
     ElMessage.success(res.message || '个人信息修改成功')
     await userStore.fetchInfo()
     editDialogVisible.value = false
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理
   } finally {
     infoSaving.value = false
@@ -522,7 +522,7 @@ async function handleSaveInfo() {
 async function handleChangePassword() {
   try {
     await pwdFormRef.value.validate()
-  } catch (e) {
+  } catch {
     return
   }
   try {
@@ -531,7 +531,7 @@ async function handleChangePassword() {
       cancelButtonText: '取消',
       type: 'warning'
     })
-  } catch (e) {
+  } catch {
     return
   }
   pwdSaving.value = true
@@ -545,7 +545,7 @@ async function handleChangePassword() {
     // 走统一登出：先请求后端注销 Redis 会话，再清除本地登录态（logout 内部已 clearAuth）
     await userStore.logout()
     router.push('/login')
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理
   } finally {
     pwdSaving.value = false

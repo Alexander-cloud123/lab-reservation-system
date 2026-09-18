@@ -229,7 +229,7 @@ async function loadData() {
     records.value = res.data.records
     total.value = res.data.total
     collectBuildings()
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理
   } finally {
     loading.value = false
@@ -289,7 +289,7 @@ function openDialog(row) {
 async function handleSubmit() {
   try {
     await formRef.value.validate()
-  } catch (e) {
+  } catch {
     return
   }
   submitting.value = true
@@ -303,7 +303,7 @@ async function handleSubmit() {
     }
     dialogVisible.value = false
     loadData()
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理
   } finally {
     submitting.value = false
@@ -327,7 +327,7 @@ async function handleDelete(row) {
     await deleteClassroom(row.id)
     ElMessage.success('删除成功')
     loadData()
-  } catch (e) {
+  } catch {
     // 用户取消或接口报错（统一提示）
   }
 }
@@ -344,7 +344,7 @@ async function handleToggleStatus(row) {
     await updateClassroomStatus(row.id, row.status === 1 ? 0 : 1)
     ElMessage.success(`${action}成功`)
     loadData()
-  } catch (e) {
+  } catch {
     // 用户取消或接口报错（统一提示）
   }
 }
@@ -361,7 +361,7 @@ async function handleBatchStatus(status) {
     await batchClassroomStatus(selectedIds.value, status)
     ElMessage.success(`批量${action}成功`)
     loadData()
-  } catch (e) {
+  } catch {
     // 用户取消或接口报错（统一提示）
   }
 }

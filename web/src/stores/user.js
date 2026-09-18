@@ -43,7 +43,7 @@ export const useUserStore = defineStore('user', {
     async logout() {
       try {
         await logoutApi()
-      } catch (e) {
+      } catch {
         // 后端不可用 / Redis 降级时不阻断退出，本地照常清除
       } finally {
         clearAuth()

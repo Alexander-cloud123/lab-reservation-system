@@ -117,7 +117,7 @@ async function handleLogout() {
     })
     await userStore.logout()
     router.push('/login')
-  } catch (e) {
+  } catch {
     // 用户取消
   }
 }

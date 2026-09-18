@@ -150,7 +150,7 @@ async function loadData() {
     const res = await pageUsers(params)
     records.value = res.data.records
     total.value = res.data.total
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理
   } finally {
     loading.value = false
@@ -184,7 +184,7 @@ async function handleToggleStatus(row) {
     await updateUserStatus(row.id, row.status === 1 ? 0 : 1)
     ElMessage.success(`${action}成功`)
     loadData()
-  } catch (e) {
+  } catch {
     // 用户取消或接口报错（统一提示）
   }
 }
@@ -199,7 +199,7 @@ async function handleResetPassword(row) {
     )
     await resetUserPassword(row.id)
     ElMessage.success('密码已重置为默认密码 123456')
-  } catch (e) {
+  } catch {
     // 用户取消或接口报错（统一提示）
   }
 }

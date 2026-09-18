@@ -46,7 +46,7 @@ export function probeAiRecommend({ force = false } = {}) {
       const res = await aiRecommend({})
       const data = res.data || {}
       result = { enabled: data.enabled === true, recommendations: data.recommendations || [] }
-    } catch (e) {
+    } catch {
       // 失败也缓存结果（enabled=false），避免重复打接口
       result = { enabled: false, recommendations: [] }
     }

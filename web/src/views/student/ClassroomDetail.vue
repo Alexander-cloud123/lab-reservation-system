@@ -255,7 +255,7 @@ async function loadDetail() {
     }
     const res = await getClassroomDetail(id, params)
     classroom.value = res.data
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理
   } finally {
     loading.value = false
@@ -268,7 +268,7 @@ async function loadFavoriteState() {
     const res = await getFavoriteList()
     const id = Number(route.params.id)
     favorited.value = (res.data || []).some((f) => Number(f.classroomId) === id)
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理
   }
 }
@@ -283,7 +283,7 @@ async function handleToggleFavorite() {
     const res = await toggleFavorite(route.params.id)
     favorited.value = res.data
     ElMessage.success(res.message || (favorited.value ? '收藏成功' : '已取消收藏'))
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理（含超过上限提示）
   } finally {
     favoriteLoading.value = false
@@ -333,7 +333,7 @@ function openReserveDialog() {
 function loadDraft() {
   try {
     return JSON.parse(localStorage.getItem(draftKey.value) || 'null')
-  } catch (e) {
+  } catch {
     return null
   }
 }
@@ -414,7 +414,7 @@ watch(
         return
       }
       conflictInfo.value = res.data
-    } catch (e) {
+    } catch {
       if (seq !== conflictSeq) {
         return
       }
@@ -427,7 +427,7 @@ watch(
 async function handleSubmitReserve() {
   try {
     await reserveFormRef.value.validate()
-  } catch (e) {
+  } catch {
     return
   }
   // N3：预约校验统一为公共纯函数（必填/开始<结束/8h/窗口/今天已过时刻；后端仍强制兜底）
@@ -453,7 +453,7 @@ async function handleSubmitReserve() {
     justSubmitted.value = true
     reserveVisible.value = false
     loadDetail()
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理
   } finally {
     submitting.value = false

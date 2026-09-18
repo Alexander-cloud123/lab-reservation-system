@@ -167,7 +167,7 @@ async function loadRecommend() {
     if (aiEnabled.value) {
       recommendations.value = (res && res.recommendations) || []
     }
-  } catch (e) {
+  } catch {
     aiEnabled.value = false
   } finally {
     aiLoading.value = false
@@ -213,7 +213,7 @@ function restoreFilter() {
       query.type = saved.type === undefined || saved.type === null ? null : saved.type
       query.date = saved.date || null
     }
-  } catch (e) {
+  } catch {
     // 本地数据损坏时忽略，使用默认条件
   }
 }
@@ -234,7 +234,7 @@ async function loadData() {
     records.value = res.data.records
     total.value = res.data.total
     collectBuildings()
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理
   } finally {
     loading.value = false

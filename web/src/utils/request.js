@@ -94,7 +94,7 @@ function readBlobMessage(blob) {
     try {
       const data = JSON.parse(text)
       return data.message || ''
-    } catch (e) {
+    } catch {
       return ''
     }
   })

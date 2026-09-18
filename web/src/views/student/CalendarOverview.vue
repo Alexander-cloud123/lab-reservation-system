@@ -168,7 +168,7 @@ async function loadClassrooms() {
   try {
     const res = await listClassrooms({ page: 1, size: 100 })
     classrooms.value = (res.data && res.data.records) || []
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理
   }
 }
@@ -188,7 +188,7 @@ async function loadEvents() {
     const items = (res.data || []).map((r) => toEvent(r))
     calendar.removeAllEvents()
     items.forEach((ev) => calendar.addEvent(ev))
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理
   } finally {
     loading.value = false
@@ -281,7 +281,7 @@ watch(
         return
       }
       conflictInfo.value = res.data
-    } catch (e) {
+    } catch {
       if (seq !== conflictSeq) {
         return
       }
@@ -294,7 +294,7 @@ watch(
 async function handleSubmitReserve() {
   try {
     await reserveFormRef.value.validate()
-  } catch (e) {
+  } catch {
     return
   }
   // N3：预约校验统一为公共纯函数（此前该入口连「开始<结束」都没有，补齐后与其他入口同口径）
@@ -320,7 +320,7 @@ async function handleSubmitReserve() {
     reserveVisible.value = false
     // 刷新日历色块（新预约进入待审核色块）
     loadEvents()
-  } catch (e) {
+  } catch {
     // 统一错误提示已由 request.js 处理（含后端冲突拒绝）
   } finally {
     submitting.value = false

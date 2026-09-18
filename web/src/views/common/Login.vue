@@ -94,7 +94,7 @@ async function checkUpcomingReminder() {
         { confirmButtonText: '知道了', type: 'warning' }
       )
     }
-  } catch (e) {
+  } catch {
     // 提醒查询失败不影响登录流程（温和降级）
   }
 }
@@ -103,7 +103,7 @@ async function checkUpcomingReminder() {
 async function handleLogin() {
   try {
     await formRef.value.validate()
-  } catch (e) {
+  } catch {
     return
   }
   loading.value = true
@@ -123,7 +123,7 @@ async function handleLogin() {
     if (user.role === 0) {
       checkUpcomingReminder()
     }
-  } catch (e) {
+  } catch {
     // 错误提示已由 request 拦截器统一处理
   } finally {
     loading.value = false

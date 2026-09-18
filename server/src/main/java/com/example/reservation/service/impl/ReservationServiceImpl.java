@@ -22,7 +22,6 @@ import com.example.reservation.mapper.ClassroomMapper;
 import com.example.reservation.mapper.ReservationMapper;
 import com.example.reservation.mapper.SysUserMapper;
 import com.example.reservation.service.ReservationService;
-import com.example.reservation.service.converter.ReservationConverter;
 import com.example.reservation.vo.CalendarVO;
 import com.example.reservation.vo.ConflictVO;
 import com.example.reservation.vo.ReservationExportVO;
@@ -497,18 +496,13 @@ public class ReservationServiceImpl implements ReservationService {
         }
     }
 
-    /** 解析可选日期参数（空返回 null，非法抛 400） */
-    private LocalDate parseDateOrNull(String date) {
-        return StrUtil.isBlank(date) ? null : TimeUtil.parseDate(date);
-    }
-
     /** 管理端查询/导出共用筛选参数校验（状态合法、日期先后、教室存在） */
     private void validateFilters(Integer status, String startDate, String endDate, Long classroomId) {
         if (status != null && !isValidResStatus(status)) {
             throw new BusinessException("状态参数不合法（0-待审核，1-已通过，2-已驳回，3-已取消）");
         }
-        LocalDate start = parseDateOrNull(startDate);
-        LocalDate end = parseDateOrNull(endDate);
+        LocalDate start = reservationConverter.parseDateOrNull(startDate);
+        LocalDate end = reservationConverter.parseDateOrNull(endDate);
         // 日期倒序属于参数错误：直接 400，避免静默返回空结果误导用户（R6 边界补全）
         if (start != null && end != null && start.isAfter(end)) {
             throw new BusinessException("开始日期不能晚于结束日期");
@@ -521,8 +515,8 @@ public class ReservationServiceImpl implements ReservationService {
     /** 构建管理端查询/导出共用筛选条件（状态/日期范围/教室/关键词），按创建时间倒序 */
     private LambdaQueryWrapper<Reservation> buildManageWrapper(Integer status, String startDate, String endDate,
                                                                String keyword, Long classroomId) {
-        LocalDate start = parseDateOrNull(startDate);
-        LocalDate end = parseDateOrNull(endDate);
+        LocalDate start = reservationConverter.parseDateOrNull(startDate);
+        LocalDate end = reservationConverter.parseDateOrNull(endDate);
 
         // 关键词（用户账号/姓名、教室名称/楼栋/编号）→ 用户 ID 集合、教室 ID 集合
         final Set<Long> userIds;

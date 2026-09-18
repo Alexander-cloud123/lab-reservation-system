@@ -1,5 +1,6 @@
-package com.example.reservation.service.converter;
+package com.example.reservation.service.impl;
 
+import cn.hutool.core.util.StrUtil;
 import com.example.reservation.common.Constants;
 import com.example.reservation.common.TimeUtil;
 import com.example.reservation.entity.Classroom;
@@ -13,6 +14,7 @@ import com.example.reservation.vo.ReservationVO;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -139,6 +141,11 @@ public class ReservationConverter {
             vo.setRoomNo(room.getRoomNo());
         }
         return vo;
+    }
+
+    /** 解析可选日期参数（空返回 null，非法抛 400） */
+    public LocalDate parseDateOrNull(String date) {
+        return StrUtil.isBlank(date) ? null : TimeUtil.parseDate(date);
     }
 
     /** 预约状态 → 导出展示文案（与前端状态标签口径一致：0-待审核，1-已通过，2-已驳回，3-已取消） */

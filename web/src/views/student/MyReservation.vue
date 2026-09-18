@@ -93,6 +93,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
 import { getMyReservations, cancelReservation } from '@/api/reservation'
+import { statusText, statusTagType } from '@/utils/dict'
 
 const router = useRouter()
 const loading = ref(false)
@@ -183,16 +184,6 @@ async function handleCancel(row) {
 /** 去教室列表 */
 function goList() {
   router.push('/student/home')
-}
-
-/** 状态文案 */
-function statusText(status) {
-  return { 0: '待审核', 1: '已通过', 2: '已驳回', 3: '已取消' }[status] || '未知'
-}
-
-/** 状态标签色 */
-function statusTagType(status) {
-  return { 0: 'warning', 1: 'success', 2: 'danger', 3: 'info' }[status] || 'info'
 }
 
 onMounted(loadData)

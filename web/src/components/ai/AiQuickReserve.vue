@@ -50,9 +50,7 @@
           <el-form-item label="教室类型">
             <el-select v-model="parseForm.roomType" style="width: 100%">
               <el-option label="不限" value="" />
-              <el-option label="普通教室" value="普通教室" />
-              <el-option label="实验室" value="实验室" />
-              <el-option label="机房" value="机房" />
+              <el-option v-for="label in ROOM_TYPE_LABELS" :key="label" :label="label" :value="label" />
             </el-select>
           </el-form-item>
           <el-form-item label="预约用途">
@@ -145,6 +143,7 @@ import { aiParseReservation } from '@/api/ai'
 import { listClassrooms } from '@/api/classroom'
 import { checkConflict, submitReservation } from '@/api/reservation'
 import { validateBooking } from '@/utils/booking'
+import { ROOM_TYPE_LABELS, typeText, typeValue } from '@/utils/dict'
 
 /**
  * AI 快速预约（R7，需求文档 2.4 教室列表页搜索栏旁「AI 快速预约」入口）
@@ -217,9 +216,6 @@ async function handleParse() {
 const rooms = ref([])
 const roomsLoading = ref(false)
 
-/** 类型文案 → 类型数字（与后端 classroom.type 一致） */
-const TYPE_MAP = { 普通教室: 1, 实验室: 2, 机房: 3 }
-
 async function goStep2() {
   roomsLoading.value = true
   try {
@@ -227,8 +223,10 @@ async function goStep2() {
     if (parseForm.date) {
       params.date = parseForm.date
     }
-    if (parseForm.roomType && TYPE_MAP[parseForm.roomType]) {
-      params.type = TYPE_MAP[parseForm.roomType]
+    // 类型文案 → 类型数字（与后端 classroom.type 一致）；未匹配（含「不限」空串）返回 null 跳过筛选
+    const t = typeValue(parseForm.roomType)
+    if (t !== null) {
+      params.type = t
     }
     const res = await listClassrooms(params)
     let list = (res.data && res.data.records) || []
@@ -353,11 +351,6 @@ function resetAll() {
   pickedRoom.value = null
   conflictInfo.value = null
   Object.assign(reserveForm, { reserveDate: '', startTime: '', endTime: '', purpose: '' })
-}
-
-/** 类型文案 */
-function typeText(type) {
-  return { 1: '普通教室', 2: '实验室', 3: '机房' }[type] || '未知'
 }
 </script>
 

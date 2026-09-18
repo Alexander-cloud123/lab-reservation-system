@@ -32,9 +32,7 @@
         </el-form-item>
         <el-form-item label="类型">
           <el-select v-model="query.type" placeholder="全部" clearable style="width: 140px">
-            <el-option label="普通教室" :value="1" />
-            <el-option label="实验室" :value="2" />
-            <el-option label="机房" :value="3" />
+            <el-option v-for="t in ROOM_TYPES" :key="t.value" :label="t.label" :value="t.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="日期">
@@ -142,6 +140,7 @@ import AiRecommendCard from '@/components/ai/AiRecommendCard.vue'
 import AiQuickReserve from '@/components/ai/AiQuickReserve.vue'
 import { probeAiRecommend } from '@/utils/aiProbe'
 import { useUserStore } from '@/stores/user'
+import { ROOM_TYPES, typeText } from '@/utils/dict'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -272,11 +271,6 @@ function handleReset() {
 /** 跳转教室详情 */
 function goDetail(room) {
   router.push(`/student/classrooms/${room.id}`)
-}
-
-/** 类型文案 */
-function typeText(type) {
-  return { 1: '普通教室', 2: '实验室', 3: '机房' }[type] || '未知'
 }
 
 /** 类型标签色 */

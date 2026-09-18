@@ -24,9 +24,7 @@
         </el-form-item>
         <el-form-item label="类型">
           <el-select v-model="query.type" placeholder="全部" clearable style="width: 140px">
-            <el-option label="普通教室" :value="1" />
-            <el-option label="实验室" :value="2" />
-            <el-option label="机房" :value="3" />
+            <el-option v-for="t in ROOM_TYPES" :key="t.value" :label="t.label" :value="t.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
@@ -147,9 +145,7 @@
         </el-form-item>
         <el-form-item label="类型" prop="type">
           <el-select v-model="form.type" placeholder="请选择类型" style="width: 100%">
-            <el-option label="普通教室" :value="1" />
-            <el-option label="实验室" :value="2" />
-            <el-option label="机房" :value="3" />
+            <el-option v-for="t in ROOM_TYPES" :key="t.value" :label="t.label" :value="t.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="容纳人数" prop="capacity">
@@ -183,6 +179,7 @@ import {
   updateClassroomStatus,
   batchClassroomStatus
 } from '@/api/classroom'
+import { ROOM_TYPES, typeText } from '@/utils/dict'
 
 const loading = ref(false)
 const records = ref([])
@@ -367,11 +364,6 @@ async function handleBatchStatus(status) {
   } catch (e) {
     // 用户取消或接口报错（统一提示）
   }
-}
-
-/** 类型文案 */
-function typeText(type) {
-  return { 1: '普通教室', 2: '实验室', 3: '机房' }[type] || '未知'
 }
 
 /** 类型标签色 */

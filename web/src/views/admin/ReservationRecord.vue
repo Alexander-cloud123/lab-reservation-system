@@ -136,6 +136,7 @@ import dayjs from 'dayjs'
 import { Search, Refresh, Download } from '@element-plus/icons-vue'
 import { pageManageReservations, exportReservations } from '@/api/reservation'
 import { pageClassrooms } from '@/api/classroom'
+import { statusText, statusTagType } from '@/utils/dict'
 
 const loading = ref(false)
 const exporting = ref(false)
@@ -227,15 +228,6 @@ async function handleExport() {
   } finally {
     exporting.value = false
   }
-}
-
-/** 状态文案 / 标签色（与审核页口径一致） */
-function statusText(status) {
-  return { 0: '待审核', 1: '已通过', 2: '已驳回', 3: '已取消' }[status] || '未知'
-}
-
-function statusTagType(status) {
-  return { 0: 'warning', 1: 'success', 2: 'danger', 3: 'info' }[status] || 'info'
 }
 
 /** 创建时间展示（yyyy-MM-dd HH:mm:ss） */

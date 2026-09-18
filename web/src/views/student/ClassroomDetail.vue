@@ -200,6 +200,7 @@ import { checkConflict, submitReservation } from '@/api/reservation'
 import { toggleFavorite, getFavoriteList } from '@/api/favorite'
 import { validateBooking } from '@/utils/booking'
 import { useUserStore } from '@/stores/user'
+import { typeText } from '@/utils/dict'
 
 const route = useRoute()
 const router = useRouter()
@@ -462,11 +463,6 @@ async function handleSubmitReserve() {
 /** 返回上一页 */
 function goBack() {
   router.back()
-}
-
-/** 类型文案 */
-function typeText(type) {
-  return { 1: '普通教室', 2: '实验室', 3: '机房' }[type] || '未知'
 }
 
 /** 类型图标 */

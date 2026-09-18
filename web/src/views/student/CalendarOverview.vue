@@ -129,6 +129,7 @@ import dayjs from 'dayjs'
 import { listClassrooms } from '@/api/classroom'
 import { checkConflict, submitReservation, getCalendarReservations } from '@/api/reservation'
 import { validateBooking } from '@/utils/booking'
+import { statusText, statusTagType } from '@/utils/dict'
 
 /** 预约状态常量（与后端 Constants 一致：0-待审核，1-已通过，2-已驳回，3-已取消） */
 const RES_STATUS = { PENDING: 0, APPROVED: 1, REJECTED: 2, CANCELED: 3 }
@@ -228,16 +229,6 @@ function renderEventContent(info) {
 
   root.append(time, name)
   return { domNodes: [root] }
-}
-
-/** 状态文案 */
-function statusText(status) {
-  return { 0: '待审核', 1: '已通过', 2: '已驳回', 3: '已取消' }[status] || '未知'
-}
-
-/** 状态标签色（Element Plus tag 类型） */
-function statusTagType(status) {
-  return { 0: 'warning', 1: 'success', 2: 'danger', 3: 'info' }[status] || 'info'
 }
 
 /** 教室筛选变化：重新拉取当前区间 */

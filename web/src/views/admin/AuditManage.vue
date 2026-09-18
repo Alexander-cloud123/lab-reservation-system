@@ -198,6 +198,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import { pageManageReservations, auditReservation, batchAuditReservations } from '@/api/reservation'
 import { aiComplianceCheck } from '@/api/ai'
+import { statusText, statusTagType } from '@/utils/dict'
 
 const loading = ref(false)
 const records = ref([])
@@ -429,15 +430,6 @@ async function handleBatchAudit(status) {
   } finally {
     submitting.value = false
   }
-}
-
-/** 状态文案 / 标签色 */
-function statusText(status) {
-  return { 0: '待审核', 1: '已通过', 2: '已驳回', 3: '已取消' }[status] || '未知'
-}
-
-function statusTagType(status) {
-  return { 0: 'warning', 1: 'success', 2: 'danger', 3: 'info' }[status] || 'info'
 }
 
 onMounted(loadData)

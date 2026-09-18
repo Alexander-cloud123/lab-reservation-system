@@ -285,6 +285,7 @@ import { getFavoriteList } from '@/api/favorite'
 import { getMyReservations } from '@/api/reservation'
 import { useUserStore } from '@/stores/user'
 import { formatDateTime } from '@/utils/time'
+import { typeText } from '@/utils/dict'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -549,11 +550,6 @@ async function handleChangePassword() {
   } finally {
     pwdSaving.value = false
   }
-}
-
-/** 类型文案 */
-function typeText(type) {
-  return { 1: '普通教室', 2: '实验室', 3: '机房' }[type] || '未知'
 }
 
 /** 消息类型图标（图标化消息流） */

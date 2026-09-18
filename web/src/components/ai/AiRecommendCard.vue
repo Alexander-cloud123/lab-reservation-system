@@ -40,6 +40,7 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import { MagicStick } from '@element-plus/icons-vue'
+import { typeText } from '@/utils/dict'
 
 /**
  * AI 智能推荐卡片（R7，需求文档 2.4 教室列表页「AI 为你推荐」卡片区）
@@ -60,11 +61,6 @@ const router = useRouter()
 /** 点击推荐教室直达详情页 */
 function goDetail(item) {
   router.push(`/student/classrooms/${item.classroomId}`)
-}
-
-/** 类型文案 */
-function typeText(type) {
-  return { 1: '普通教室', 2: '实验室', 3: '机房' }[type] || '未知'
 }
 </script>
 

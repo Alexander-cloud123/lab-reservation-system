@@ -6,6 +6,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * 全局异常处理器
@@ -51,6 +52,16 @@ public class GlobalExceptionHandler {
     public Result<Void> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
         log.warn("参数类型不匹配：参数 {} 期望类型 {}", e.getName(), e.getRequiredType() == null ? "未知" : e.getRequiredType().getSimpleName());
         return Result.error(ResultCode.PARAM_ERROR.getCode(), "参数类型不正确：" + e.getName());
+    }
+
+    /**
+     * 请求路径不存在（V5 修复）：按 404 语义返回，避免落入 500 兜底并打完整堆栈；
+     * 保持项目"业务错误 HTTP 200 + 响应体 code 表达语义"的既有约定，只改响应体语义与日志级别。
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public Result<Void> handleNoResourceFound(NoResourceFoundException e) {
+        log.warn("请求路径不存在：{}", e.getResourcePath());
+        return Result.error(ResultCode.NOT_FOUND.getCode(), "接口不存在");
     }
 
     /**

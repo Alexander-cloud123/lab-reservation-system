@@ -64,14 +64,15 @@ def db(query):
 
 def git_revision(base_dir):
     """返回 (被测版本字符串, 是否有未提交改动)。取不到时返回 ("unknown", None)。
-    脏标记口径：仅统计代码改动，排除回归结果 md 自身（同一天二次运行必然覆盖它，不应计入脏标记）。"""
+    脏标记口径：仅统计代码改动，排除回归结果 md 自身（同一天二次运行必然覆盖它，不应计入脏标记）。
+    用字符串过滤而非 pathspec 排除：Windows 下 subprocess 传中文 pathspec 编码不可靠。"""
     def run(args):
         p = subprocess.run(args, cwd=base_dir, capture_output=True, text=True, timeout=10)
         return p.stdout.strip()
     try:
         head = run(["git", "rev-parse", "--short", "HEAD"])
-        dirty = run(["git", "status", "--porcelain", "--untracked-files=no", "--", ".",
-                     ":(exclude)docs/e2e/regression-结果-*.md"])
+        out = run(["git", "status", "--porcelain", "--untracked-files=no"])
+        dirty = "".join(l for l in out.splitlines() if "regression-结果-" not in l)
         return (head + ("+dirty" if dirty else ""), bool(dirty))
     except Exception:
         return ("unknown", None)

@@ -103,61 +103,86 @@ def main():
     WANGWU = login("wangwu",   STU_PW,   0)
     print("== 登录 OK，开始回归 ==")
 
+    # ===== 日期动态化（核验发现：旧脚本写死"今天 10:00-12:00"，只在当天 10 点前可跑）=====
+    TODAY = datetime.date.today()
+    D = (TODAY + datetime.timedelta(days=1)).isoformat()     # 明日：新建预约统一用明日，任何时刻运行都满足"开始时间晚于当前时间"
+    R4_D = (TODAY + datetime.timedelta(days=7)).isoformat()  # 一周后：R4 长度校验/R2 并发用（远期日期，避免过期）
+    # 本人种子预约：zhangsan 在教室 6 的已通过预约（旧脚本写死 id=33/日期，换库即失效）。
+    # 动态取"最近一条"：种子库为 id=6（CURDATE-2 08:00 生物实验），历史库含 id=33（初始化日 08:00），时间槽均为 08:00
+    seed_own = db("SELECT id, reserve_date FROM reservation WHERE classroom_id=6 AND user_id=2 AND status=1 "
+                  "ORDER BY reserve_date DESC, id DESC LIMIT 1;")
+    if not seed_own:
+        print("!! 前置缺失：zhangsan 在教室 6 无已通过预约（种子数据异常），无法验证本人用途可见语义。")
+        sys.exit(2)
+    seed_own_id, SEED = seed_own.split("\t")
+    print("== 日期基准：明日 D=%s（新预约） 本人种子预约 id=%s date=%s ==" % (D, seed_own_id, SEED))
+
     # ========== R4：预约用途长度校验 ==========
     long_purpose = "用" * 300
     code, r = call("POST", "/api/reservation", STU,
-                   {"classroomId": 12, "reserveDate": "2026-09-25", "startTime": "14:00", "endTime": "15:00",
+                   {"classroomId": 12, "reserveDate": R4_D, "startTime": "14:00", "endTime": "15:00",
                     "purpose": long_purpose})
     check("R4 直调 300 字用途被 400 拦截", r.get("code") == 400 and "过长" in r.get("message", ""),
           "http=%s code=%s msg=%s" % (code, r.get("code"), r.get("message")))
     code, r = call("POST", "/api/reservation", STU,
-                   {"classroomId": 12, "reserveDate": "2026-09-25", "startTime": "14:00", "endTime": "15:00",
+                   {"classroomId": 12, "reserveDate": R4_D, "startTime": "14:00", "endTime": "15:00",
                     "purpose": "   "})
     check("R4 空用途仍 400（既有行为不回归）", r.get("code") == 400 and "不能为空" in r.get("message", ""),
           "http=%s code=%s msg=%s" % (code, r.get("code"), r.get("message")))
 
-    # ========== R5 准备：wangwu 在教室 6 的 09-18 新增并审核通过一条预约 ==========
+    # ========== R5 准备：wangwu 在教室 6 的【明日】新增并审核通过一条预约 ==========
     code, r = call("POST", "/api/reservation", WANGWU,
-                   {"classroomId": 6, "reserveDate": "2026-09-18", "startTime": "10:00", "endTime": "12:00",
+                   {"classroomId": 6, "reserveDate": D, "startTime": "10:00", "endTime": "12:00",
                     "purpose": "王五的测试用途"})
     wangwu_res_id = r.get("data") if r.get("code") == 200 else None
-    check("R5 准备：wangwu 提交教室6/09-18 10-12 预约成功", r.get("code") == 200 and wangwu_res_id, "id=%s" % wangwu_res_id)
+    check("R5 准备：wangwu 提交教室6/%s 10-12 预约成功" % D, r.get("code") == 200 and wangwu_res_id, "id=%s" % wangwu_res_id)
     code, r = call("PUT", "/api/reservation/%s/audit" % wangwu_res_id, ADMIN, {"status": 1})
     check("R5 准备：管理员审核通过", r.get("code") == 200, "http=%s code=%s msg=%s" % (code, r.get("code"), r.get("message")))
 
-    # ========== R5：详情路径按身份裁剪 ==========
-    code, r = call("GET", "/api/classroom/6?date=2026-09-18", STU)
+    # ========== R5：详情路径按身份裁剪（本人用种子日期，他人用明日） ==========
+    code, r = call("GET", "/api/classroom/6?date=%s" % SEED, STU)
     slots = r.get("data", {}).get("occupiedSlots", []) if code == 200 else []
     mine_slot = next((s for s in slots if s["startTime"] == "08:00"), None)
-    other_slot = next((s for s in slots if s["startTime"] == "10:00"), None)
     check("R5 学生详情：本人(08:00)用途可见且 mine=true",
           mine_slot and mine_slot.get("purpose") and mine_slot.get("mine") is True)
+    code, r = call("GET", "/api/classroom/6?date=%s" % D, STU)
+    slots = r.get("data", {}).get("occupiedSlots", []) if code == 200 else []
+    other_slot = next((s for s in slots if s["startTime"] == "10:00"), None)
     check("R5 学生详情：他人(10:00)用途为 null 且 mine=false",
           other_slot and other_slot.get("purpose") is None and other_slot.get("mine") is False)
-    code, r = call("GET", "/api/classroom/6?date=2026-09-18", ADMIN)
+    code, r = call("GET", "/api/classroom/6?date=%s" % D, ADMIN)
     slots = r.get("data", {}).get("occupiedSlots", []) if code == 200 else []
     admin_other = next((s for s in slots if s["startTime"] == "10:00"), None)
     check("R5 管理员详情：他人用途可见", admin_other and admin_other.get("purpose") is not None)
 
-    # ========== R5：列表路径（共享缓存）不返回用途 ==========
-    code, r = call("GET", "/api/classroom/list?page=1&size=20&date=2026-09-18", STU)
+    # ========== R5：列表路径（共享缓存）不返回用途（本人/他人两日期分别验证） ==========
+    code, r = call("GET", "/api/classroom/list?page=1&size=20&date=%s" % SEED, STU)
     rooms = r.get("data", {}).get("records", []) if code == 200 else []
     c6 = next((x for x in rooms if x["id"] == 6), None)
     list_slots = (c6 or {}).get("occupiedSlots", []) or []
+    own_slot = next((s for s in list_slots if s["startTime"] == "08:00"), None)
+    code, r = call("GET", "/api/classroom/list?page=1&size=20&date=%s" % D, STU)
+    rooms = r.get("data", {}).get("records", []) if code == 200 else []
+    c6 = next((x for x in rooms if x["id"] == 6), None)
+    list_slots_d = (c6 or {}).get("occupiedSlots", []) or []
+    other_slot_list = next((s for s in list_slots_d if s["startTime"] == "10:00"), None)
     check("R5 学生列表：共享缓存路径全部时段不带用途且无 mine",
-          len(list_slots) == 2 and all(s.get("purpose") is None and s.get("mine") is None for s in list_slots),
-          "slots=%d" % len(list_slots))
+          (own_slot and own_slot.get("purpose") is None and own_slot.get("mine") is None)
+          and (other_slot_list and other_slot_list.get("purpose") is None and other_slot_list.get("mine") is None),
+          "own_slots=%d other_slots=%d" % (len(list_slots), len(list_slots_d)))
 
     # ========== R3：日历用途口径（管理员或本人可见） ==========
-    code, r = call("GET", "/api/reservation/calendar?startDate=2026-09-01&endDate=2026-09-30", STU)
+    cal_start = (datetime.datetime.strptime(min(SEED, D), "%Y-%m-%d") - datetime.timedelta(days=2)).strftime("%Y-%m-%d")
+    cal_end = (datetime.datetime.strptime(max(SEED, D), "%Y-%m-%d") + datetime.timedelta(days=2)).strftime("%Y-%m-%d")
+    code, r = call("GET", "/api/reservation/calendar?startDate=%s&endDate=%s" % (cal_start, cal_end), STU)
     evs = r.get("data", []) if code == 200 else []
-    own = next((e for e in evs if e["id"] == 33), None)
+    own = next((e for e in evs if e["id"] == int(seed_own_id)), None)
     other = next((e for e in evs if e["id"] == wangwu_res_id), None)
-    check("R3 学生日历：本人预约(09-18 08:00)用途可见且 mine=true",
+    check("R3 学生日历：本人预约(08:00)用途可见且 mine=true",
           own and own.get("purpose") and own.get("mine") is True)
-    check("R3 学生日历：他人预约(09-18 10:00)用途为 null 且 mine=false",
+    check("R3 学生日历：他人预约(10:00)用途为 null 且 mine=false",
           other and other.get("purpose") is None and other.get("mine") is False)
-    code, r = call("GET", "/api/reservation/calendar?startDate=2026-09-01&endDate=2026-09-30", ADMIN)
+    code, r = call("GET", "/api/reservation/calendar?startDate=%s&endDate=%s" % (cal_start, cal_end), ADMIN)
     evs = r.get("data", []) if code == 200 else []
     other = next((e for e in evs if e["id"] == wangwu_res_id), None)
     check("R3 管理员日历：他人用途可见", other and other.get("purpose") is not None)
@@ -218,7 +243,7 @@ def main():
     results = concurrent([
         lambda: call("DELETE", "/api/classroom/manage/%s" % new_room_id, ADMIN),
         lambda: call("POST", "/api/reservation", STU,
-                     {"classroomId": new_room_id, "reserveDate": "2026-09-25", "startTime": "09:00", "endTime": "10:00",
+                     {"classroomId": new_room_id, "reserveDate": R4_D, "startTime": "09:00", "endTime": "10:00",
                       "purpose": "并发测试"}),
     ])
     codes = [x[1].get("code") for x in results]
@@ -238,9 +263,12 @@ def main():
     # ========== R5/R3 清理：删除 wangwu 测试预约，恢复种子状态 ==========
     if wangwu_res_id:
         db("DELETE FROM reservation WHERE id=%s;" % wangwu_res_id)
-    code, r = call("GET", "/api/classroom/6?date=2026-09-18", STU)
+    code, r = call("GET", "/api/classroom/6?date=%s" % D, STU)
     slots = r.get("data", {}).get("occupiedSlots", []) if code == 200 else []
-    check("R5/R3 清理：教室6 09-18 恢复为仅本人 1 个时段", len(slots) == 1, "slots=%d" % len(slots))
+    check("R5/R3 清理：教室6 %s 恢复为 0 个时段（wangwu 预约已删）" % D, len(slots) == 0, "slots=%d" % len(slots))
+    code, r = call("GET", "/api/classroom/6?date=%s" % SEED, STU)
+    slots = r.get("data", {}).get("occupiedSlots", []) if code == 200 else []
+    check("R5/R3 清理：教室6 %s 仍仅本人 1 个时段（种子未动）" % SEED, len(slots) == 1, "slots=%d" % len(slots))
 
     def write_report(passed, total, rev, dirty):
         base_dir = os.path.dirname(os.path.abspath(__file__))

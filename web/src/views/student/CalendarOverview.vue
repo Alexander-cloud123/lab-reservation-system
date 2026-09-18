@@ -131,9 +131,6 @@ import { checkConflict, submitReservation, getCalendarReservations } from '@/api
 import { validateBooking } from '@/utils/booking'
 import { statusText, statusTagType } from '@/utils/dict'
 
-/** 预约状态常量（与后端 Constants 一致：0-待审核，1-已通过，2-已驳回，3-已取消） */
-const RES_STATUS = { PENDING: 0, APPROVED: 1, REJECTED: 2, CANCELED: 3 }
-
 const loading = ref(false)
 const classrooms = ref([])
 const selectedClassroomId = ref(null)

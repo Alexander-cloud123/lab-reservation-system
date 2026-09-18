@@ -144,6 +144,7 @@ import { MagicStick } from '@element-plus/icons-vue'
 import { aiParseReservation } from '@/api/ai'
 import { listClassrooms } from '@/api/classroom'
 import { checkConflict, submitReservation } from '@/api/reservation'
+import { validateBooking } from '@/utils/booking'
 
 /**
  * AI 快速预约（R7，需求文档 2.4 教室列表页搜索栏旁「AI 快速预约」入口）
@@ -316,14 +317,14 @@ async function handleSubmit() {
   } catch (e) {
     return
   }
-  // 前端时间合理性校验（L9 优化，后端仍强制兜底）
-  if (reserveForm.startTime && reserveForm.endTime && reserveForm.startTime >= reserveForm.endTime) {
-    ElMessage.warning('开始时间必须早于结束时间')
-    return
-  }
-  // 可预约时段口径校验（与日历页/详情页 el-time-select 08:00-22:00 一致；AI 解析值可能超窗，提交前兜底）
-  if (reserveForm.startTime < '08:00' || reserveForm.startTime > '21:00' || reserveForm.endTime > '22:00') {
-    ElMessage.warning('可预约时段为 08:00-22:00，请调整开始/结束时间')
+  // N3：预约校验统一为公共纯函数（含 8h 上限，此前该入口缺失；AI 解析值可能超窗，提交前兜底）
+  const check = validateBooking({
+    reserveDate: reserveForm.reserveDate,
+    startTime: reserveForm.startTime,
+    endTime: reserveForm.endTime
+  })
+  if (!check.ok) {
+    ElMessage.warning(check.message)
     return
   }
   submitting.value = true

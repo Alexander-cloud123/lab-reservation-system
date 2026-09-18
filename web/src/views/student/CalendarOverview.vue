@@ -128,6 +128,7 @@ import zhCnLocale from '@fullcalendar/core/locales/zh-cn'
 import dayjs from 'dayjs'
 import { listClassrooms } from '@/api/classroom'
 import { checkConflict, submitReservation, getCalendarReservations } from '@/api/reservation'
+import { validateBooking } from '@/utils/booking'
 
 /** 预约状态常量（与后端 Constants 一致：0-待审核，1-已通过，2-已驳回，3-已取消） */
 const RES_STATUS = { PENDING: 0, APPROVED: 1, REJECTED: 2, CANCELED: 3 }
@@ -303,6 +304,16 @@ async function handleSubmitReserve() {
   try {
     await reserveFormRef.value.validate()
   } catch (e) {
+    return
+  }
+  // N3：预约校验统一为公共纯函数（此前该入口连「开始<结束」都没有，补齐后与其他入口同口径）
+  const check = validateBooking({
+    reserveDate: reserveForm.reserveDate,
+    startTime: reserveForm.startTime,
+    endTime: reserveForm.endTime
+  })
+  if (!check.ok) {
+    ElMessage.warning(check.message)
     return
   }
   submitting.value = true

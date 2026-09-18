@@ -198,6 +198,7 @@ import dayjs from 'dayjs'
 import { getClassroomDetail } from '@/api/classroom'
 import { checkConflict, submitReservation } from '@/api/reservation'
 import { toggleFavorite, getFavoriteList } from '@/api/favorite'
+import { validateBooking } from '@/utils/booking'
 import { useUserStore } from '@/stores/user'
 
 const route = useRoute()
@@ -428,19 +429,15 @@ async function handleSubmitReserve() {
   } catch (e) {
     return
   }
-  // 前端时间合理性校验（L9 优化，后端仍强制兜底）
-  if (reserveForm.startTime && reserveForm.endTime && reserveForm.startTime >= reserveForm.endTime) {
-    ElMessage.warning('开始时间必须早于结束时间')
+  // N3：预约校验统一为公共纯函数（必填/开始<结束/8h/窗口/今天已过时刻；后端仍强制兜底）
+  const check = validateBooking({
+    reserveDate: reserveForm.reserveDate,
+    startTime: reserveForm.startTime,
+    endTime: reserveForm.endTime
+  })
+  if (!check.ok) {
+    ElMessage.warning(check.message)
     return
-  }
-  // H3 前端配合：单次时长上限（与后端 Constants.MAX_RESERVATION_HOURS=8 双重校验口径一致，超长在提交前即提示）
-  if (reserveForm.startTime && reserveForm.endTime) {
-    const [sh, sm] = reserveForm.startTime.split(':').map(Number)
-    const [eh, em] = reserveForm.endTime.split(':').map(Number)
-    if (eh + em / 60 - (sh + sm / 60) > 8) {
-      ElMessage.warning('单次预约时长不能超过 8 小时')
-      return
-    }
   }
   submitting.value = true
   try {

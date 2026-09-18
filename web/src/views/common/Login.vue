@@ -58,6 +58,9 @@ import dayjs from 'dayjs'
 import { useUserStore } from '@/stores/user'
 import { getMyReservations } from '@/api/reservation'
 
+// 为满足 multi-word 规则并便于 devtools 辨识
+defineOptions({ name: 'LoginView' })
+
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()

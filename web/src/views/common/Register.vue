@@ -65,6 +65,9 @@ import { ElMessage } from 'element-plus'
 import { OfficeBuilding, CircleCheckFilled, Calendar, DataLine } from '@element-plus/icons-vue'
 import { register as registerApi } from '@/api/user'
 
+// 为满足 multi-word 规则并便于 devtools 辨识
+defineOptions({ name: 'RegisterView' })
+
 const router = useRouter()
 const formRef = ref()
 const loading = ref(false)

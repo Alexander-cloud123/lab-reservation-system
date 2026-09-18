@@ -59,6 +59,9 @@ import { CanvasRenderer } from 'echarts/renderers'
 import dayjs from 'dayjs'
 import { getUsageRate, getTrend, getTimeDistribution } from '@/api/stats'
 
+// 为满足 multi-word 规则并便于 devtools 辨识
+defineOptions({ name: 'DashboardView' })
+
 // 注册看板用到的图表类型与组件（柱状图/折线图/饼图 + 提示框/网格/图例 + 空数据提示 graphic 文本 + Canvas 渲染）
 echarts.use([BarChart, LineChart, PieChart, TooltipComponent, GridComponent, LegendComponent, GraphicComponent, CanvasRenderer])
 

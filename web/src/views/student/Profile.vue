@@ -287,6 +287,9 @@ import { useUserStore } from '@/stores/user'
 import { formatDateTime } from '@/utils/time'
 import { typeText } from '@/utils/dict'
 
+// 为满足 multi-word 规则并便于 devtools 辨识
+defineOptions({ name: 'ProfileView' })
+
 const router = useRouter()
 const userStore = useUserStore()
 const userInfo = computed(() => userStore.userInfo)

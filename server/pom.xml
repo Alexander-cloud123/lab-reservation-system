@@ -75,7 +75,7 @@
         <dependency>
             <groupId>com.alibaba</groupId>
             <artifactId>easyexcel</artifactId>
-            <version>3.3.4</version>
+            <version>${easyexcel.version}</version>
         </dependency>
 
         <!-- Hutool 工具库（含 BCrypt 加密 / JWT / 字符串工具） -->

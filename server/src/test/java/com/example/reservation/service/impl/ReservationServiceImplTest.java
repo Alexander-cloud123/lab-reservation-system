@@ -15,6 +15,7 @@ import com.example.reservation.entity.Reservation;
 import com.example.reservation.mapper.ClassroomMapper;
 import com.example.reservation.mapper.ReservationMapper;
 import com.example.reservation.mapper.SysUserMapper;
+import com.example.reservation.service.converter.ReservationConverter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,6 +60,10 @@ class ReservationServiceImplTest {
 
     @Mock
     private RedisCache redisCache;
+
+    /** 转换器外移后新增依赖：现有 6 条用例均不经过转换方法，mock 空实现即可 */
+    @Mock
+    private ReservationConverter reservationConverter;
 
     @InjectMocks
     private ReservationServiceImpl reservationService;

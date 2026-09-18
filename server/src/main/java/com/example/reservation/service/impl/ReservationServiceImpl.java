@@ -22,6 +22,7 @@ import com.example.reservation.mapper.ClassroomMapper;
 import com.example.reservation.mapper.ReservationMapper;
 import com.example.reservation.mapper.SysUserMapper;
 import com.example.reservation.service.ReservationService;
+import com.example.reservation.service.converter.ReservationConverter;
 import com.example.reservation.vo.CalendarVO;
 import com.example.reservation.vo.ConflictVO;
 import com.example.reservation.vo.ReservationExportVO;
@@ -36,7 +37,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -75,6 +75,10 @@ public class ReservationServiceImpl implements ReservationService {
 
     @Resource
     private RedisCache redisCache;
+
+    /** 预约实体 → VO 转换器（批量预查 + 转换，避免 N+1） */
+    @Resource
+    private ReservationConverter reservationConverter;
 
     @Override
     public ConflictVO checkConflict(Long classroomId, String date, String startTime, String endTime) {
@@ -197,8 +201,8 @@ public class ReservationServiceImpl implements ReservationService {
                 .orderByDesc(Reservation::getCreateTime);
         Page<Reservation> result = reservationMapper.selectPage(new Page<>(page, size), wrapper);
         // 实体 → VO（批量预查教室信息，避免逐行 selectById 造成 N+1 查询）
-        Map<Long, Classroom> roomMap = batchClassroomMap(result.getRecords());
-        return PageResult.of(result, r -> toReservationVO(r, roomMap));
+        Map<Long, Classroom> roomMap = reservationConverter.batchClassroomMap(result.getRecords());
+        return PageResult.of(result, r -> reservationConverter.toReservationVO(r, roomMap));
     }
 
     @Override
@@ -250,9 +254,9 @@ public class ReservationServiceImpl implements ReservationService {
         LambdaQueryWrapper<Reservation> wrapper = buildManageWrapper(status, startDate, endDate, keyword, classroomId);
         Page<Reservation> result = reservationMapper.selectPage(new Page<>(page, size), wrapper);
         // 实体 → 管理端 VO（批量预查用户 + 教室信息，避免逐行 selectById 造成 N+1 查询）
-        Map<Long, SysUser> userMap = batchUserMap(result.getRecords());
-        Map<Long, Classroom> roomMap = batchClassroomMap(result.getRecords());
-        return PageResult.of(result, r -> toManageVO(r, userMap, roomMap));
+        Map<Long, SysUser> userMap = reservationConverter.batchUserMap(result.getRecords());
+        Map<Long, Classroom> roomMap = reservationConverter.batchClassroomMap(result.getRecords());
+        return PageResult.of(result, r -> reservationConverter.toManageVO(r, userMap, roomMap));
     }
 
     @Override
@@ -267,9 +271,9 @@ public class ReservationServiceImpl implements ReservationService {
         }
         List<Reservation> list = page.getRecords();
         // 批量预查用户 + 教室信息（避免逐行 selectById 造成 N+1 查询）
-        Map<Long, SysUser> userMap = batchUserMap(list);
-        Map<Long, Classroom> roomMap = batchClassroomMap(list);
-        return list.stream().map(r -> toExportVO(r, userMap, roomMap)).collect(Collectors.toList());
+        Map<Long, SysUser> userMap = reservationConverter.batchUserMap(list);
+        Map<Long, Classroom> roomMap = reservationConverter.batchClassroomMap(list);
+        return list.stream().map(r -> reservationConverter.toExportVO(r, userMap, roomMap)).collect(Collectors.toList());
     }
 
     @Override
@@ -585,123 +589,5 @@ public class ReservationServiceImpl implements ReservationService {
                 .eq(Reservation::getStatus, Constants.RES_STATUS_APPROVED)
                 .orderByAsc(Reservation::getStartTime)
                 .last("FOR UPDATE"));
-    }
-
-    /** 批量预查教室信息 → id→Classroom Map（空集合安全，避免逐行 selectById 造成 N+1） */
-    private Map<Long, Classroom> batchClassroomMap(List<Reservation> list) {
-        if (list == null || list.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        Set<Long> ids = list.stream().map(Reservation::getClassroomId)
-                .filter(Objects::nonNull).collect(Collectors.toSet());
-        if (ids.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        return classroomMapper.selectBatchIds(ids).stream()
-                .collect(Collectors.toMap(Classroom::getId, Function.identity(), (a, b) -> a));
-    }
-
-    /** 批量预查用户信息 → id→SysUser Map（空集合安全） */
-    private Map<Long, SysUser> batchUserMap(List<Reservation> list) {
-        if (list == null || list.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        Set<Long> ids = list.stream().map(Reservation::getUserId)
-                .filter(Objects::nonNull).collect(Collectors.toSet());
-        if (ids.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        return userMapper.selectBatchIds(ids).stream()
-                .collect(Collectors.toMap(SysUser::getId, Function.identity(), (a, b) -> a));
-    }
-
-    /** 预约实体 → 学生端 VO（教室展示字段来自批量预查 Map，避免 N+1） */
-    private ReservationVO toReservationVO(Reservation r, Map<Long, Classroom> roomMap) {
-        ReservationVO vo = new ReservationVO();
-        vo.setId(r.getId());
-        vo.setClassroomId(r.getClassroomId());
-        vo.setReserveDate(r.getReserveDate());
-        vo.setStartTime(TimeUtil.formatTime(r.getStartTime()));
-        vo.setEndTime(TimeUtil.formatTime(r.getEndTime()));
-        vo.setPurpose(r.getPurpose());
-        vo.setStatus(r.getStatus());
-        vo.setAuditRemark(r.getAuditRemark());
-        vo.setCreateTime(r.getCreateTime());
-        Classroom room = roomMap.get(r.getClassroomId());
-        if (room != null) {
-            vo.setClassroomName(room.getName());
-            vo.setBuilding(room.getBuilding());
-            vo.setRoomNo(room.getRoomNo());
-        }
-        return vo;
-    }
-
-    /** 预约实体 → 管理端 VO（补全用户 + 教室信息，来自批量预查 Map） */
-    private ReservationManageVO toManageVO(Reservation r, Map<Long, SysUser> userMap, Map<Long, Classroom> roomMap) {
-        ReservationManageVO vo = new ReservationManageVO();
-        vo.setId(r.getId());
-        vo.setUserId(r.getUserId());
-        vo.setClassroomId(r.getClassroomId());
-        vo.setReserveDate(r.getReserveDate());
-        vo.setStartTime(TimeUtil.formatTime(r.getStartTime()));
-        vo.setEndTime(TimeUtil.formatTime(r.getEndTime()));
-        vo.setPurpose(r.getPurpose());
-        vo.setStatus(r.getStatus());
-        vo.setAuditRemark(r.getAuditRemark());
-        vo.setAuditorId(r.getAuditorId());
-        vo.setAuditTime(r.getAuditTime());
-        vo.setCreateTime(r.getCreateTime());
-        SysUser user = userMap.get(r.getUserId());
-        if (user != null) {
-            vo.setUserAccount(user.getUsername());
-            vo.setUserName(user.getName());
-        }
-        Classroom room = roomMap.get(r.getClassroomId());
-        if (room != null) {
-            vo.setClassroomName(room.getName());
-            vo.setBuilding(room.getBuilding());
-            vo.setRoomNo(room.getRoomNo());
-        }
-        return vo;
-    }
-
-    /** 预约实体 → 导出 VO（补全用户 + 教室信息；时间统一字符串输出） */
-    private ReservationExportVO toExportVO(Reservation r, Map<Long, SysUser> userMap, Map<Long, Classroom> roomMap) {
-        ReservationExportVO vo = new ReservationExportVO();
-        vo.setId(r.getId());
-        vo.setReserveDate(String.valueOf(r.getReserveDate()));
-        vo.setStartTime(TimeUtil.formatTime(r.getStartTime()));
-        vo.setEndTime(TimeUtil.formatTime(r.getEndTime()));
-        vo.setPurpose(r.getPurpose());
-        vo.setStatusText(statusText(r.getStatus()));
-        vo.setAuditRemark(r.getAuditRemark());
-        vo.setAuditTime(TimeUtil.formatDateTime(r.getAuditTime()));
-        vo.setCreateTime(TimeUtil.formatDateTime(r.getCreateTime()));
-        SysUser user = userMap.get(r.getUserId());
-        if (user != null) {
-            vo.setUserAccount(user.getUsername());
-            vo.setUserName(user.getName());
-        }
-        Classroom room = roomMap.get(r.getClassroomId());
-        if (room != null) {
-            vo.setClassroomName(room.getName());
-            vo.setBuilding(room.getBuilding());
-            vo.setRoomNo(room.getRoomNo());
-        }
-        return vo;
-    }
-
-    /** 预约状态 → 导出展示文案（与前端状态标签口径一致：0-待审核，1-已通过，2-已驳回，3-已取消） */
-    private String statusText(Integer status) {
-        if (status == null) {
-            return "";
-        }
-        return switch (status) {
-            case Constants.RES_STATUS_PENDING -> "待审核";
-            case Constants.RES_STATUS_APPROVED -> "已通过";
-            case Constants.RES_STATUS_REJECTED -> "已驳回";
-            case Constants.RES_STATUS_CANCELED -> "已取消";
-            default -> "未知";
-        };
     }
 }

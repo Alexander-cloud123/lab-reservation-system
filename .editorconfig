@@ -1,0 +1,16 @@
+# EditorConfig：统一跨编辑器基础格式（UTF-8 / LF / 缩进 / 行尾）
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.java]
+indent_size = 4
+
+[*.md]
+trim_trailing_whitespace = false

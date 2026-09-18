@@ -22,9 +22,9 @@ export const ROOM_TYPE_LABELS = ROOM_TYPES.map((t) => t.label)
 
 /** 数字 → 文案；未知值兜底 '未知' */
 export function typeText(type) {
-  // 用 Number() 归一，保持与旧实现「对象键索引」相同的宽松语义
-  // （旧写法 {1:'普通教室'}['1'] 可命中；若改严格 === 则字符串入参会退化为 '未知'）
-  const hit = ROOM_TYPES.find((t) => t.value === Number(type))
+  // 双端 String 归一：精确复现旧实现「对象键索引」语义
+  // （旧写法 {1:'普通教室'}['1'] 命中、[' 1 ']/[null]/[true] 不命中；Number() 会把 null/''/true 折叠成 0/1 造成误命中）
+  const hit = ROOM_TYPES.find((t) => String(t.value) === String(type))
   return hit ? hit.label : '未知'
 }
 
@@ -45,12 +45,12 @@ export const RES_STATUS = [
 
 /** 状态 → 文案；未知值兜底 '未知' */
 export function statusText(status) {
-  const hit = RES_STATUS.find((s) => s.value === Number(status))
+  const hit = RES_STATUS.find((s) => String(s.value) === String(status))
   return hit ? hit.label : '未知'
 }
 
 /** 状态 → Element Plus tag 类型；未知值兜底 'info' */
 export function statusTagType(status) {
-  const hit = RES_STATUS.find((s) => s.value === Number(status))
+  const hit = RES_STATUS.find((s) => String(s.value) === String(status))
   return hit ? hit.tag : 'info'
 }

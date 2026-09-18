@@ -138,9 +138,9 @@ import { useRouter } from 'vue-router'
 import { Clock, Location, Monitor, Refresh, Search, User } from '@element-plus/icons-vue'
 import { Notebook, Cpu, School } from '@element-plus/icons-vue'
 import { listClassrooms } from '@/api/classroom'
-import { aiRecommend } from '@/api/ai'
 import AiRecommendCard from '@/components/ai/AiRecommendCard.vue'
 import AiQuickReserve from '@/components/ai/AiQuickReserve.vue'
+import { probeAiRecommend } from '@/utils/aiProbe'
 import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
@@ -155,20 +155,18 @@ const aiEnabled = ref(false)
 const aiLoading = ref(false)
 const recommendations = ref([])
 
-/** 加载智能推荐 Top3（AI 只读；失败静默降级为隐藏，不阻断页面） */
+/**
+ * 加载智能推荐 Top3（AI 只读；失败静默降级为隐藏，不阻断页面）。
+ * N5：统一走 probeAiRecommend（按 userId 缓存合并并发，与 AiAssistant 共用同一份结果，
+ * 进入布局 + 列表页只发一次 /api/ai/recommend）
+ */
 async function loadRecommend() {
-  const userId = userStore.userInfo ? userStore.userInfo.id : null
-  if (!userId) {
-    return
-  }
   aiLoading.value = true
   try {
-    // L13 修复：不再发送 { userId }（后端 AiController 一律取 UserContext 当前登录用户，忽略请求体；
-    // 冗余字段会误导维护者以为后端信任客户端传参）
-    const res = await aiRecommend({})
-    aiEnabled.value = !!(res.data && res.data.enabled === true)
+    const res = await probeAiRecommend()
+    aiEnabled.value = !!(res && res.enabled === true)
     if (aiEnabled.value) {
-      recommendations.value = (res.data && res.data.recommendations) || []
+      recommendations.value = (res && res.recommendations) || []
     }
   } catch (e) {
     aiEnabled.value = false

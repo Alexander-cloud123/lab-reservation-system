@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { login as loginApi, logout as logoutApi, getInfo as getInfoApi } from '@/api/user'
 import { getToken, getStoredUser, saveAuth, clearAuth } from '@/utils/auth'
+import { clearAiProbe } from '@/utils/aiProbe'
 
 /**
  * 用户状态管理（Pinia）
@@ -48,6 +49,8 @@ export const useUserStore = defineStore('user', {
         clearAuth()
         this.token = ''
         this.userInfo = null
+        // N5：登出清理 AI 探测缓存（按 userId 分键，避免切换账号拿到上一个用户的推荐）
+        clearAiProbe()
       }
     }
   }

@@ -36,16 +36,14 @@
 <script setup>
 import { onMounted, ref, nextTick } from 'vue'
 import { ChatDotRound } from '@element-plus/icons-vue'
-import { aiChat, aiRecommend } from '@/api/ai'
-import { useUserStore } from '@/stores/user'
+import { aiChat } from '@/api/ai'
+import { probeAiRecommend } from '@/utils/aiProbe'
 
 /**
  * 全局悬浮「AI 预约助手」（R7，需求文档 2.4）
  * 场景绝对限定：仅解答预约/教室/个人记录相关问题，无关问题由后端返回预设话术；
  * 当前会话不持久化（组件内存态，刷新即清）；ai.enable=false 时悬浮球隐藏
  */
-const userStore = useUserStore()
-
 const aiEnabled = ref(false)
 const drawerVisible = ref(false)
 const inputText = ref('')
@@ -55,18 +53,14 @@ const messages = ref([
   { role: 'ai', content: '你好，我是 AI 预约助手。可以问我如何预约教室、如何取消预约、审核流程、我的预约记录等问题。' }
 ])
 
-/** 探测 AI 可用性（推荐接口返回 enabled=false 时隐藏悬浮球） */
+/**
+ * 探测 AI 可用性（推荐接口返回 enabled=false 时隐藏悬浮球）。
+ * N5：统一走 probeAiRecommend（按 userId 缓存，与 ClassroomList 合并同一次调用；
+ * 不再直接调 aiRecommend({ userId })，后端只认 UserContext）
+ */
 onMounted(async () => {
-  const userId = userStore.userInfo ? userStore.userInfo.id : null
-  if (!userId) {
-    return
-  }
-  try {
-    const res = await aiRecommend({ userId })
-    aiEnabled.value = !!(res.data && res.data.enabled === true)
-  } catch (e) {
-    aiEnabled.value = false
-  }
+  const res = await probeAiRecommend()
+  aiEnabled.value = !!(res && res.enabled === true)
 })
 
 async function send() {

@@ -128,12 +128,12 @@ public final class Constants {
     public static final String CALENDAR_RANGE_MSG = "日期区间跨度不能超过 366 天";
 
     /* ===== 数据看板（R5 亮点功能，需求文档 2.4 第 13 页）===== */
-    /** 每日可预约时长（小时）：08:00-22:00，教室使用率分母口径 */
-    public static final int DAILY_AVAILABLE_HOURS = 14;
-    /** 每日可预约开始时间 */
-    public static final String DAILY_AVAILABLE_START = "08:00";
-    /** 每日可预约结束时间 */
-    public static final String DAILY_AVAILABLE_END = "22:00";
+    /** 每日可预约时长（小时）：由窗口边界派生（N4：唯一来源） */
+    public static final int DAILY_AVAILABLE_HOURS = DAILY_SLOT_END_HOUR - DAILY_SLOT_START_HOUR;
+    /** 每日可预约开始时间（HH:mm 文案，由窗口左边界派生） */
+    public static final String DAILY_AVAILABLE_START = String.format("%02d:00", DAILY_SLOT_START_HOUR);
+    /** 每日可预约结束时间（HH:mm 文案，由窗口右边界派生） */
+    public static final String DAILY_AVAILABLE_END = String.format("%02d:00", DAILY_SLOT_END_HOUR);
     /** 看板时间筛选默认跨度（天）：缺省近 30 天 */
     public static final int STATS_DEFAULT_DAYS = 30;
     /** 看板统计查询最大跨度（天） */

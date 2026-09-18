@@ -84,6 +84,10 @@ public final class Constants {
     public static final LocalTime DAILY_SLOT_START = LocalTime.of(8, 0);
     /** 每日可预约窗口右边界（含）：22:00，提交预约时强制 endTime ≤ 该时刻 */
     public static final LocalTime DAILY_SLOT_END = LocalTime.of(22, 0);
+    /** 每日可预约窗口左边界（小时）：由 DAILY_SLOT_START 派生，整点时段计算用（N4：唯一来源） */
+    public static final int DAILY_SLOT_START_HOUR = DAILY_SLOT_START.getHour();
+    /** 每日可预约窗口右边界（小时）：由 DAILY_SLOT_END 派生，整点时段计算用（N4：唯一来源） */
+    public static final int DAILY_SLOT_END_HOUR = DAILY_SLOT_END.getHour();
     /** 单次预约最长时长（小时）：防止单条记录占满全天（软件审查 H3 建议补充，答辩口径：防恶意占满资源） */
     public static final int MAX_RESERVATION_HOURS = 8;
 

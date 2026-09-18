@@ -43,11 +43,7 @@ import java.util.stream.Collectors;
 @Service
 public class ClassroomServiceImpl implements ClassroomService {
 
-    /** 今日可预约时段口径（与前端日历/详情页一致）：08:00-22:00，按整点划分为 14 个时段 */
-    private static final int DAILY_SLOT_START_HOUR = 8;
-    private static final int DAILY_SLOT_END_HOUR = 22;
-
-    /** 教室列表缓存 Key 版本号（R5：旧版缓存条目仍含他人 purpose，升版本号使旧 Key 部署即失效、重建为裁剪后数据） */
+    /** 今日可预约时段口径（与前端日历/详情页一致）：08:00-22:00，按整点划分为 14 个时段（N4：小时常量已收敛至 Constants 唯一来源） */
     private static final String LIST_CACHE_VERSION = "v2:";
 
     @Resource
@@ -364,10 +360,10 @@ public class ClassroomServiceImpl implements ClassroomService {
                 .filter(r -> r.getClassroomId().equals(classroomId))
                 .toList();
         if (mine.isEmpty()) {
-            return DAILY_SLOT_END_HOUR - DAILY_SLOT_START_HOUR;
+            return Constants.DAILY_SLOT_END_HOUR - Constants.DAILY_SLOT_START_HOUR;
         }
         Set<Integer> occupied = new HashSet<>();
-        for (int i = DAILY_SLOT_START_HOUR; i < DAILY_SLOT_END_HOUR; i++) {
+        for (int i = Constants.DAILY_SLOT_START_HOUR; i < Constants.DAILY_SLOT_END_HOUR; i++) {
             LocalTime slotStart = LocalTime.of(i, 0);
             LocalTime slotEnd = LocalTime.of(i + 1, 0);
             boolean busy = mine.stream().anyMatch(r -> r.getStartTime().isBefore(slotEnd) && r.getEndTime().isAfter(slotStart));
@@ -375,7 +371,7 @@ public class ClassroomServiceImpl implements ClassroomService {
                 occupied.add(i);
             }
         }
-        return DAILY_SLOT_END_HOUR - DAILY_SLOT_START_HOUR - occupied.size();
+        return Constants.DAILY_SLOT_END_HOUR - Constants.DAILY_SLOT_START_HOUR - occupied.size();
     }
 
     /** 预约实体 → 占用时段 VO（时间统一 HH:mm）；详情路径（无缓存）按身份裁剪：

@@ -5,6 +5,7 @@ import com.example.reservation.ai.config.AiConstants;
 import com.example.reservation.ai.dto.AiComplianceVO;
 import com.example.reservation.ai.dto.AiRecommendItemVO;
 import com.example.reservation.ai.dto.AiParseVO;
+import com.example.reservation.common.Constants;
 import com.example.reservation.entity.Classroom;
 import org.springframework.stereotype.Component;
 
@@ -53,8 +54,8 @@ public class AiFallbackEngine {
     };
     /** 时段跨度默认值（分钟）：仅识别到开始时间时，默认预约 2 小时 */
     private static final int DEFAULT_SPAN_MINUTES = 120;
-    /** 每日可预约最晚结束分钟数（22:00） */
-    private static final int MAX_END_MINUTES = 22 * 60;
+    /** 每日可预约最晚结束分钟数（N4：由 Constants.DAILY_SLOT_END 派生，单一来源） */
+    private static final int MAX_END_MINUTES = Constants.DAILY_SLOT_END.getHour() * 60;
 
     /* ===== 场景限定问答 FAQ 库 ===== */
     private static final Map<String, String> FAQ_RULES = buildFaqRules();
@@ -336,7 +337,8 @@ public class AiFallbackEngine {
         rules.put("如何预约", "预约步骤：教室列表 → 点击教室卡片进入详情 → 选择日期与时段 → 填写用途 → 提交预约（系统实时做冲突校验）。也可在教室列表页使用「AI 快速预约」直接描述需求。");
         rules.put("我的", "个人预约记录：在我的预约页可按状态（待审核/已通过/已驳回/已取消）查看全部记录，今日预约自动置顶；个人中心可查看累计预约次数、本月预约数与通过率。");
         rules.put("教室", "教室信息：教室列表支持按关键词/楼栋/类型/日期筛选，卡片展示实时状态（当前空闲/使用中/已结束）与容量、设备；进入详情可查看当日时段占用情况并直接预约。");
-        rules.put("时间", "可预约时段：每日 08:00-22:00（14 小时），结束时间不能晚于 22:00。");
+        rules.put("时间", "可预约时段：每日 " + Constants.DAILY_AVAILABLE_START + "-" + Constants.DAILY_AVAILABLE_END
+                + "（" + Constants.DAILY_AVAILABLE_HOURS + " 小时），结束时间不能晚于 " + Constants.DAILY_AVAILABLE_END + "。");
         return rules;
     }
 

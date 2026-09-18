@@ -24,6 +24,7 @@ import com.example.reservation.vo.LoginVO;
 import com.example.reservation.vo.UserStatsVO;
 import com.example.reservation.vo.UserVO;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -38,6 +39,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  *
  * @author reservation-team
  */
+@Slf4j
 @Service
 public class UserServiceImpl implements UserService {
 
@@ -391,10 +393,20 @@ public class UserServiceImpl implements UserService {
 
     /**
      * 失败计数 +1，返回最新值（Redis INCR+TTL 天然淘汰；内存 merge + 容量定向清理）。
+     * N1 残留 B 修复：以「返回值」而非「开关」判定走哪条路径——Redis 启用但写入异常
+     * （incr 返回 0）时自动退回内存计数，避免「Redis 启用即防护静默归零」；故障窗口内退化，
+     * 恢复后以 Redis 计数为准。
+     * 边界说明：读锁定键失败仍按「未锁定」放行（RedisCache.isLoginLocked 既有 fail-open 语义，
+     * 与项目 SKIP 降级口径一致）——本轮只补写入/计数路径，不改读取语义。
      */
     private long recordLoginFail(String key) {
         if (redisCache.isEnabled()) {
-            return redisCache.incrLoginFail(key, Constants.LOGIN_LOCK_MINUTES * 60L);
+            long fails = redisCache.incrLoginFail(key, Constants.LOGIN_LOCK_MINUTES * 60L);
+            if (fails > 0) {
+                return fails;                       // Redis 正常：以 Redis 计数为准
+            }
+            log.warn("Redis 登录失败计数不可用，退化内存计数（key={}）", key);
+            // 落到下方内存路径（故障窗口内退化，恢复后以 Redis 为准）
         }
         // 内存降级路径：先写入再检查容量，超限定向清理（禁止 clear() 全清，避免所有账号计数一起归零）
         LOGIN_TRACK_ORDER.offer(key);

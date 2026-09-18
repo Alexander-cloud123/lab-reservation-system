@@ -30,6 +30,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -64,8 +66,9 @@ class UserServiceImplLoginLockTest {
 
     @BeforeEach
     void setUp() {
-        // 内存降级路径：Redis 未启用（不依赖真实 Redis）
-        when(redisCache.isEnabled()).thenReturn(false);
+        // 内存降级路径：Redis 未启用（不依赖真实 Redis）。
+        // lenient：部分用例（redisIncrUnavailable）会覆盖为 true，避免 strict stubs 误报未使用
+        lenient().when(redisCache.isEnabled()).thenReturn(false);
         // 账号存在且口令正确（selectOne 永远返回该账号；口令由 BCrypt 真实比对）
         SysUser user = new SysUser();
         user.setId(100L);
@@ -137,6 +140,27 @@ class UserServiceImplLoginLockTest {
                 "顺序队列应被限制在 2×MAX 内，实际 " + queue.size());
     }
 
+    @Test
+    @DisplayName("N1：Redis 计数不可用时退回内存计数（enabled=true 但 incr 返回 0，第 6 次正确口令仍被拒）")
+    void redisIncrUnavailable_fallsBackToMemory() {
+        // Redis 总开关开启，但写入计数异常（incrLoginFail 返回 0 模拟故障）
+        when(redisCache.isEnabled()).thenReturn(true);
+        when(redisCache.incrLoginFail(anyString(), anyLong())).thenReturn(0L);
+        // 连续 5 次失败：应退化到内存计数（计数达到阈值），并触发锁定动作
+        for (int i = 0; i < 5; i++) {
+            assertThrows(BusinessException.class, () -> login(WRONG_PASSWORD));
+        }
+        // 证明走了内存计数：内存 Map 中该账号计数达到 5（Redis 计数不可用时不再静默归零）
+        Map<String, Integer> failMap = failMap();
+        assertEquals(5, failMap.get(FAIL_KEY), "Redis 计数不可用时应退化内存计数并达到锁定阈值");
+        // 证明进入锁定：lockAccount 动作已触发（Redis 锁键写入被调用）
+        verify(redisCache).lockLogin(FAIL_KEY, Constants.LOGIN_LOCK_MINUTES * 60L);
+        // 第 6 次：锁键已写入（读侧命中锁定）→ 即使口令正确仍被拒
+        when(redisCache.isLoginLocked(anyString())).thenReturn(true);
+        BusinessException e = assertThrows(BusinessException.class, () -> login(PASSWORD));
+        assertTrue(e.getMessage().contains("临时锁定"), "锁定期内应提示临时锁定：" + e.getMessage());
+    }
+
     /** 构造登录 DTO 并调用（错误或正确口令由入参决定） */
     private LoginVO login(String password) {
         return loginAs(USERNAME, password);
@@ -167,5 +191,11 @@ class UserServiceImplLoginLockTest {
     @SuppressWarnings("unchecked")
     private Queue<String> trackOrder() {
         return (Queue<String>) ReflectionTestUtils.getField(userService, "LOGIN_TRACK_ORDER");
+    }
+
+    /** 反射读取内存失败计数 Map（仅测试用：验证 Redis 计数不可用时退化内存计数） */
+    @SuppressWarnings("unchecked")
+    private Map<String, Integer> failMap() {
+        return (Map<String, Integer>) ReflectionTestUtils.getField(userService, "LOGIN_FAIL_COUNT");
     }
 }

@@ -29,7 +29,9 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * 用户业务实现
@@ -39,10 +41,15 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class UserServiceImpl implements UserService {
 
-    /** 登录失败计数（内存 Map，M3 修复）：key=账号:角色 → 连续失败次数；单实例部署足够，防对已知账号无限次爆破 */
-    private static final Map<String, Integer> LOGIN_FAIL_COUNT = new ConcurrentHashMap<>();
-    /** 账号锁定截止时间戳（内存 Map，M3 修复）：key=账号:角色 → 解锁时刻；达到阈值后锁定 N 分钟 */
-    private static final Map<String, Long> LOGIN_LOCK_UNTIL = new ConcurrentHashMap<>();
+    /**
+     * 登录失败计数（N1：内存降级 Map，仅 Redis 未启用时使用；key=账号:角色 → 连续失败次数；
+     * 实例字段而非 static：@Service 单例下等价，且便于纯 Mockito 单测隔离）
+     */
+    private final Map<String, Integer> LOGIN_FAIL_COUNT = new ConcurrentHashMap<>();
+    /** 账号锁定截止时间戳（N1：内存降级 Map，仅 Redis 未启用时使用；key=账号:角色 → 解锁时刻） */
+    private final Map<String, Long> LOGIN_LOCK_UNTIL = new ConcurrentHashMap<>();
+    /** 内存降级路径写入顺序队列（N1：配合容量上限定向清理，删最旧写入条目；禁止 clear() 全清） */
+    private final Queue<String> LOGIN_TRACK_ORDER = new ConcurrentLinkedQueue<>();
 
     @Resource
     private SysUserMapper userMapper;
@@ -66,11 +73,11 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException("角色参数不合法");
         }
 
-        // M3 修复：账号锁定检查（连续失败达阈值后锁定 N 分钟，防对已知账号无限次爆破尝试）
+        // N1 修复：账号锁定检查（锁定状态优先落 Redis：auth:login:lock:{账号}:{角色}，键存在即锁定；
+        // Redis 未启用时降级内存 Map 解锁时刻判断；锁定策略不变：连续 5 次失败锁 10 分钟）
         String failKey = dto.getUsername() + ":" + dto.getRole();
-        Long lockUntil = LOGIN_LOCK_UNTIL.get(failKey);
-        if (lockUntil != null && System.currentTimeMillis() < lockUntil) {
-            long remainMinutes = (lockUntil - System.currentTimeMillis()) / 60_000L + 1;
+        if (isLoginLocked(failKey)) {
+            long remainMinutes = Math.max(1, (getLoginLockRemainSeconds(failKey) + 59) / 60);
             throw new BusinessException("登录失败次数过多，账号已临时锁定，请约 " + remainMinutes + " 分钟后再试");
         }
 
@@ -78,11 +85,10 @@ public class UserServiceImpl implements UserService {
                 new LambdaQueryWrapper<SysUser>().eq(SysUser::getUsername, dto.getUsername()));
         // 账号不存在与密码错误统一提示，避免账号枚举
         if (user == null || !BCrypt.checkpw(dto.getPassword(), user.getPassword())) {
-            // M3：失败计数 +1，达到阈值进入锁定窗口（计数清零，锁定期间直接拦截）
-            int fails = LOGIN_FAIL_COUNT.merge(failKey, 1, Integer::sum);
+            // N1：失败计数 +1（Redis INCR+TTL 自动淘汰 / 内存 merge），达到阈值进入锁定窗口（锁定期间直接拦截）
+            long fails = recordLoginFail(failKey);
             if (fails >= Constants.LOGIN_FAIL_MAX_TIMES) {
-                LOGIN_LOCK_UNTIL.put(failKey, System.currentTimeMillis() + Constants.LOGIN_LOCK_MINUTES * 60_000L);
-                LOGIN_FAIL_COUNT.remove(failKey);
+                lockAccount(failKey);
             }
             throw new BusinessException("账号或密码错误");
         }
@@ -95,9 +101,8 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException("角色选择与账号类型不匹配");
         }
 
-        // 登录成功：清除失败计数与锁定状态（M3）
-        LOGIN_FAIL_COUNT.remove(failKey);
-        LOGIN_LOCK_UNTIL.remove(failKey);
+        // 登录成功：清除失败计数与锁定状态（N1：Redis/内存双路径统一清理）
+        clearLoginTrack(failKey);
 
         String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
         // Redis 加分项：登录会话写入 Redis（Key=auth:token:{userId}，TTL 与 JWT 一致）；
@@ -250,11 +255,9 @@ public class UserServiceImpl implements UserService {
         update.setPassword(BCrypt.hashpw(Constants.DEFAULT_PASSWORD));
         userMapper.updateById(update);
         // M2 修复：重置密码后立即失效该用户 Redis 会话（"改密即下线"），旧 Token 不再可用；
-        // 同时清除其登录失败计数与锁定（管理员重置即人工解锁，以用户名为键与 login 口径一致）
+        // N1：与 login 口径一致清理失败计数与锁定（管理员重置即人工解锁；Redis/内存双路径）
         redisCache.removeToken(id);
-        String failKey = user.getUsername() + ":" + user.getRole();
-        LOGIN_FAIL_COUNT.remove(failKey);
-        LOGIN_LOCK_UNTIL.remove(failKey);
+        clearLoginTrack(user.getUsername() + ":" + user.getRole());
     }
 
     @Override
@@ -355,5 +358,96 @@ public class UserServiceImpl implements UserService {
         // M2 修复：修改密码后立即失效本人 Redis 会话（"改密即下线"），
         // 旧 Token 在改密瞬间即不可用（此前可继续使用最长 24 小时）
         redisCache.removeToken(user.getId());
+        // N1 补齐：改密成功后与 resetPassword 一致清理失败计数与锁定（改密即解锁，Redis/内存双路径）
+        clearLoginTrack(user.getUsername() + ":" + user.getRole());
+    }
+
+    /* ==================== 登录失败计数与锁定（N1 修复：Redis 优先 + 内存降级带容量上限） ==================== */
+
+    /**
+     * 账号是否处于锁定（Redis 优先：锁定键存在即锁定；Redis 未启用时读内存 Map 解锁时刻）。
+     */
+    private boolean isLoginLocked(String key) {
+        if (redisCache.isEnabled()) {
+            return redisCache.isLoginLocked(key);
+        }
+        Long lockUntil = LOGIN_LOCK_UNTIL.get(key);
+        return lockUntil != null && System.currentTimeMillis() < lockUntil;
+    }
+
+    /**
+     * 锁定剩余秒数（提示剩余时间；未锁定返回 0；Redis 未启用时按内存解锁时刻换算）。
+     */
+    private long getLoginLockRemainSeconds(String key) {
+        if (redisCache.isEnabled()) {
+            return redisCache.getLoginLockRemainSeconds(key);
+        }
+        Long lockUntil = LOGIN_LOCK_UNTIL.get(key);
+        if (lockUntil == null) {
+            return 0;
+        }
+        return Math.max(0, (lockUntil - System.currentTimeMillis() + 999) / 1000);
+    }
+
+    /**
+     * 失败计数 +1，返回最新值（Redis INCR+TTL 天然淘汰；内存 merge + 容量定向清理）。
+     */
+    private long recordLoginFail(String key) {
+        if (redisCache.isEnabled()) {
+            return redisCache.incrLoginFail(key, Constants.LOGIN_LOCK_MINUTES * 60L);
+        }
+        // 内存降级路径：先写入再检查容量，超限定向清理（禁止 clear() 全清，避免所有账号计数一起归零）
+        LOGIN_TRACK_ORDER.offer(key);
+        int fails = LOGIN_FAIL_COUNT.merge(key, 1, Integer::sum);
+        trimLoginTrack();
+        return fails;
+    }
+
+    /**
+     * 写入锁定状态（Redis 锁键 TTL=锁定窗口；内存记录解锁时刻并清计数）。
+     */
+    private void lockAccount(String key) {
+        if (redisCache.isEnabled()) {
+            redisCache.lockLogin(key, Constants.LOGIN_LOCK_MINUTES * 60L);
+            return;
+        }
+        LOGIN_LOCK_UNTIL.put(key, System.currentTimeMillis() + Constants.LOGIN_LOCK_MINUTES * 60_000L);
+        LOGIN_FAIL_COUNT.remove(key);
+        LOGIN_TRACK_ORDER.offer(key);
+    }
+
+    /**
+     * 清除该账号失败计数与锁定（登录成功 / 改密 / 重置 = 解锁；Redis/内存双路径）。
+     */
+    private void clearLoginTrack(String key) {
+        if (redisCache.isEnabled()) {
+            redisCache.clearLoginTrack(key);
+            return;
+        }
+        LOGIN_FAIL_COUNT.remove(key);
+        LOGIN_LOCK_UNTIL.remove(key);
+    }
+
+    /**
+     * 内存降级路径容量控制：超上限时定向清理——先删已过期的锁定条目，仍超再按写入顺序删最旧条目。
+     * 注意：这是尽力而为的定向清理（防无限增长），非强一致淘汰。
+     */
+    private void trimLoginTrack() {
+        if (LOGIN_FAIL_COUNT.size() + LOGIN_LOCK_UNTIL.size() <= Constants.LOGIN_TRACK_MAX_ACCOUNTS) {
+            return;
+        }
+        // 1) 先删已过期的锁定条目（模拟 TTL 语义：解锁时刻已到即释放）
+        LOGIN_LOCK_UNTIL.entrySet().removeIf(e -> System.currentTimeMillis() >= e.getValue());
+        if (LOGIN_FAIL_COUNT.size() + LOGIN_LOCK_UNTIL.size() <= Constants.LOGIN_TRACK_MAX_ACCOUNTS) {
+            return;
+        }
+        // 2) 仍超上限：按写入顺序删最旧条目（队列可能含已被删除的 key，轮询直到删掉一个真实存在的条目）
+        while (!LOGIN_TRACK_ORDER.isEmpty()) {
+            String oldest = LOGIN_TRACK_ORDER.poll();
+            if (oldest != null
+                    && (LOGIN_FAIL_COUNT.remove(oldest) != null || LOGIN_LOCK_UNTIL.remove(oldest) != null)) {
+                break;
+            }
+        }
     }
 }

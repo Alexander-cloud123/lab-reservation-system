@@ -1,5 +1,6 @@
 package com.example.reservation.config;
 
+import cn.hutool.core.util.StrUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Resource;
@@ -286,5 +287,95 @@ public class RedisCache {
     /** 组装登录会话 Key：auth:token:{userId} */
     private String tokenKey(Long userId) {
         return redisProperties.getToken().getKeyPrefix() + userId;
+    }
+
+    /* ==================== 登录失败计数与锁定（N1 修复：登录状态迁 Redis，键 TTL 天然淘汰） ==================== */
+
+    /** 登录失败计数 Key 前缀（完整 Key = 前缀 + 账号:角色；计数 TTL=锁定窗口，到期自动清除） */
+    public static final String LOGIN_FAIL_KEY_PREFIX = "auth:login:fail:";
+    /** 登录锁定 Key 前缀（完整 Key = 前缀 + 账号:角色；锁定键 TTL=锁定窗口，到期自动解锁） */
+    public static final String LOGIN_LOCK_KEY_PREFIX = "auth:login:lock:";
+
+    /**
+     * 登录失败计数 +1（INCR + 每次刷新 EXPIRE，TTL=锁定窗口；到期 Key 自动清除，天然淘汰无内存增长）。
+     * 异常不阻断登录（fail-open）：返回 0，由调用方按「未命中」处理。
+     *
+     * @param key        账号:角色（业务侧拼接，本方法补前缀）
+     * @param ttlSeconds 计数 TTL（锁定窗口分钟数换算秒）
+     * @return 最新失败计数（≥1）；未启用/异常返回 0
+     */
+    public long incrLoginFail(String key, long ttlSeconds) {
+        if (!isEnabled() || StrUtil.isBlank(key)) {
+            return 0;
+        }
+        try {
+            String fullKey = LOGIN_FAIL_KEY_PREFIX + key;
+            Long count = redisTemplate.opsForValue().increment(fullKey);
+            redisTemplate.expire(fullKey, ttlSeconds, TimeUnit.SECONDS);
+            return count == null ? 0 : count;
+        } catch (Exception e) {
+            // 写失败不阻断登录：本次失败按内存计数语义仍由调用方判定（降级）
+            log.warn("Redis 写入登录失败计数失败（key={}）：{}", key, e.getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * 写入账号锁定标记（SET + TTL=锁定窗口；到期自动解锁；异常空转，不阻断登录）。
+     */
+    public void lockLogin(String key, long ttlSeconds) {
+        if (!isEnabled() || StrUtil.isBlank(key)) {
+            return;
+        }
+        try {
+            redisTemplate.opsForValue().set(LOGIN_LOCK_KEY_PREFIX + key, "1", ttlSeconds, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.warn("Redis 写入登录锁定失败（key={}）：{}", key, e.getMessage());
+        }
+    }
+
+    /**
+     * 账号是否处于锁定（锁定键存在即锁定）。
+     *
+     * @return true=锁定中；false=未锁定 / 未启用 / 异常（异常按未锁定处理，不阻断登录）
+     */
+    public boolean isLoginLocked(String key) {
+        if (!isEnabled() || StrUtil.isBlank(key)) {
+            return false;
+        }
+        try {
+            return Boolean.TRUE.equals(redisTemplate.hasKey(LOGIN_LOCK_KEY_PREFIX + key));
+        } catch (Exception e) {
+            // Redis 不可用：按未锁定放行，避免 Redis 故障阻断登录（降级）
+            log.warn("Redis 读取登录锁定失败（key={}）：{}", key, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 锁定剩余秒数（提示剩余时间用；未锁定 / 未启用 / 异常返回 0）。
+     */
+    public long getLoginLockRemainSeconds(String key) {
+        if (!isEnabled() || StrUtil.isBlank(key)) {
+            return 0;
+        }
+        try {
+            Long ttl = redisTemplate.getExpire(LOGIN_LOCK_KEY_PREFIX + key, TimeUnit.SECONDS);
+            return ttl == null || ttl < 0 ? 0 : ttl;
+        } catch (Exception e) {
+            log.warn("Redis 读取登录锁定剩余时间失败（key={}）：{}", key, e.getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * 清除该账号的失败计数与锁定（登录成功 / 改密 / 重置 = 解锁；未启用或异常空转）。
+     */
+    public void clearLoginTrack(String key) {
+        if (StrUtil.isBlank(key)) {
+            return;
+        }
+        delete(LOGIN_FAIL_KEY_PREFIX + key);
+        delete(LOGIN_LOCK_KEY_PREFIX + key);
     }
 }

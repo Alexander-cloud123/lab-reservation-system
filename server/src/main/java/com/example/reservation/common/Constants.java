@@ -92,6 +92,8 @@ public final class Constants {
     public static final int LOGIN_FAIL_MAX_TIMES = 5;
     /** 登录失败锁定窗口（分钟） */
     public static final int LOGIN_LOCK_MINUTES = 10;
+    /** 登录失败/锁定跟踪账号数上限（N1：内存降级路径；超限时定向清理最旧条目，防未鉴权接口无限灌入新 key） */
+    public static final int LOGIN_TRACK_MAX_ACCOUNTS = 1000;
 
     /* ===== 教室实时状态标签（R3 口径 + R4 补全已结束态）=====
      * 口径：当天存在已通过预约且当前时刻 ∈ [开始,结束) → 使用中；

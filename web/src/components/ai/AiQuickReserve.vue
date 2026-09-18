@@ -5,7 +5,13 @@
       <el-icon class="ai-btn-icon"><MagicStick /></el-icon>AI 快速预约
     </el-button>
 
-    <el-dialog v-model="dialogVisible" title="AI 快速预约" width="640px" :close-on-click-modal="false" @closed="resetAll">
+    <!-- append-to-body 为必需：本组件被放在教室列表搜索栏的 el-form-item 内，而该搜索栏是 el-form--inline。
+         若弹窗不脱离这棵子树，其内部的 el-form-item 会命中两条后代选择器：
+         · `.el-form--inline .el-form-item { display:inline-flex; margin-right:32px; vertical-align:middle }`
+           → 表单项收缩到内容宽度，width:100% 的 el-select 塌成 44px（教室类型下拉选中的文字不可见）；
+         · `.search-card :deep(.el-form-item) { margin-bottom:0 }` → 各表单项间距被清零。
+         脱离到 body 后两条规则均不再命中，缓存与解析结果不受影响（scoped 样式按 data-v 属性生效，与 DOM 位置无关）。 -->
+    <el-dialog v-model="dialogVisible" title="AI 快速预约" width="640px" append-to-body :close-on-click-modal="false" @closed="resetAll">
       <el-steps :active="step" finish-status="success" simple class="steps">
         <el-step title="描述需求" />
         <el-step title="选择教室" />

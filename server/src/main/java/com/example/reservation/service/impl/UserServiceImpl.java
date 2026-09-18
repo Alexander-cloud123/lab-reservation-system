@@ -398,6 +398,7 @@ public class UserServiceImpl implements UserService {
         }
         // 内存降级路径：先写入再检查容量，超限定向清理（禁止 clear() 全清，避免所有账号计数一起归零）
         LOGIN_TRACK_ORDER.offer(key);
+        capTrackOrder();
         int fails = LOGIN_FAIL_COUNT.merge(key, 1, Integer::sum);
         trimLoginTrack();
         return fails;
@@ -414,6 +415,7 @@ public class UserServiceImpl implements UserService {
         LOGIN_LOCK_UNTIL.put(key, System.currentTimeMillis() + Constants.LOGIN_LOCK_MINUTES * 60_000L);
         LOGIN_FAIL_COUNT.remove(key);
         LOGIN_TRACK_ORDER.offer(key);
+        capTrackOrder();
     }
 
     /**
@@ -426,6 +428,18 @@ public class UserServiceImpl implements UserService {
         }
         LOGIN_FAIL_COUNT.remove(key);
         LOGIN_LOCK_UNTIL.remove(key);
+    }
+
+    /**
+     * 顺序队列长度硬上限（N1 残留 A 修复）：队列是「写入顺序」的近似载体，允许去重缺失，
+     * 但长度必须有界——否则 Redis 关闭/故障的降级路径上，轮换用户名刷失败请求仍能让队列无界增长
+     * （两个 Map 有 trimLoginTrack 兜底 ≤ LOGIN_TRACK_MAX_ACCOUNTS，队列此前没有任何上限）。
+     * 在每次 offer 之后调用；与 trimLoginTrack 的「Map 容量定向清理」职责互不替代。
+     */
+    private void capTrackOrder() {
+        while (LOGIN_TRACK_ORDER.size() > Constants.LOGIN_TRACK_MAX_ACCOUNTS * 2) {
+            LOGIN_TRACK_ORDER.poll();
+        }
     }
 
     /**

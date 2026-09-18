@@ -17,9 +17,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Field;
 import java.util.Map;
+import java.util.Queue;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -120,10 +122,30 @@ class UserServiceImplLoginLockTest {
         assertNotNull(vo.getUser());
     }
 
+    @Test
+    @DisplayName("N1：内存降级路径顺序队列有长度上限（轮换用户名刷失败不无界增长）")
+    void trackOrderQueue_isCapped() {
+        // 超过 2×MAX + 100 个不同用户名各失败 1 次（Redis 未启用 → 走内存降级路径）
+        int users = Constants.LOGIN_TRACK_MAX_ACCOUNTS * 2 + 100;
+        for (int i = 0; i < users; i++) {
+            final String username = "cap_user_" + i;
+            assertThrows(BusinessException.class, () -> loginAs(username, WRONG_PASSWORD));
+        }
+        // 队列长度必须被 capTrackOrder 限制在 2×MAX 内（此前无上限、可无界增长）
+        Queue<String> queue = trackOrder();
+        assertTrue(queue.size() <= Constants.LOGIN_TRACK_MAX_ACCOUNTS * 2,
+                "顺序队列应被限制在 2×MAX 内，实际 " + queue.size());
+    }
+
     /** 构造登录 DTO 并调用（错误或正确口令由入参决定） */
     private LoginVO login(String password) {
+        return loginAs(USERNAME, password);
+    }
+
+    /** 以指定用户名登录（任务 1 用例：轮换用户名验证队列上限） */
+    private LoginVO loginAs(String username, String password) {
         LoginDTO dto = new LoginDTO();
-        dto.setUsername(USERNAME);
+        dto.setUsername(username);
         dto.setPassword(password);
         dto.setRole(Constants.ROLE_STUDENT);
         return userService.login(dto);
@@ -139,5 +161,11 @@ class UserServiceImplLoginLockTest {
         } catch (Exception e) {
             throw new IllegalStateException("反射读取 LOGIN_LOCK_UNTIL 失败", e);
         }
+    }
+
+    /** 反射读取内存写入顺序队列（仅测试用：验证长度上限） */
+    @SuppressWarnings("unchecked")
+    private Queue<String> trackOrder() {
+        return (Queue<String>) ReflectionTestUtils.getField(userService, "LOGIN_TRACK_ORDER");
     }
 }

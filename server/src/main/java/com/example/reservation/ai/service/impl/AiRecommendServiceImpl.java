@@ -46,8 +46,6 @@ import java.util.stream.Collectors;
 @Service
 public class AiRecommendServiceImpl implements AiRecommendService {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-
     /** 推荐 System Prompt（限定场景与结构化 JSON 输出） */
     private static final String SYSTEM_PROMPT = "你是高校教室预约管理系统的智能推荐助手。"
             + "根据用户的历史预约偏好与候选教室的明日空闲情况，从候选教室中选择最合适的 3 间，"
@@ -71,6 +69,10 @@ public class AiRecommendServiceImpl implements AiRecommendService {
 
     @Resource
     private ClassroomMapper classroomMapper;
+
+    /** 主 ObjectMapper（Spring 统一配置实例，避免各组件自行 new 造成配置分叉） */
+    @Resource
+    private ObjectMapper objectMapper;
 
     @Override
     public AiRecommendVO recommend(Long userId) {
@@ -260,7 +262,7 @@ public class AiRecommendServiceImpl implements AiRecommendService {
      */
     private List<AiRecommendItemVO> parseModelTop(String content, List<AiFallbackEngine.RecommendCandidate> candidates) {
         try {
-            JsonNode root = MAPPER.readTree(content);
+            JsonNode root = objectMapper.readTree(content);
             // 兼容根节点为数组或 {"recommendations":[...]}
             JsonNode arr = root.isArray() ? root : root.path("recommendations");
             if (!arr.isArray() || arr.isEmpty()) {
@@ -314,15 +316,15 @@ public class AiRecommendServiceImpl implements AiRecommendService {
         return vo;
     }
 
-    /** 类型文案 */
+    /** 类型文案（值与 AiConstants.ROOM_TYPE_* 同义，统一引用避免中文字面量散落） */
     private String typeText(Integer type) {
         if (type == null) {
             return "未知";
         }
         return switch (type) {
-            case Constants.CLASSROOM_TYPE_NORMAL -> "普通教室";
-            case Constants.CLASSROOM_TYPE_LAB -> "实验室";
-            case Constants.CLASSROOM_TYPE_COMPUTER -> "机房";
+            case Constants.CLASSROOM_TYPE_NORMAL -> AiConstants.ROOM_TYPE_NORMAL;
+            case Constants.CLASSROOM_TYPE_LAB -> AiConstants.ROOM_TYPE_LAB;
+            case Constants.CLASSROOM_TYPE_COMPUTER -> AiConstants.ROOM_TYPE_COMPUTER;
             default -> "未知";
         };
     }

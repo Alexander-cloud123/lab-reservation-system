@@ -31,11 +31,12 @@ import org.springframework.web.client.RestClientException;
 @Component
 public class AgnesClient {
 
-    /** JSON 序列化/解析（Spring Boot 自带 Jackson） */
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-
     @Resource
     private AiProperties aiProperties;
+
+    /** 主 ObjectMapper（Spring 统一配置实例，避免各组件自行 new 造成配置分叉） */
+    @Resource
+    private ObjectMapper objectMapper;
 
     /** 限流器（N2：懒初始化，参数来自 AiProperties；无 Spring 依赖，纯 JDK） */
     private volatile RateLimiter rateLimiter;
@@ -96,7 +97,7 @@ public class AgnesClient {
      * 构建 Chat Completions 请求体（OpenAI v1 规范）
      */
     private ObjectNode buildRequestBody(String system, String user, boolean jsonMode) {
-        ObjectNode root = MAPPER.createObjectNode();
+        ObjectNode root = objectMapper.createObjectNode();
         root.put("model", aiProperties.getModel());
         ArrayNode messages = root.putArray("messages");
         if (StrUtil.isNotBlank(system)) {
@@ -124,7 +125,7 @@ public class AgnesClient {
      */
     private String extractContent(String responseBody) {
         try {
-            JsonNode root = MAPPER.readTree(responseBody);
+            JsonNode root = objectMapper.readTree(responseBody);
             JsonNode choices = root.path("choices");
             if (choices.isArray() && !choices.isEmpty()) {
                 JsonNode content = choices.get(0).path("message").path("content");

@@ -27,8 +27,6 @@ import java.util.Map;
 @Component
 public class AuthInterceptor implements HandlerInterceptor {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-
     @Value("${app.jwt.secret}")
     private String secret;
 
@@ -37,6 +35,10 @@ public class AuthInterceptor implements HandlerInterceptor {
 
     @Resource
     private RedisCache redisCache;
+
+    /** 主 ObjectMapper（Spring 统一配置实例，避免各组件自行 new 造成配置分叉） */
+    @Resource
+    private ObjectMapper objectMapper;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
@@ -148,7 +150,7 @@ public class AuthInterceptor implements HandlerInterceptor {
     private boolean reject(HttpServletResponse response, int code, String message) throws Exception {
         response.setStatus(code);
         response.setContentType("application/json;charset=UTF-8");
-        response.getWriter().write(MAPPER.writeValueAsString(Result.error(code, message)));
+        response.getWriter().write(objectMapper.writeValueAsString(Result.error(code, message)));
         return false;
     }
 }

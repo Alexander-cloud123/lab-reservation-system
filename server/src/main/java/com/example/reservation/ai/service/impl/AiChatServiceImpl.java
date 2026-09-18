@@ -36,8 +36,6 @@ import java.util.stream.Collectors;
 @Service
 public class AiChatServiceImpl implements AiChatService {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-
     /** 场景限定 System Prompt（结构化 JSON 输出，AGENTS 4.4 第 4 条）
      * 2026-09-13 AI 演示准备轮修复：原版「与预约无关的问题统一回复」被 flash 模型理解为一切问题的默认输出（实测场景内问题三次全部拒答）；
      * 改为「业务规则内联 + 仅完全无关问题才回复抱歉」，模型有据可答 */
@@ -67,6 +65,10 @@ public class AiChatServiceImpl implements AiChatService {
 
     @Resource
     private ClassroomMapper classroomMapper;
+
+    /** 主 ObjectMapper（Spring 统一配置实例，避免各组件自行 new 造成配置分叉） */
+    @Resource
+    private ObjectMapper objectMapper;
 
     /** 提问文本最大长度（M11 修复：防超长输入放大 token 消耗与超时概率） */
     private static final int QUESTION_MAX_LENGTH = 200;
@@ -161,7 +163,7 @@ public class AiChatServiceImpl implements AiChatService {
      */
     private AiChatVO parseModelOutput(String content) {
         try {
-            JsonNode root = MAPPER.readTree(content);
+            JsonNode root = objectMapper.readTree(content);
             if (!root.hasNonNull("answer") || StrUtil.isBlank(root.get("answer").asText())) {
                 return null;
             }

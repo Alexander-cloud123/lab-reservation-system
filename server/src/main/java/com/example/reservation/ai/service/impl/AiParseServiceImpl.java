@@ -29,8 +29,6 @@ import java.time.LocalTime;
 @Service
 public class AiParseServiceImpl implements AiParseService {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-
     @Resource
     private AiConfigService aiConfigService;
 
@@ -39,6 +37,10 @@ public class AiParseServiceImpl implements AiParseService {
 
     @Resource
     private AiFallbackEngine fallbackEngine;
+
+    /** 主 ObjectMapper（Spring 统一配置实例，避免各组件自行 new 造成配置分叉） */
+    @Resource
+    private ObjectMapper objectMapper;
 
     /** 解析请求文本最大长度（M11 修复：防超长输入放大 token 消耗与超时概率） */
     private static final int PARSE_TEXT_MAX_LENGTH = 200;
@@ -85,7 +87,7 @@ public class AiParseServiceImpl implements AiParseService {
      */
     private AiParseVO parseModelOutput(String content) {
         try {
-            JsonNode root = MAPPER.readTree(content);
+            JsonNode root = objectMapper.readTree(content);
             // 识别失败约定：{"error":"无法解析"}
             if (root.hasNonNull("error")) {
                 AiParseVO vo = new AiParseVO();

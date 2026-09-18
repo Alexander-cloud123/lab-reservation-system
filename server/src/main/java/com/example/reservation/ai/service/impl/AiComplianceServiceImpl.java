@@ -25,8 +25,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class AiComplianceServiceImpl implements AiComplianceService {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-
     @Resource
     private AiConfigService aiConfigService;
 
@@ -35,6 +33,10 @@ public class AiComplianceServiceImpl implements AiComplianceService {
 
     @Resource
     private AiFallbackEngine fallbackEngine;
+
+    /** 主 ObjectMapper（Spring 统一配置实例，避免各组件自行 new 造成配置分叉） */
+    @Resource
+    private ObjectMapper objectMapper;
 
     /** 用途文本最大长度（M11 修复：与 reservation.purpose 表字段 VARCHAR(255) 口径一致） */
     private static final int PURPOSE_MAX_LENGTH = 255;
@@ -79,7 +81,7 @@ public class AiComplianceServiceImpl implements AiComplianceService {
      */
     private AiComplianceVO parseModelOutput(String content) {
         try {
-            JsonNode root = MAPPER.readTree(content);
+            JsonNode root = objectMapper.readTree(content);
             if (!root.has("compliant") || !root.get("compliant").isBoolean()) {
                 return null;
             }

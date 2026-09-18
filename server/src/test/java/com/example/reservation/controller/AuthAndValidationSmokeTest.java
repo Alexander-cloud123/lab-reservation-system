@@ -47,6 +47,28 @@ class AuthAndValidationSmokeTest {
     }
 
     @Test
+    @DisplayName("鉴权冒烟：无效 Token（Bearer xxx）访问受保护接口返回 401")
+    void invalidToken_returns401() throws Exception {
+        mockMvc.perform(get("/api/user/info")
+                        .header(Constants.TOKEN_HEADER, Constants.TOKEN_PREFIX + "invalid-token-xxx"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(401));
+    }
+
+    @Test
+    @DisplayName("正常路径冒烟：学生 Token 访问 /api/classroom/list 返回 200 且 records 存在")
+    void studentList_returns200WithRecords() throws Exception {
+        String token = login("zhangsan", "123456", Constants.ROLE_STUDENT);
+        mockMvc.perform(get("/api/classroom/list")
+                        .param("page", "1")
+                        .param("size", "1")
+                        .header(Constants.TOKEN_HEADER, Constants.TOKEN_PREFIX + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.records").exists());
+    }
+
+    @Test
     @DisplayName("鉴权冒烟：学生 Token 访问 /api/classroom/manage 返回 403")
     void studentTokenOnAdminApi_returns403() throws Exception {
         String token = login("zhangsan", "123456", Constants.ROLE_STUDENT);

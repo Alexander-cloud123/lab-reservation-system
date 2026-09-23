@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { login as loginApi, logout as logoutApi, getInfo as getInfoApi } from '@/api/user'
-import { getToken, getStoredUser, saveAuth, clearAuth } from '@/utils/auth'
+import { getToken, getStoredUser, saveAuth, clearAuth, getStoredAiEnabled, saveAiEnabled } from '@/utils/auth'
 import { clearAiProbe } from '@/utils/aiProbe'
 
 /**
@@ -12,12 +12,12 @@ export const useUserStore = defineStore('user', {
     token: getToken(),
     userInfo: getStoredUser(),
     /**
-     * AI 开关（登录接口随 LoginVO 下发）。
-     * null = 未知（未登录 / 刷新后尚未登录），此时 AI 入口按「探测」决定显隐；
+     * AI 开关（登录接口随 LoginVO 下发，并落盘 localStorage，刷新后不丢）。
+     * null = 未知（未登录 / 无本地值），此时 AI 入口按「探测」决定显隐；
      * false = 后端明确关闭，前端直接隐藏 AI 入口、不再探测 /ai/recommend。
-     * 不持久化：每次登录重新同步，避免动态开关（ai_config.ai_enable）被本地旧值掩盖。
+     * 注意：落盘后若管理员改动动态开关（ai_config.ai_enable），需重新登录才会同步。
      */
-    aiEnabled: null
+    aiEnabled: getStoredAiEnabled()
   }),
 
   getters: {
@@ -33,6 +33,7 @@ export const useUserStore = defineStore('user', {
       this.token = res.data.token
       this.userInfo = res.data.user
       this.aiEnabled = typeof res.data.aiEnabled === 'boolean' ? res.data.aiEnabled : null
+      saveAiEnabled(this.aiEnabled)
       return res.data.user
     },
 

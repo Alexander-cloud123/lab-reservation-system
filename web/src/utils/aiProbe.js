@@ -16,9 +16,9 @@ import { useUserStore } from '@/stores/user'
  * 调用口径（与 L13 一致）：probe 内部以 aiRecommend({}) 调用，不发送 userId——
  * 后端 AiController 一律取 UserContext 当前登录用户，忽略请求体。
  *
- * R8：登录接口已随 LoginVO 下发 aiEnabled，后端明确关闭（false）时直接返回未启用，
- * 不再打一次 /ai/recommend 才知道要隐藏入口；开关为 true / 未知（null）时仍需调用，
- * 因为推荐内容只能由该接口返回。
+ * R8：登录接口已随 LoginVO 下发 aiEnabled，并落盘 localStorage（刷新后仍生效）。
+ * 后端明确关闭（false）时直接返回未启用，不再打一次 /ai/recommend 才知道要隐藏入口；
+ * 开关为 true / 未知（null）时仍需调用，因为推荐内容只能由该接口返回。
  */
 
 /** 探测结果缓存：userId → { promise, result }（result 用于结构完整，调用方统一 await promise 取值） */

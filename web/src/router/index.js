@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { getToken, getStoredUser } from '@/utils/auth'
+import { getBookingRules } from '@/api/config'
+import { setBookingRules } from '@/utils/booking'
 
 /**
  * 路由表 + 全局前置守卫（spec.md 3.2）
@@ -116,6 +118,12 @@ const router = createRouter({
 /** 角色首页映射 */
 const roleHome = { 0: '/student/home', 1: '/admin/home' }
 
+/**
+ * 预约规则每次会话只下发一次：首次进入受保护页面（登录后跳转 / 刷新直达）时拉取并注入 booking.js。
+ * 失败静默（api 层已 silent）——booking.js 回退兜底默认值，校验不中断。
+ */
+let bookingRulesLoaded = false
+
 router.beforeEach((to) => {
   const token = getToken()
   const user = getStoredUser()
@@ -137,6 +145,14 @@ router.beforeEach((to) => {
   // 角色校验：访问非本角色页面 → 回自己首页
   if (to.meta.roles && !to.meta.roles.includes(user && user.role)) {
     return roleHome[user && user.role] || '/student/home'
+  }
+
+  // 已登录：下发预约规则（仅首次，不阻塞导航）
+  if (!bookingRulesLoaded) {
+    bookingRulesLoaded = true
+    getBookingRules()
+      .then((res) => setBookingRules(res.data))
+      .catch(() => {})
   }
 
   return true

@@ -86,8 +86,8 @@ docker exec reservation-redis redis-cli keys 'cache:\*'        # 业务缓存
 | Key                                                                     | 类型       | Value                     | TTL                                               | 失效方式                                                   |
 | ----------------------------------------------------------------------- | -------- | ------------------------- | ------------------------------------------------- | ------------------------------------------------------ |
 | `auth:token:{userId}`                                                   | String   | 该用户当前有效 JWT               | 与 JWT 一致（24h，`app.jwt.expire-hours`）              | 退出登录删除；同账号新登录覆盖（单点会话）                                  |
-| `cache:stats:{接口名}:{开始日期}:{结束日期}`                                       | JSON 字符串 | 看板聚合结果（List）              | 60s（`redis.cache.stats-ttl-seconds`）              | 预约 / 教室变更时 SCAN 删除 `cache:stats:*`；或 TTL 自然过期          |
-| `cache:classroom:list:{page}:{size}:{keyword}:{building}:{type}:{date}` | JSON 字符串 | `PageResult<ClassroomVO>` | 60s（`redis.cache.classroom-ttl-seconds`，动态数据只短缓存） | 预约 / 教室变更时 SCAN 删除 `cache:classroom:list:*`；或 TTL 自然过期 |
+| `cache:stats:g{代次}:{接口名}:{开始日期}:{结束日期}`                                       | JSON 字符串 | 看板聚合结果（List）              | 60s（`redis.cache.stats-ttl-seconds`）              | 预约 / 教室变更时推进代次（`INCR cache:stats:gen`）；或 TTL 自然过期          |
+| `cache:classroom:list:v2:g{代次}:{page}:{size}:{keyword}:{building}:{type}:{date}` | JSON 字符串 | `PageResult<ClassroomVO>` | 60s（`redis.cache.classroom-ttl-seconds`，动态数据只短缓存） | 预约 / 教室变更时推进代次（`INCR cache:classroom:list:gen`）；或 TTL 自然过期 |
 
 设计要点：
 
@@ -95,7 +95,7 @@ docker exec reservation-redis redis-cli keys 'cache:\*'        # 业务缓存
 
 * 看板日期区间经 `resolveRange` 归一化后再拼 Key，缺省「近 30 天」与显式传同一区间共享一份缓存；空筛选参数以 `-` 占位，不同条件互不串缓存。
 
-* 批量失效使用 **SCAN 游标**（`ScanOptions`，count=200）而非 `KEYS *`，避免阻塞 Redis；本项目数据量小，失效为瞬时操作。
+* 批量失效采用 **代次（generation）失效**：两族缓存各有一个代次 Key（`cache:stats:gen` / `cache:classroom:list:gen`），写操作只做一次 `INCR`，失效开销恒为 **O(1)**、与缓存 Key 数量无关；旧代次 Key 不再被读取，由 TTL 自然过期回收。相比「SCAN 遍历删除」，既省掉 SCAN 开销，也天然免疫「删 Key 与并发回填交错导致脏缓存存活一个 TTL」的竞态（并发回填只会写进旧代次 Key）。代次 Key **不设 TTL**，避免代次回退导致旧 Key 复活。
 
 * Value 以 JSON 文本存储，`redis-cli` 直接可读、无 JDK 序列化乱码；反序列化失败按缓存未命中处理并清除脏 Key。
 

@@ -98,11 +98,17 @@ public class ReservationServiceImpl implements ReservationService {
         if (!start.isBefore(end)) {
             throw new BusinessException("开始时间必须早于结束时间");
         }
+        return detectConflict(classroomId, reserveDate, start, end);
+    }
 
-        // 查询该教室该日期【已通过】预约，按重叠公式判定
-        List<Reservation> approved = listApprovedByClassAndDate(classroomId, reserveDate);
-        for (Reservation r : approved) {
-            // 冲突判定公式（需求文档 1.4）：新开始 < 旧结束 AND 新结束 > 旧开始
+    /**
+     * 冲突检测核心：查询该教室该日期【已通过】预约，按重叠公式判定
+     * （需求文档 1.4：新开始 < 旧结束 AND 新结束 > 旧开始）。
+     * 入参已解析、已校验，供 checkConflict（前端实时校验）与 createReservation（提交兜底）共用，
+     * 提交路径因此不再重复查教室、重复解析时间。
+     */
+    private ConflictVO detectConflict(Long classroomId, LocalDate reserveDate, LocalTime start, LocalTime end) {
+        for (Reservation r : listApprovedByClassAndDate(classroomId, reserveDate)) {
             if (start.isBefore(r.getEndTime()) && end.isAfter(r.getStartTime())) {
                 String reason = "该时段与「" + TimeUtil.formatTime(r.getStartTime())
                         + "-" + TimeUtil.formatTime(r.getEndTime()) + "」的已通过预约冲突";
@@ -167,7 +173,8 @@ public class ReservationServiceImpl implements ReservationService {
         }
 
         // 后端二次冲突检测（强制兜底：绕过前端直接调用本接口仍会被拒绝）
-        ConflictVO conflict = checkConflict(dto.getClassroomId(), dto.getReserveDate(), dto.getStartTime(), dto.getEndTime());
+        // 直接复用上方已解析的日期/时间与已加载教室，不再走 checkConflict 的重复参数校验与教室查库
+        ConflictVO conflict = detectConflict(dto.getClassroomId(), reserveDate, start, end);
         if (Boolean.TRUE.equals(conflict.getConflict())) {
             throw new BusinessException(conflict.getReason());
         }
@@ -183,7 +190,7 @@ public class ReservationServiceImpl implements ReservationService {
         reservation.setStatus(Constants.RES_STATUS_PENDING);
         reservationMapper.insert(reservation);
         // 缓存一致性：预约提交（月度趋势按全部状态统计，随之变化），失效看板 + 教室列表缓存
-        redisCache.evictBusinessCaches();
+        redisCache.invalidateBusinessCaches();
         return reservation.getId();
     }
 
@@ -241,7 +248,7 @@ public class ReservationServiceImpl implements ReservationService {
             throw new BusinessException("预约状态已变更，请刷新后重试");
         }
         // 缓存一致性：取消预约影响看板与教室今日占用，失效相关缓存
-        redisCache.evictBusinessCaches();
+        redisCache.invalidateBusinessCaches();
     }
 
     @Override
@@ -329,7 +336,7 @@ public class ReservationServiceImpl implements ReservationService {
             throw new BusinessException("预约状态已变更，请刷新后重试");
         }
         // 缓存一致性：审核改变预约状态（已通过/已驳回），影响看板与教室今日占用，失效相关缓存
-        redisCache.evictBusinessCaches();
+        redisCache.invalidateBusinessCaches();
     }
 
     @Override
@@ -403,7 +410,7 @@ public class ReservationServiceImpl implements ReservationService {
                 .set(Reservation::getAuditTime, LocalDateTime.now());
         int updated = reservationMapper.update(null, wrapper);
         // 缓存一致性：批量审核改变预约状态，失效看板 + 教室列表缓存
-        redisCache.evictBusinessCaches();
+        redisCache.invalidateBusinessCaches();
         return updated;
     }
 
@@ -439,9 +446,11 @@ public class ReservationServiceImpl implements ReservationService {
                 .orderByAsc(Reservation::getReserveDate)
                 .orderByAsc(Reservation::getStartTime));
 
-        // 批量补全教室展示字段（一次性查询，避免逐条 N+1）
-        Map<Long, Classroom> roomMap = classroomMapper.selectList(new LambdaQueryWrapper<Classroom>())
-                .stream().collect(Collectors.toMap(Classroom::getId, Function.identity()));
+        // 批量补全教室展示字段：只查区间内实际引用到的教室（原为全表加载，教室多时属无谓开销）；
+        // 空结果时不查库，同时避免 selectBatchIds 空集合拼出 IN () 语法错误
+        Map<Long, Classroom> roomMap = list.isEmpty() ? Map.of()
+                : classroomMapper.selectBatchIds(list.stream().map(Reservation::getClassroomId).distinct().toList())
+                        .stream().collect(Collectors.toMap(Classroom::getId, Function.identity()));
 
         // M8 修复 + R3 收敛：日历接口对任意登录用户开放（学生/管理员均可查看占用）；
         // 用途与审核备注仅【管理员或本人】可见，其余学生只见时段与状态（避免越权可见他人用途与驳回备注）

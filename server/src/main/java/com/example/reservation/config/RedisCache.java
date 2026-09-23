@@ -5,13 +5,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -19,7 +15,7 @@ import java.util.concurrent.TimeUnit;
  * 业务层只与本类交互，不直接散落 RedisTemplate 调用，职责：
  *  1. 登录会话：saveToken / validateToken / removeToken（支撑「可注销会话 / 单点会话」）；
  *  2. 业务缓存：getObject / setObject（对象以 JSON 文本存取，redis-cli 可读、无乱码）；
- *  3. 缓存失效：delete / deleteByPattern（SCAN，非阻塞）/ evictBusinessCaches。
+ *  3. 缓存失效：delete（单 Key）/ invalidateBusinessCaches（代次失效，O(1) 且无需 SCAN）。
  * 降级原则（AGENTS.md 4.4 风格对齐 AI 模块）：
  *  - redis.enable=false 时所有操作直接空转 / 视为跳过；
  *  - Redis 连接失败、命令超时、序列化异常等任何问题一律捕获，读操作回源、写操作空转，绝不向上抛出阻断业务；
@@ -36,9 +32,6 @@ public class RedisCache {
 
     /** 学生端教室列表缓存 Key 前缀（完整 Key 追加 查询参数指纹） */
     public static final String CLASSROOM_LIST_KEY_PREFIX = "cache:classroom:list:";
-
-    /** SCAN 每次返回的批大小（小库演示足够，避免 KEYS 阻塞） */
-    private static final int SCAN_BATCH = 200;
 
     @Resource
     private RedisTemplate<String, String> redisTemplate;
@@ -174,35 +167,62 @@ public class RedisCache {
     }
 
     /**
-     * 按通配符批量删除（使用 SCAN 游标遍历，避免 KEYS * 阻塞 Redis）；异常空转。
+     * 业务数据变更后统一失效：推进数据看板 + 教室列表两族缓存的代次。
+     * 触发点：预约提交/审核/取消、教室增改/启停/删除（缓存一致性：写后失效，下次读回源重建）。
+     *
+     * <p>实现说明：两族缓存的 Key 都由「查询参数指纹」构成（看板按接口+日期区间、教室列表按分页筛选参数），
+     * 不存在「受影响教室」这一维度可直接定位到 Key，因此失效语义仍是整族失效，但由
+     * 「SCAN 遍历删除」改为「代次 +1」：
+     * <ul>
+     *   <li>失效开销恒为 O(1)，与缓存 Key 数量无关（原实现每次写操作两次 SCAN）；</li>
+     *   <li>旧代次 Key 不再被读取，由 TTL（60s）自然过期回收，无需主动删除；</li>
+     *   <li>天然免疫「删 Key 与并发回填交错」的竞态——并发回填只会写进旧代次 Key，永远不会被读到
+     *       （原「先删后回填」实现中，回填晚于删除的请求会把脏数据留在缓存里直到 TTL 到期）。</li>
+     * </ul>
      */
-    public void deleteByPattern(String pattern) {
+    public void invalidateBusinessCaches() {
+        bumpGeneration(STATS_GEN_KEY);
+        bumpGeneration(CLASSROOM_LIST_GEN_KEY);
+    }
+
+    /** 数据看板缓存代次 Key（完整 Key 形如 cache:stats:g3:usage-rate:起:止） */
+    public static final String STATS_GEN_KEY = "cache:stats:gen";
+
+    /** 学生端教室列表缓存代次 Key（完整 Key 形如 cache:classroom:list:v2:g3:分页筛选指纹） */
+    public static final String CLASSROOM_LIST_GEN_KEY = "cache:classroom:list:gen";
+
+    /**
+     * 读取某族缓存当前代次（代次 Key 不存在 / 未启用 / 异常一律返回 0，调用方按代次 0 拼 Key）。
+     */
+    public long currentGeneration(String genKey) {
         if (!isEnabled()) {
-            return;
+            return 0L;
         }
         try {
-            List<String> keys = new ArrayList<>();
-            ScanOptions options = ScanOptions.scanOptions().match(pattern).count(SCAN_BATCH).build();
-            try (Cursor<String> cursor = redisTemplate.scan(options)) {
-                while (cursor.hasNext()) {
-                    keys.add(cursor.next());
-                }
-            }
-            if (!keys.isEmpty()) {
-                redisTemplate.delete(keys);
-            }
+            String v = redisTemplate.opsForValue().get(genKey);
+            return StrUtil.isBlank(v) ? 0L : Long.parseLong(v.trim());
         } catch (Exception e) {
-            log.warn("Redis 批量删除缓存失败（pattern={}）：{}", pattern, e.getMessage());
+            // 读失败按代次 0 处理：Key 变化 → 视为未命中 → 回源查库（降级，不阻断业务）
+            log.warn("Redis 读取缓存代次失败，按代次 0 处理（key={}）：{}", genKey, e.getMessage());
+            return 0L;
         }
     }
 
     /**
-     * 业务数据变更后统一失效：清空数据看板 + 教室列表两类缓存。
-     * 触发点：预约提交/审核/取消、教室增改/启停/删除（缓存一致性：写后失效，下次读回源重建）。
+     * 推进某族缓存代次（INCR，O(1)）：写操作后调用即完成该族缓存失效，无需 SCAN 遍历；异常空转。
+     *
+     * <p>代次 Key 不设 TTL：一旦回退（如被淘汰后 INCR 从 1 重新计数），旧代次 Key 可能被重新读取而复活脏数据。
      */
-    public void evictBusinessCaches() {
-        deleteByPattern(STATS_KEY_PREFIX + "*");
-        deleteByPattern(CLASSROOM_LIST_KEY_PREFIX + "*");
+    public void bumpGeneration(String genKey) {
+        if (!isEnabled()) {
+            return;
+        }
+        try {
+            redisTemplate.opsForValue().increment(genKey);
+        } catch (Exception e) {
+            // 推进失败不阻断业务：下次读可能仍命中旧缓存，但 TTL（60s）内自愈
+            log.warn("Redis 推进缓存代次失败（key={}）：{}", genKey, e.getMessage());
+        }
     }
 
     /* ==================== 分布式互斥锁（M4 修复：收藏上限"先查后写"的并发互斥） ==================== */

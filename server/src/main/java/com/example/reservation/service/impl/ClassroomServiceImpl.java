@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
 @Service
 public class ClassroomServiceImpl implements ClassroomService {
 
-    /** 今日可预约时段口径（与前端日历/详情页一致）：08:00-22:00，按整点划分为 14 个时段（N4：小时常量已收敛至 Constants 唯一来源） */
+    /** 学生端教室列表缓存 Key 版本号（数据口径变更时递增即让旧缓存整体失效，无需人工清缓存） */
     private static final String LIST_CACHE_VERSION = "v2:";
 
     @Resource
@@ -97,7 +97,7 @@ public class ClassroomServiceImpl implements ClassroomService {
         classroom.setStatus(Constants.CLASSROOM_STATUS_ENABLED);
         classroomMapper.insert(classroom);
         // 缓存一致性：教室基础数据变更，失效看板 + 教室列表缓存（下次读回源重建）
-        redisCache.evictBusinessCaches();
+        redisCache.invalidateBusinessCaches();
         return classroom.getId();
     }
 
@@ -120,7 +120,7 @@ public class ClassroomServiceImpl implements ClassroomService {
         classroom.setDescription(dto.getDescription());
         classroomMapper.updateById(classroom);
         // 缓存一致性：教室基础数据变更，失效看板 + 教室列表缓存
-        redisCache.evictBusinessCaches();
+        redisCache.invalidateBusinessCaches();
     }
 
     @Override
@@ -149,7 +149,7 @@ public class ClassroomServiceImpl implements ClassroomService {
         favoriteMapper.delete(new LambdaQueryWrapper<UserFavorite>().eq(UserFavorite::getClassroomId, id));
         classroomMapper.deleteById(id);
         // 缓存一致性：教室删除，失效看板 + 教室列表缓存
-        redisCache.evictBusinessCaches();
+        redisCache.invalidateBusinessCaches();
     }
 
     @Override
@@ -171,7 +171,7 @@ public class ClassroomServiceImpl implements ClassroomService {
         update.setStatus(status);
         classroomMapper.updateById(update);
         // 缓存一致性：教室启停影响学生端可见性与看板，失效相关缓存
-        redisCache.evictBusinessCaches();
+        redisCache.invalidateBusinessCaches();
     }
 
     @Override
@@ -188,7 +188,7 @@ public class ClassroomServiceImpl implements ClassroomService {
                 .set(Classroom::getStatus, status);
         int updated = classroomMapper.update(null, wrapper);
         // 缓存一致性：批量启停影响学生端可见性与看板，失效相关缓存
-        redisCache.evictBusinessCaches();
+        redisCache.invalidateBusinessCaches();
         return updated;
     }
 
@@ -268,19 +268,22 @@ public class ClassroomServiceImpl implements ClassroomService {
         Classroom classroom = classroomMapper.selectById(id);
         ClassroomValidator.requireExists(classroom);
         // 指定日期：不传默认当天
-        LocalDate queryDate = StrUtil.isBlank(date) ? LocalDate.now() : TimeUtil.parseDate(date);
+        LocalDate today = LocalDate.now();
+        LocalDate queryDate = StrUtil.isBlank(date) ? today : TimeUtil.parseDate(date);
 
-        // 当天已通过预约（实时状态标签用）
+        // 当天已通过预约（实时状态标签用；按开始时间排序，便于「查询日期即今天」时直接复用为占用列表）
         List<Reservation> todayApproved = reservationMapper.selectList(new LambdaQueryWrapper<Reservation>()
                 .eq(Reservation::getClassroomId, id)
-                .eq(Reservation::getReserveDate, LocalDate.now())
-                .eq(Reservation::getStatus, Constants.RES_STATUS_APPROVED));
-        // 指定日期（默认当天）已通过预约时段占用列表
-        List<Reservation> dayApproved = reservationMapper.selectList(new LambdaQueryWrapper<Reservation>()
-                .eq(Reservation::getClassroomId, id)
-                .eq(Reservation::getReserveDate, queryDate)
+                .eq(Reservation::getReserveDate, today)
                 .eq(Reservation::getStatus, Constants.RES_STATUS_APPROVED)
                 .orderByAsc(Reservation::getStartTime));
+        // 指定日期（默认当天）已通过预约时段占用列表：查询日期即今天时复用上方结果，省掉一次完全重复的查询
+        List<Reservation> dayApproved = queryDate.isEqual(today) ? todayApproved
+                : reservationMapper.selectList(new LambdaQueryWrapper<Reservation>()
+                        .eq(Reservation::getClassroomId, id)
+                        .eq(Reservation::getReserveDate, queryDate)
+                        .eq(Reservation::getStatus, Constants.RES_STATUS_APPROVED)
+                        .orderByAsc(Reservation::getStartTime));
 
         ClassroomVO vo = toStudentVO(classroom);
         vo.setStatusLabel(calcStatusLabel(id, todayApproved));
@@ -379,14 +382,19 @@ public class ClassroomServiceImpl implements ClassroomService {
     }
 
     /**
-     * 组装学生端教室列表缓存 Key：cache:classroom:list:v2:{分页与筛选参数指纹}；
+     * 组装学生端教室列表缓存 Key：cache:classroom:list:v2:g{代次}:{分页与筛选参数指纹}；
      * 空参数以 "-" 占位，保证不同筛选/分页/日期条件互不串缓存。
-     * Key 含版本号：R5 后列表数据不再携带用途（依赖请求者身份的字段不得进共享缓存），
-     * 旧版缓存（部署前写入）的 occupiedSlots 仍含他人 purpose、命中分支直接 return 会继续泄露最多一个 TTL（60s），
-     * 升级版本号即让旧 Key 全部失效，无需人工清缓存。
+     *
+     * <p>Key 含两个版本维度：
+     * <ul>
+     *   <li>{@code v2}：数据结构版本（{@link #LIST_CACHE_VERSION}），数据口径变更时递增即让旧 Key 整体失效，无需人工清缓存；</li>
+     *   <li>{@code g{代次}}：运行时代次（{@link RedisCache#CLASSROOM_LIST_GEN_KEY}），写操作 INCR 即让本族缓存逻辑失效，
+     *       替代原「SCAN 遍历删除」——失效开销 O(1)，且旧代次 Key 由 TTL 自然过期。</li>
+     * </ul>
      */
     private String classroomListKey(long page, long size, String keyword, String building, Integer type, String date) {
         return RedisCache.CLASSROOM_LIST_KEY_PREFIX + LIST_CACHE_VERSION
+                + "g" + redisCache.currentGeneration(RedisCache.CLASSROOM_LIST_GEN_KEY) + ":"
                 + page + ":" + size + ":"
                 + (StrUtil.isBlank(keyword) ? "-" : keyword.trim()) + ":"
                 + (StrUtil.isBlank(building) ? "-" : building.trim()) + ":"

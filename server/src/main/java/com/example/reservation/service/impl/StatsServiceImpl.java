@@ -193,9 +193,17 @@ public class StatsServiceImpl implements StatsService {
 
     /* ==================== 私有工具方法 ==================== */
 
-    /** 组装看板统计缓存 Key：cache:stats:{接口名}:{开始日期}:{结束日期}（区间经 resolveRange 归一化，相同区间共享同一份缓存） */
+    /**
+     * 组装看板统计缓存 Key：cache:stats:g{代次}:{接口名}:{开始日期}:{结束日期}
+     * （区间经 resolveRange 归一化，相同区间共享同一份缓存）
+     *
+     * <p>{@code g{代次}} 为运行时代次（{@link RedisCache#STATS_GEN_KEY}）：预约/教室变更时 INCR 即让本族缓存逻辑失效，
+     * 替代原「SCAN 遍历删除」——失效开销 O(1)，旧代次 Key 由 TTL 自然过期。
+     */
     private String statsCacheKey(String api, DateRange range) {
-        return RedisCache.STATS_KEY_PREFIX + api + ":" + range.start + ":" + range.end;
+        return RedisCache.STATS_KEY_PREFIX
+                + "g" + redisCache.currentGeneration(RedisCache.STATS_GEN_KEY) + ":"
+                + api + ":" + range.start + ":" + range.end;
     }
 
     /** 开始时间 → 时段桶下标（0-4 对应前 5 桶，5 为「其他」；M14 修复：区间取自 Constants 单一来源，不再双份维护） */

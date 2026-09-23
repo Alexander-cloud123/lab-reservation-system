@@ -10,7 +10,14 @@ import { clearAiProbe } from '@/utils/aiProbe'
 export const useUserStore = defineStore('user', {
   state: () => ({
     token: getToken(),
-    userInfo: getStoredUser()
+    userInfo: getStoredUser(),
+    /**
+     * AI 开关（登录接口随 LoginVO 下发）。
+     * null = 未知（未登录 / 刷新后尚未登录），此时 AI 入口按「探测」决定显隐；
+     * false = 后端明确关闭，前端直接隐藏 AI 入口、不再探测 /ai/recommend。
+     * 不持久化：每次登录重新同步，避免动态开关（ai_config.ai_enable）被本地旧值掩盖。
+     */
+    aiEnabled: null
   }),
 
   getters: {
@@ -19,12 +26,13 @@ export const useUserStore = defineStore('user', {
   },
 
   actions: {
-    /** 登录：调用接口成功后保存 Token 与用户信息 */
+    /** 登录：调用接口成功后保存 Token 与用户信息，并记录后端下发的 AI 开关 */
     async login(form) {
       const res = await loginApi(form)
       saveAuth(res.data.token, res.data.user)
       this.token = res.data.token
       this.userInfo = res.data.user
+      this.aiEnabled = typeof res.data.aiEnabled === 'boolean' ? res.data.aiEnabled : null
       return res.data.user
     },
 
@@ -49,6 +57,7 @@ export const useUserStore = defineStore('user', {
         clearAuth()
         this.token = ''
         this.userInfo = null
+        this.aiEnabled = null
         // N5：登出清理 AI 探测缓存（按 userId 分键，避免切换账号拿到上一个用户的推荐）
         clearAiProbe()
       }

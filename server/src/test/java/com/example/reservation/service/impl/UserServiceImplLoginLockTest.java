@@ -1,6 +1,7 @@
 package com.example.reservation.service.impl;
 
 import cn.hutool.crypto.digest.BCrypt;
+import com.example.reservation.ai.service.AiConfigService;
 import com.example.reservation.common.BusinessException;
 import com.example.reservation.common.Constants;
 import com.example.reservation.common.JwtUtil;
@@ -61,6 +62,10 @@ class UserServiceImplLoginLockTest {
     @Mock
     private RedisCache redisCache;
 
+    /** 登录时向前端下发 AI 开关（R8）；本用例只关心登录锁定，开关固定按关闭处理 */
+    @Mock
+    private AiConfigService aiConfigService;
+
     @InjectMocks
     private UserServiceImpl userService;
 
@@ -69,6 +74,8 @@ class UserServiceImplLoginLockTest {
         // 内存降级路径：Redis 未启用（不依赖真实 Redis）。
         // lenient：部分用例（redisIncrUnavailable）会覆盖为 true，避免 strict stubs 误报未使用
         lenient().when(redisCache.isEnabled()).thenReturn(false);
+        // AI 开关（R8）：默认关闭；lenient：失败路径用例在构造 LoginVO 前即抛异常，不会用到该桩
+        lenient().when(aiConfigService.isAiEnabled()).thenReturn(false);
         // 账号存在且口令正确（selectOne 永远返回该账号；口令由 BCrypt 真实比对）
         SysUser user = new SysUser();
         user.setId(100L);

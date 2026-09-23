@@ -15,14 +15,23 @@ import { useUserStore } from '@/stores/user'
  *
  * 调用口径（与 L13 一致）：probe 内部以 aiRecommend({}) 调用，不发送 userId——
  * 后端 AiController 一律取 UserContext 当前登录用户，忽略请求体。
+ *
+ * R8：登录接口已随 LoginVO 下发 aiEnabled，后端明确关闭（false）时直接返回未启用，
+ * 不再打一次 /ai/recommend 才知道要隐藏入口；开关为 true / 未知（null）时仍需调用，
+ * 因为推荐内容只能由该接口返回。
  */
 
 /** 探测结果缓存：userId → { promise, result }（result 用于结构完整，调用方统一 await promise 取值） */
 const probeCache = new Map()
 
+/** 未启用时的统一返回值（不含推荐内容） */
+function disabledResult() {
+  return { enabled: false, recommendations: [] }
+}
+
 /**
  * 探测 AI 可用性（含推荐内容）。返回 Promise<{ enabled: boolean, recommendations: Array }>；
- * 未登录 / 探测失败一律返回 enabled=false（组件据此隐藏 AI 入口，不阻断页面）。
+ * 未登录 / 后端开关关闭 / 探测失败一律返回 enabled=false（组件据此隐藏 AI 入口，不阻断页面）。
  *
  * @param {{ force?: boolean }} options force=true 绕过缓存强制发起新调用
  */
@@ -31,7 +40,11 @@ export function probeAiRecommend({ force = false } = {}) {
   const userId = userStore.userInfo ? userStore.userInfo.id : null
   if (userId == null) {
     // 未登录：无用户维度可缓存，直接返回未启用（与既有行为一致：组件静默隐藏）
-    return Promise.resolve({ enabled: false, recommendations: [] })
+    return Promise.resolve(disabledResult())
+  }
+  if (userStore.aiEnabled === false) {
+    // R8：登录时后端已明确关闭 AI，直接短路，省掉这次 /ai/recommend 调用
+    return Promise.resolve(disabledResult())
   }
   if (!force) {
     const hit = probeCache.get(userId)
@@ -48,7 +61,7 @@ export function probeAiRecommend({ force = false } = {}) {
       result = { enabled: data.enabled === true, recommendations: data.recommendations || [] }
     } catch {
       // 失败也缓存结果（enabled=false），避免重复打接口
-      result = { enabled: false, recommendations: [] }
+      result = disabledResult()
     }
     probeCache.set(userId, { promise, result })
     return result

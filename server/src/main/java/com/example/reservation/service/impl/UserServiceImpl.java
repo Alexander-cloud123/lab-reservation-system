@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.digest.BCrypt;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.example.reservation.ai.service.AiConfigService;
 import com.example.reservation.common.BusinessException;
 import com.example.reservation.common.Constants;
 import com.example.reservation.common.JwtUtil;
@@ -66,6 +67,10 @@ public class UserServiceImpl implements UserService {
     @Resource
     private RedisCache redisCache;
 
+    /** AI 开关读取（只读 ai_config，不侵入业务规则；仅用于登录时向前端下发 AI 开关） */
+    @Resource
+    private AiConfigService aiConfigService;
+
     @Override
     public LoginVO login(LoginDTO dto) {
         // 参数校验
@@ -111,7 +116,8 @@ public class UserServiceImpl implements UserService {
         // Redis 加分项：登录会话写入 Redis（Key=auth:token:{userId}，TTL 与 JWT 一致）；
         // 同一用户重复登录覆盖旧 Token，实现「单点会话」（旧 Token 立即失效）；Redis 异常时封装层自动降级
         redisCache.saveToken(user.getId(), token, jwtUtil.getExpireSeconds());
-        return new LoginVO(token, UserVO.from(user));
+        // AI 开关随登录下发：前端据此直接决定 AI 入口显隐，省掉一次 /ai/recommend 探测调用
+        return new LoginVO(token, UserVO.from(user), aiConfigService.isAiEnabled());
     }
 
     @Override

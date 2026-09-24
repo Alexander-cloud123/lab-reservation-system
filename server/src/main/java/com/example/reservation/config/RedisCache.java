@@ -188,7 +188,7 @@ public class RedisCache {
     /** 数据看板缓存代次 Key（完整 Key 形如 cache:stats:g3:usage-rate:起:止） */
     public static final String STATS_GEN_KEY = "cache:stats:gen";
 
-    /** 学生端教室列表缓存代次 Key（完整 Key 形如 cache:classroom:list:v2:g3:分页筛选指纹） */
+    /** 学生端教室列表缓存代次 Key（完整 Key 形如 cache:classroom:list:g3:分页筛选指纹） */
     public static final String CLASSROOM_LIST_GEN_KEY = "cache:classroom:list:gen";
 
     /**

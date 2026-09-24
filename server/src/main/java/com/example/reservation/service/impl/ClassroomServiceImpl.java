@@ -45,9 +45,6 @@ import java.util.stream.Collectors;
 @Service
 public class ClassroomServiceImpl implements ClassroomService {
 
-    /** 学生端教室列表缓存 Key 版本号（数据口径变更时递增即让旧缓存整体失效，无需人工清缓存） */
-    private static final String LIST_CACHE_VERSION = "v2:";
-
     @Resource
     private ClassroomMapper classroomMapper;
 
@@ -382,18 +379,15 @@ public class ClassroomServiceImpl implements ClassroomService {
     }
 
     /**
-     * 组装学生端教室列表缓存 Key：cache:classroom:list:v2:g{代次}:{分页与筛选参数指纹}；
+     * 组装学生端教室列表缓存 Key：cache:classroom:list:g{代次}:{分页与筛选参数指纹}；
      * 空参数以 "-" 占位，保证不同筛选/分页/日期条件互不串缓存。
      *
-     * <p>Key 含两个版本维度：
-     * <ul>
-     *   <li>{@code v2}：数据结构版本（{@link #LIST_CACHE_VERSION}），数据口径变更时递增即让旧 Key 整体失效，无需人工清缓存；</li>
-     *   <li>{@code g{代次}}：运行时代次（{@link RedisCache#CLASSROOM_LIST_GEN_KEY}），写操作 INCR 即让本族缓存逻辑失效，
-     *       替代原「SCAN 遍历删除」——失效开销 O(1)，且旧代次 Key 由 TTL 自然过期。</li>
-     * </ul>
+     * <p>Key 含运行时代次 {@code g{代次}}（{@link RedisCache#CLASSROOM_LIST_GEN_KEY}）：写操作 INCR 即让本族缓存逻辑失效，
+     * 替代原「SCAN 遍历删除」——失效开销 O(1)，且旧代次 Key 由 TTL 自然过期。
+     * 缓存结构变更无需额外版本号：TTL 仅 60s，旧结构 Key 最迟一个 TTL 内自然淘汰。
      */
     private String classroomListKey(long page, long size, String keyword, String building, Integer type, String date) {
-        return RedisCache.CLASSROOM_LIST_KEY_PREFIX + LIST_CACHE_VERSION
+        return RedisCache.CLASSROOM_LIST_KEY_PREFIX
                 + "g" + redisCache.currentGeneration(RedisCache.CLASSROOM_LIST_GEN_KEY) + ":"
                 + page + ":" + size + ":"
                 + (StrUtil.isBlank(keyword) ? "-" : keyword.trim()) + ":"

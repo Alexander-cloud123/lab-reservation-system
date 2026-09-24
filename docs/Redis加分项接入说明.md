@@ -87,7 +87,7 @@ docker exec reservation-redis redis-cli keys 'cache:\*'        # 业务缓存
 | ----------------------------------------------------------------------- | -------- | ------------------------- | ------------------------------------------------- | ------------------------------------------------------ |
 | `auth:token:{userId}`                                                   | String   | 该用户当前有效 JWT               | 与 JWT 一致（24h，`app.jwt.expire-hours`）              | 退出登录删除；同账号新登录覆盖（单点会话）                                  |
 | `cache:stats:g{代次}:{接口名}:{开始日期}:{结束日期}`                                       | JSON 字符串 | 看板聚合结果（List）              | 60s（`redis.cache.stats-ttl-seconds`）              | 预约 / 教室变更时推进代次（`INCR cache:stats:gen`）；或 TTL 自然过期          |
-| `cache:classroom:list:v2:g{代次}:{page}:{size}:{keyword}:{building}:{type}:{date}` | JSON 字符串 | `PageResult<ClassroomVO>` | 60s（`redis.cache.classroom-ttl-seconds`，动态数据只短缓存） | 预约 / 教室变更时推进代次（`INCR cache:classroom:list:gen`）；或 TTL 自然过期 |
+| `cache:classroom:list:g{代次}:{page}:{size}:{keyword}:{building}:{type}:{date}` | JSON 字符串 | `PageResult<ClassroomVO>` | 60s（`redis.cache.classroom-ttl-seconds`，动态数据只短缓存） | 预约 / 教室变更时推进代次（`INCR cache:classroom:list:gen`）；或 TTL 自然过期 |
 
 设计要点：
 

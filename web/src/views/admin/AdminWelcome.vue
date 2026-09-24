@@ -16,6 +16,26 @@
       </div>
     </div>
 
+    <!-- 核心数据概览（需求文档 1.3 管理员端第 8 页：今日预约 / 待审核 / 教室总数 / 用户总数） -->
+    <div class="stat-grid">
+      <div class="stat-item">
+        <div class="stat-value">{{ overview.todayReservationCount ?? 0 }}</div>
+        <div class="stat-label">今日预约</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">{{ overview.pendingAuditCount ?? 0 }}</div>
+        <div class="stat-label">待审核</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">{{ overview.classroomCount ?? 0 }}</div>
+        <div class="stat-label">教室总数</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">{{ overview.userCount ?? 0 }}</div>
+        <div class="stat-label">用户总数</div>
+      </div>
+    </div>
+
     <!-- 快捷功能入口 -->
     <div class="quick-grid">
       <div class="quick-card" @click="go('/admin/users')">
@@ -75,14 +95,32 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Checked, DataAnalysis, School, Tickets, User } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import { getOverview } from '@/api/stats'
 
 const userStore = useUserStore()
 const router = useRouter()
 const userInfo = computed(() => userStore.userInfo)
+
+/** 首页数据概览（今日预约/待审核/教室总数/用户总数），初始为空由模板兜底显示 0 */
+const overview = ref({})
+
+/**
+ * 加载数据概览；失败静默——概览属展示性数据，加载失败不应影响管理端首页的快捷入口使用
+ */
+async function loadOverview() {
+  try {
+    const res = await getOverview()
+    overview.value = res.data || {}
+  } catch {
+    // 静默降级：卡片保持 0，快捷入口照常可用
+  }
+}
+
+onMounted(loadOverview)
 
 /** 快捷入口跳转 */
 function go(path) {
@@ -138,6 +176,37 @@ function go(path) {
 }
 .chip-off {
   background: rgba(179, 38, 30, 0.55);
+}
+
+/* 核心数据概览（与快捷入口同款扁平卡片：白底 + 细边框，无渐变/彩色底） */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.stat-item {
+  background: #fff;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color-light);
+  box-shadow: var(--shadow-card);
+  padding: 16px 18px;
+}
+
+.stat-value {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+  letter-spacing: -0.4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 6px;
 }
 
 /* 快捷入口 */

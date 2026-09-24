@@ -1,5 +1,6 @@
 package com.example.reservation.service;
 
+import com.example.reservation.vo.OverviewVO;
 import com.example.reservation.vo.TimeDistributionVO;
 import com.example.reservation.vo.TrendVO;
 import com.example.reservation.vo.UsageRateVO;
@@ -13,6 +14,13 @@ import java.util.List;
  * @author reservation-team
  */
 public interface StatsService {
+
+    /**
+     * 管理端首页数据概览（需求文档 1.3 管理员端第 8 页核心数据卡片）
+     * 口径：今日预约（预约日期为今日，全部状态）、待审核（状态待审核(0)，不限日期）、
+     * 教室总数（含停用）、用户总数（含管理员与禁用账号）
+     */
+    OverviewVO overview();
 
     /**
      * 教室使用率排行（柱状图）

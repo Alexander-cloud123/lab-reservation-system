@@ -8,9 +8,12 @@ import com.example.reservation.config.RedisCache;
 import com.example.reservation.config.RedisProperties;
 import com.example.reservation.entity.Classroom;
 import com.example.reservation.entity.Reservation;
+import com.example.reservation.entity.SysUser;
 import com.example.reservation.mapper.ClassroomMapper;
 import com.example.reservation.mapper.ReservationMapper;
+import com.example.reservation.mapper.SysUserMapper;
 import com.example.reservation.service.StatsService;
+import com.example.reservation.vo.OverviewVO;
 import com.example.reservation.vo.TimeDistributionVO;
 import com.example.reservation.vo.TrendVO;
 import com.example.reservation.vo.UsageRateVO;
@@ -52,10 +55,37 @@ public class StatsServiceImpl implements StatsService {
     private ClassroomMapper classroomMapper;
 
     @Resource
+    private SysUserMapper sysUserMapper;
+
+    @Resource
     private RedisCache redisCache;
 
     @Resource
     private RedisProperties redisProperties;
+
+    /**
+     * 管理端首页数据概览（4 次 COUNT）
+     *
+     * <p>此处<b>不引入缓存</b>：① 计数语句命中主键/索引，开销远低于看板区间聚合；
+     * ② 用户总数在「注册」后需即时体现，而注册不推进看板缓存代次，若缓存会出现
+     * ≤TTL 的滞后（答辩现场注册后立即查看管理员首页会看到旧数字）。
+     */
+    @Override
+    public OverviewVO overview() {
+        LocalDate today = LocalDate.now();
+        OverviewVO vo = new OverviewVO();
+        // 今日预约：预约日期为今日，全部状态（与月度趋势同口径）
+        vo.setTodayReservationCount(reservationMapper.selectCount(new LambdaQueryWrapper<Reservation>()
+                .eq(Reservation::getReserveDate, today)));
+        // 待审核：状态待审核(0)，不限日期（审核工作量口径）
+        vo.setPendingAuditCount(reservationMapper.selectCount(new LambdaQueryWrapper<Reservation>()
+                .eq(Reservation::getStatus, Constants.RES_STATUS_PENDING)));
+        // 教室总数（含已停用教室）
+        vo.setClassroomCount(classroomMapper.selectCount(new LambdaQueryWrapper<Classroom>()));
+        // 用户总数（含管理员与已禁用账号）
+        vo.setUserCount(sysUserMapper.selectCount(new LambdaQueryWrapper<SysUser>()));
+        return vo;
+    }
 
     @Override
     public List<UsageRateVO> usageRate(String startDate, String endDate) {

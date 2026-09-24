@@ -2,6 +2,7 @@ package com.example.reservation.controller;
 
 import com.example.reservation.common.Result;
 import com.example.reservation.service.StatsService;
+import com.example.reservation.vo.OverviewVO;
 import com.example.reservation.vo.TimeDistributionVO;
 import com.example.reservation.vo.TrendVO;
 import com.example.reservation.vo.UsageRateVO;
@@ -29,6 +30,16 @@ public class StatsController {
 
     @Resource
     private StatsService statsService;
+
+    /**
+     * 管理端首页数据概览：今日预约 / 待审核 / 教室总数 / 用户总数（需求文档 1.3 管理员端第 8 页）
+     * 权限：路径在 Constants.ADMIN_API_PREFIXES 的 /api/stats 前缀内，拦截器自动校验管理员角色
+     */
+    @Operation(summary = "统计-首页数据概览", description = "今日预约（全部状态）、待审核（不限日期）、教室总数（含停用）、用户总数")
+    @GetMapping("/overview")
+    public Result<OverviewVO> overview() {
+        return Result.success(statsService.overview());
+    }
 
     /**
      * 教室使用率排行（柱状图）：区间内已通过预约占用小时数 /（天数 × 14h），全部教室参与排行

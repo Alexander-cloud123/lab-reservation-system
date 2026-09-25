@@ -11,8 +11,9 @@ spring:
       write-dates-as-timestamps: false
     deserialization:
       fail-on-unknown-properties: false
-  # ===== Redis（需求设计文档 2.2 第 145 行可选加分项，Docker 容器 reservation-redis，映射 6379:6379）=====
+  # ===== Redis（需求设计文档 2.2 第 145 行可选加分项）=====
   # 连接信息全部走环境变量占位，禁止硬编码；本机演示默认无密码（容器仅监听 localhost）
+  # 下行 port 是默认值：容器端口映射非默认时用 REDIS_PORT 覆盖（本机开发容器映射为 6380）
   data:
     redis:
       host: ${REDIS_HOST:127.0.0.1}
@@ -24,6 +25,8 @@ spring:
         shutdown-timeout: 200ms
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
+    # 下行 url 是默认值：容器端口映射非默认时用 MYSQL_URL 覆盖（本机开发容器映射为 3307）
+    # 注意：连错端口不会启动失败，而是所有接口返回 HTTP 200 + body code=500，排查时先看后端日志的 Connection refused
     url: ${MYSQL_URL:jdbc:mysql://localhost:3306/reservation?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
     username: ${MYSQL_USERNAME:root}
     password: ${MYSQL_PASSWORD:root}

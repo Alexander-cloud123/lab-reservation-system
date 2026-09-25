@@ -53,11 +53,12 @@
 | 1 | 前端静态检查 | `npm run lint`（ESLint flat config，`--max-warnings 0`）零告警 | 0 error / 0 warning ✅ |
 | 2 | 前端生产构建 | `npm run build`（Vite 5）成功且无报错 | 构建成功，2101 modules transformed ✅ |
 | 3 | 浏览器级全量回归 | 全部 spec 用例通过 | 98 passed / 98 total，耗时 1.9m，1 worker，Chromium ✅ |
-| 4 | 数据库基线 | 回归后数据回到交付基线 | 预约 13 / 用户 5 / 教室 12 / E2E 临时教室残留 0 ✅ |
-| 5 | 13 页功能完整 | 需求文档 1.3 功能点全覆盖，E2E 用例逐页对应 | 见 test-report 第四节覆盖映射 ✅ |
-| 6 | 核心规则 100% 实现 | 冲突检测公式、状态流转、取消时限、越权 401/403、参数校验均有对应用例 | 见 test-report 第六节 ✅ |
-| 7 | 交付物完整性 | 代码快照（后端/前端）+ 数据库脚本 + 4 份文档齐备，无占位内容 | 本目录 ✅ |
-| 8 | 交付规范 | 统一返回 `Result`、`jakarta.*` 包名、分层结构、密钥零硬编码 | 未改动后端代码，快照沿用阶段2 冻结版本 ✅ |
+| 4 | 后端单元测试 | `mvn test`（Surefire）全部用例通过 | Tests run: 34, Failures: 0, Errors: 0, Skipped: 0；BUILD SUCCESS，耗时 1:48 ✅ |
+| 5 | 数据库基线 | 回归后数据回到交付基线 | 预约 13 / 用户 5 / 教室 12 / E2E 临时教室残留 0 ✅ |
+| 6 | 13 页功能完整 | 需求文档 1.3 功能点全覆盖，E2E 用例逐页对应 | 见 test-report 第四节覆盖映射 ✅ |
+| 7 | 核心规则 100% 实现 | 冲突检测公式、状态流转、取消时限、越权 401/403、参数校验均有对应用例 | 见 test-report 第六节 ✅ |
+| 8 | 交付物完整性 | 代码快照（后端/前端）+ 数据库脚本 + 4 份文档齐备，无占位内容 | 本目录 ✅ |
+| 9 | 交付规范 | 统一返回 `Result`、`jakarta.*` 包名、分层结构、密钥零硬编码 | 未改动后端代码，快照沿用阶段2 冻结版本 ✅ |
 
 ## 四、最终验证结果（负责人实测，原样引用）
 
@@ -65,6 +66,7 @@
 npm run lint（web）      : 0 error / 0 warning
 npm run build（web）     : Vite 5 构建成功，2101 modules transformed
 全量 E2E（web/e2e）      : 98 passed / 98 total，耗时 1.9m，1 worker，Chromium
+mvn -B test（server）    : Tests run: 34, Failures: 0, Errors: 0, Skipped: 0 — BUILD SUCCESS，耗时 1:48
 数据库基线（回归后）      : 预约 13 / 用户 5 / 教室 12 / E2E 临时教室残留 0
 ```
 

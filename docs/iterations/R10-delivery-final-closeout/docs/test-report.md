@@ -15,6 +15,7 @@
 | E2E 框架 | Playwright（`@playwright/test`），Chromium，`web/e2e/` |
 | 数据库 | MySQL 8.0.x（库 `reservation`，初始化脚本 `database/init_db.sql`） |
 | 缓存/会话 | Redis 7.0.x（登录会话 `auth:token:{userId}` + 看板/教室短缓存；可一键关闭降级为纯 JWT） |
+| 后端单元测试 | JUnit 5 + Maven Surefire（Apache Maven 3.9.16，JDK 21.0.11 Temurin）；`mvn -B test` 会真实连接容器 MySQL（`MYSQL_URL` → 3307）与 Redis（`REDIS_PORT` → 6380） |
 | E2E 运行方式 | 串行（`workers: 1`、`fullyParallel: false`，因所有用例共享同一 MySQL 库，并发会互相污染时段与计数断言） |
 | E2E 前置 | MySQL / Redis 容器在线；后端已启动（脚本**不自动启动后端**）；前端 dev server 由 Playwright `webServer` 自动拉起（`reuseExistingServer: true`）；`globalSetup` 先探活后端登录接口 |
 | E2E 端口覆盖 | `E2E_API_PORT`（默认 8080）、`E2E_API_BASE`、`E2E_WEB_PORT`（默认 5173）；8080 被占用时后端以 `--server.port=8081` 启动并设 `E2E_API_PORT=8081` |
@@ -25,6 +26,7 @@
 npm run lint（web）      : 0 error / 0 warning
 npm run build（web）     : Vite 5 构建成功，2101 modules transformed
 全量 E2E（web/e2e）      : 98 passed / 98 total，耗时 1.9m，1 worker，Chromium
+mvn -B test（server）    : Tests run: 34, Failures: 0, Errors: 0, Skipped: 0 — BUILD SUCCESS，耗时 1:48
 数据库基线（回归后实测）  : 预约 13 / 用户 5 / 教室 12 / E2E 临时教室残留 0
 ```
 
@@ -32,6 +34,22 @@ npm run build（web）     : Vite 5 构建成功，2101 modules transformed
 - 生产构建：Vite 5 构建通过，2101 个模块转换完成，无构建错误。
 - 全量回归：98 条用例全部通过，零失败、零跳过、零重试（配置 `retries: 0`，避免重试放大真数据副作用）。
 - 数据基线：回归结束后数据回到交付基线（预约 13 / 用户 5 / 教室 12），E2E 自建临时教室残留为 0，说明用例的造数与清理闭环成立。
+- 后端单元测试：9 个测试类 34 条用例全部通过，无失败、无错误、无跳过；同一批用例结束后数据库行数未变化（测试自带数据清理），随后仍按惯例执行一次基线重置。
+
+### 后端单元测试明细（9 个测试类 / 34 条，全部通过）
+
+| # | 测试类（`server/src/test/java/...`） | 条数 | 耗时 | 覆盖点 |
+| --- | --- | --- | --- | --- |
+| 1 | `ai/config/RateLimiterTest` | 4 | 0.04s | AI 限流（N2）：用户维度第 `rpmLimit+1` 次被拒、全站维度累计达上限被拒、注入时钟推进 60s 后窗口恢复、超 `MAX_TRACKED_USERS` 时仅淘汰最早窗口（不做 `clear()` 全清） |
+| 2 | `common/ConstantsWindowConsistencyTest` | 3 | 0.06s | 时段窗口常量契约护栏：小时常量与文本常量均由槽位边界派生，窗口锁定在 08:00–22:00 |
+| 3 | `concurrency/ConcurrencyIntegrationTest` | 3 | 6.40s | 真库真并发：8 路并发抢同一「已通过」时段全部被拒（不产生第二条占用）、两条重叠待审核同时通过仅一条成功（杜绝双已通过）、12 路并发收藏不同教室精确收敛到上限 10 |
+| 4 | `config/JacksonDateSerializationTest` | 3 | 0.41s | 日期序列化契约：`LocalDate` / `LocalDateTime` 输出 ISO 字符串、缓存中的历史数组形态（`[2026,9,18]`）仍可反序列化（对应日历事件 Invalid Date 缺陷的回归护栏） |
+| 5 | `controller/AuthAndValidationSmokeTest` | 6 | 1.03s | MockMvc 冒烟：未登录 / 无效 Token 访问受保护接口 401、学生 Token 访问管理端接口 403、学生 Token 正常放行 200、分页参数 `page=0` 与 `size=501` 被拒 |
+| 6 | `service/impl/ClassroomServiceImplTest` | 2 | 0.68s | 删除教室时存在性校验改为加锁读且先于预约计数、详情接口按身份裁剪「他人预约用途为 null」 |
+| 7 | `service/impl/FavoriteServiceImplTest` | 2 | 0.08s | 收藏上限 10：加锁读（`selectOne FOR UPDATE`）先于计数与插入、计数已达上限时拒绝且不执行插入 |
+| 8 | `service/impl/ReservationServiceImplTest` | 6 | 0.08s | 开始早于 08:00 / 结束晚于 22:00 / 单次超 8 小时均被拒、同批两条时段重叠整批拒绝、审核通过条件更新、取消时状态被并发变更（影响 0 行）则拒绝 |
+| 9 | `service/impl/UserServiceImplLoginLockTest` | 5 | 96.29s | 登录失败锁定（N1）：第 5 次失败进入锁定、锁定期内正确口令仍被拒并提示剩余时间、到期放行、内存降级路径队列有界（轮换用户名不会无界增长）、Redis 计数不可用时退回内存计数 |
+| — | **合计** | **34** | — | 后端「单元 + 真库并发 + MockMvc 冒烟」三类均有覆盖 |
 
 ## 三、测试用例（15 个 spec 文件，共 98 条）
 
@@ -91,6 +109,7 @@ npm run build（web）     : Vite 5 构建成功，2101 modules transformed
 | `npm run lint`（ESLint，`--max-warnings 0`） | **0 error / 0 warning** | 通过；阶段3/4/5 三轮改动均未引入告警 |
 | `npm run build`（Vite 5） | **成功，2101 modules transformed** | 通过 |
 | E2E 全量（15 spec / 98 用例） | **98 passed / 98 total** | 全部通过；耗时 1.9m；1 worker；Chromium；重试 0 |
+| `mvn -B test`（后端单元测试，9 类 / 34 条） | **Tests run: 34, Failures: 0, Errors: 0, Skipped: 0** | 通过；BUILD SUCCESS，耗时 1:48；含真库并发用例；用例自带数据清理 |
 | 数据库基线复核 | **预约 13 / 用户 5 / 教室 12 / E2E 临时教室残留 0** | 通过；用例自建数据（E2E 前缀预约、自建教室、临时账号）已清理 |
 | 13 页功能完整性 | 13/13 页面有覆盖 | 通过（见第四节） |
 | 核心规则 | 冲突检测 / 状态流转 / 取消时限 / 越权 / 参数校验均有对应用例且全通过 | 通过（见第六节） |
@@ -131,6 +150,6 @@ npm run build（web）     : Vite 5 构建成功，2101 modules transformed
 3. **E2E 强依赖本地环境**：用例依赖本地容器 MySQL / Redis 与**已启动的后端**（Playwright 不自动起后端，仅在 `globalSetup` 探活并给出端口修法）；端口不符（如容器 MySQL 映射 3307 而后端默认 3306）会导致登录 500 → 探活失败。E2E 串行执行（1 worker），并发会污染共享库的时段与计数断言。
 4. **AI 为可降级的外部依赖**：E2E 只在「关闭态」与「结构/入口/只读」层面断言 AI（不断言模型具体文案）；启用后无密钥/限流/超时走本地规则降级，模型输出本身不可复现，故未纳入回归断言。
 5. **AI 真实链路受上游限流影响**：接入真实密钥后可能命中上游限流（429），此时自动降级为本地规则模式；该行为属设计内降级，不影响核心业务，但真实模型输出的稳定性不由本项目保证。
-6. **未执行的检查项（如实声明）**：本轮未运行后端 `mvn test` 单元测试与历史轮次的 `docs/test-script.ps1` 接口级脚本，交付测试结论以「lint + build + 98 条 E2E + 数据库基线」为准（后端已处于 `v1.0-backend-freeze` 冻结状态，本轮未改动后端代码）。
+6. **未执行的检查项（如实声明）**：历史轮次的 `docs/test-script.ps1` 接口级脚本未在本轮重跑，其接口级验证角色由 `40-rules.spec.js`（直调接口断言冲突检测、状态流转、越权、参数校验）承担。后端 `mvn test` 单元测试已在本轮**回补执行**：9 个测试类 / 34 条用例全部通过（明细见第二节），因此「后端零核心缺陷」的证据链为「34 条单元与真库并发用例 + 98 条浏览器级 E2E」，两者互补。
 
-> 结论：交付版本（HEAD `11862a9`）静态检查零告警、生产构建通过、98 条浏览器级端到端用例全通过、数据库回到交付基线；13 页与核心业务规则覆盖完整；遗留项均为已知边界与主动取舍，无未修复的核心缺陷。
+> 结论：交付版本（HEAD `11862a9`）静态检查零告警、生产构建通过、后端 34 条单元/真库并发用例全通过、98 条浏览器级端到端用例全通过、数据库回到交付基线；13 页与核心业务规则覆盖完整；遗留项均为已知边界与主动取舍，无未修复的核心缺陷。

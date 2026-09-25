@@ -111,7 +111,23 @@ npm run dev   # http://localhost:5173
 - **降级说明**：无密钥 / 上游限流（RPM 20，全站聚合上限 100）/ 超时（60s）/ 连接失败时自动降级为本地规则模拟，接口仍返回 200 且结果可用，降级原因透出在 `data.message`，不阻断业务。
 - **复位**：演示结束后把 `ai.enable` 改回 `false` 并重启，同时 `UPDATE ai_config SET config_value='false' WHERE config_key='ai_enable';`。
 
-## 八、端到端测试（E2E）运行
+## 八、测试运行
+
+### 8.1 后端单元测试（JUnit 5 + Surefire，34 条）
+
+```powershell
+cd archive\R10-delivery-final-closeout\code\reservation-server
+# 必需：测试会真实连接容器 MySQL / Redis，端口需按第 3.2 节覆盖
+$env:MYSQL_URL='jdbc:mysql://localhost:3307/reservation?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai'
+$env:MYSQL_PASSWORD='root'; $env:REDIS_PORT='6380'
+& 'C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.3\plugins\maven\lib\maven3\bin\mvn.cmd' -B test
+```
+
+- 实测结果：`Tests run: 34, Failures: 0, Errors: 0, Skipped: 0`，**BUILD SUCCESS**，耗时 1:48（其中 `UserServiceImplLoginLockTest` 按真实时间推进登录锁定窗口，单类约 96s）。本次实测用的是 `~/.m2/wrapper/dists` 下的 Apache Maven 3.9.16，与 IDEA 内置 3.9.x 等价，换用任一 3.9.x 均可。
+- `ConcurrencyIntegrationTest` 与 `AuthAndValidationSmokeTest` 使用 `@SpringBootTest`，会真实连库；其余为纯单元测试（Mockito）。`webEnvironment` 默认 `MOCK`，**不绑定端口**，与已在运行的 8080 / 8081 实例不冲突。
+- 用例自带数据清理（跑完行数不变），但仍建议与 E2E 一样在结束后按第二节命令重新导入 `init_db.sql`，让自增计数等也回到基线。
+
+### 8.2 端到端测试（E2E）运行
 
 ```powershell
 # 前置：MySQL / Redis 容器在线，后端已启动（Playwright 不自动起后端，仅探活）
@@ -123,7 +139,7 @@ npm run test:e2e:report     # 查看 HTML 报告（e2e-report/html）
 
 - 默认后端端口 8080；若被占用：后端以 `--server.port=8081` 启动，并设 `$env:E2E_API_PORT='8081'` 后重跑。
 - 用例串行执行（共享同一 MySQL 库），前端 dev server 由 Playwright 自动拉起（`reuseExistingServer: true`）。
-- 实测基线（最终交付口径）：`npm run lint` 0 error / 0 warning；`npm run build` 成功（2101 modules）；E2E **98/98 通过**，耗时 1.9m；回归后数据库 预约 13 / 用户 5 / 教室 12 / E2E 临时教室残留 0。
+- 实测基线（最终交付口径）：`npm run lint` 0 error / 0 warning；`npm run build` 成功（2101 modules）；E2E **98/98 通过**，耗时 1.9m；后端 `mvn test` **34/34 通过**（BUILD SUCCESS，1:48）；回归后数据库 预约 13 / 用户 5 / 教室 12 / E2E 临时教室残留 0。
 
 ## 九、常见故障排查
 

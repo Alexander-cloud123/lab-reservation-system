@@ -103,9 +103,9 @@ function scrollToBottom() {
 }
 
 .assistant-ball {
-  width: 52px;
-  height: 52px;
-  font-size: 22px;
+  width: 48px;
+  height: 48px;
+  font-size: 20px;
   background: var(--brand-primary) !important;
   border: none !important;
   transition: background-color 0.15s ease;
@@ -142,24 +142,24 @@ function scrollToBottom() {
 
 .chat-bubble {
   max-width: 80%;
-  padding: 10px 12px;
-  border-radius: 10px;
-  font-size: 13px;
-  line-height: 1.6;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  font-size: 14px;
+  line-height: 22px;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .chat-msg.ai .chat-bubble {
-  background: var(--brand-info-light);
+  background: var(--bg-fill);
   color: var(--text-regular);
-  border-top-left-radius: 4px;
+  border-top-left-radius: var(--radius-sm);
 }
 
 .chat-msg.user .chat-bubble {
   background: var(--brand-primary);
   color: #fff;
-  border-top-right-radius: 4px;
+  border-top-right-radius: var(--radius-sm);
 }
 
 .chat-footer {

@@ -389,7 +389,7 @@ function resetAll() {
 }
 
 .room-pick-item {
-  padding: 10px 12px;
+  padding: 12px;
   border: 1px solid var(--border-color-light);
   border-radius: var(--radius-md);
   margin-bottom: 8px;
@@ -399,7 +399,7 @@ function resetAll() {
 
 .room-pick-item:hover {
   border-color: var(--border-color);
-  background: var(--brand-primary-lighter);
+  background: var(--bg-fill);
 }
 
 .room-pick-head {
@@ -409,13 +409,14 @@ function resetAll() {
 }
 
 .room-pick-name {
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
 }
 
 .room-pick-meta {
   font-size: 12px;
-  color: var(--text-secondary);
+  line-height: 20px;
+  color: var(--text-regular);
   margin-top: 4px;
 }
 
@@ -426,7 +427,7 @@ function resetAll() {
 }
 
 .picked-room {
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
 }
 

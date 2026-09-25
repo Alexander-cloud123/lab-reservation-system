@@ -613,8 +613,9 @@ onMounted(async () => {
 <style scoped>
 /* ---- 页面标题栏 ---- */
 .page-sub {
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--text-regular);
   margin-top: 4px;
 }
 
@@ -623,9 +624,8 @@ onMounted(async () => {
   background: var(--brand-primary-lighter);
   border: 1px solid var(--border-color-light);
   border-radius: var(--radius-lg);
-  padding: 22px 24px 10px;
-  margin-bottom: 18px;
-  box-shadow: var(--shadow-card);
+  padding: 24px 24px 12px;
+  margin-bottom: 16px;
 }
 
 .identity-row {
@@ -650,15 +650,14 @@ onMounted(async () => {
 .identity-name-line {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 4px;
 }
 
 .identity-name {
-  font-size: 19px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 600;
   color: var(--text-primary);
-  letter-spacing: 0.2px;
 }
 
 .identity-role {
@@ -668,8 +667,9 @@ onMounted(async () => {
 }
 
 .identity-meta {
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--text-regular);
 }
 
 .identity-edit {
@@ -680,14 +680,14 @@ onMounted(async () => {
 .identity-divider {
   height: 1px;
   background: var(--border-color-light);
-  margin: 18px -24px 0;
+  margin: 16px -24px 0;
 }
 
 .overview-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
-  padding: 14px 0 12px;
+  padding: 16px 0 12px;
 }
 
 .overview-item {
@@ -696,10 +696,9 @@ onMounted(async () => {
 
 .overview-value {
   font-size: 24px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-primary);
   line-height: 1.2;
-  letter-spacing: -0.4px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   overflow: hidden;
@@ -715,14 +714,15 @@ onMounted(async () => {
 }
 
 .overview-label {
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--text-regular);
   margin-top: 4px;
 }
 
 /* ---- 分区卡片通用 ---- */
 .section-card {
-  margin-bottom: 18px;
+  margin-bottom: 16px;
   border-radius: var(--radius-lg);
   scroll-margin-top: 76px; /* 顶部 sticky 栏高度补偿，滚动定位不被遮挡 */
 }
@@ -731,7 +731,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
   gap: 12px;
   flex-wrap: wrap;
 }
@@ -739,12 +739,12 @@ onMounted(async () => {
 .section-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .section-title {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   color: var(--text-primary);
 }
 
@@ -766,22 +766,21 @@ onMounted(async () => {
   gap: 12px;
   border: 1px solid var(--border-color-light);
   border-radius: var(--radius-md);
-  padding: 16px 14px;
+  padding: 16px;
   cursor: pointer;
-  background: #fff;
-  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  background: var(--bg-card);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .quick-item:hover {
   border-color: var(--border-color);
-  background: var(--brand-primary-lighter);
-  box-shadow: var(--shadow-hover);
+  background: var(--bg-subtle);
 }
 
 .quick-icon {
   width: 40px;
   height: 40px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--brand-primary-light);
   color: var(--brand-primary);
   display: flex;
@@ -796,9 +795,9 @@ onMounted(async () => {
 
 .quick-name {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
-  margin-bottom: 3px;
+  margin-bottom: 4px;
 }
 
 .quick-desc {
@@ -823,21 +822,21 @@ onMounted(async () => {
   gap: 12px;
   border: 1px solid var(--border-color-light);
   border-radius: var(--radius-md);
-  padding: 12px 14px;
+  padding: 12px;
   cursor: pointer;
-  background: #fff;
+  background: var(--bg-card);
   transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .fav-item:hover {
   border-color: var(--border-color);
-  background: var(--brand-primary-lighter);
+  background: var(--bg-subtle);
 }
 
 .fav-icon {
   width: 38px;
   height: 38px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--brand-primary-light);
   color: var(--brand-primary);
   display: flex;
@@ -852,9 +851,9 @@ onMounted(async () => {
 
 .fav-name {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
-  margin-bottom: 3px;
+  margin-bottom: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -877,7 +876,7 @@ onMounted(async () => {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 12px 12px;
+  padding: 12px;
   border-bottom: 1px solid var(--border-color-light);
   cursor: pointer;
   border-radius: var(--radius-md);
@@ -889,21 +888,21 @@ onMounted(async () => {
 }
 
 .msg-item:hover {
-  background: var(--brand-primary-lighter);
+  background: var(--bg-fill);
 }
 
 .msg-item.unread {
-  background: var(--brand-primary-light);
+  background: var(--brand-primary-lighter);
 }
 
 .msg-item.unread:hover {
-  background: var(--el-color-primary-light-8);
+  background: var(--brand-primary-light);
 }
 
 .msg-icon {
   width: 38px;
   height: 38px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -938,12 +937,13 @@ onMounted(async () => {
 
 .msg-title {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
 }
 
 .msg-content {
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 22px;
   color: var(--text-regular);
   margin: 2px 0;
   word-break: break-all;
@@ -951,6 +951,7 @@ onMounted(async () => {
 
 .msg-time {
   font-size: 12px;
+  line-height: 20px;
   color: var(--text-placeholder);
 }
 
@@ -965,7 +966,7 @@ onMounted(async () => {
 
 /* ---- ⑥ 账户与安全（分组设置列表，行点击弹窗编辑） ---- */
 .settings-group {
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 
 .settings-group:last-child {
@@ -973,16 +974,17 @@ onMounted(async () => {
 }
 
 .settings-group-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--text-regular);
   margin-bottom: 8px;
 }
 
 .settings-list {
   border: 1px solid var(--border-color-light);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--bg-card);
   overflow: hidden;
 }
 
@@ -990,7 +992,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 13px 14px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border-color-light);
   min-width: 0;
 }
@@ -1009,13 +1011,13 @@ onMounted(async () => {
 }
 
 .settings-row.clickable:hover {
-  background: var(--brand-primary-lighter);
+  background: var(--bg-fill);
 }
 
 .settings-icon {
   width: 34px;
   height: 34px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--brand-primary-light);
   color: var(--brand-primary);
   display: flex;
@@ -1034,7 +1036,8 @@ onMounted(async () => {
 .settings-value {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 22px;
   color: var(--text-regular);
   text-align: right;
   white-space: nowrap;
@@ -1061,7 +1064,7 @@ onMounted(async () => {
 @media (max-width: 900px) {
   .overview-row {
     grid-template-columns: repeat(2, 1fr);
-    row-gap: 14px;
+    row-gap: 16px;
   }
 
   .quick-grid {

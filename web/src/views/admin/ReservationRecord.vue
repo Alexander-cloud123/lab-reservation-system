@@ -247,8 +247,9 @@ onMounted(() => {
 }
 
 .page-tip {
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--text-regular);
 }
 
 .search-card {
@@ -259,12 +260,13 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .toolbar-tip {
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--text-regular);
 }
 
 .user-cell,
@@ -281,7 +283,7 @@ onMounted(() => {
 
 .room-name {
   color: var(--text-primary);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .pagination-wrap {

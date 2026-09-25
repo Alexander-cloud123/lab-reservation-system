@@ -65,6 +65,22 @@ defineOptions({ name: 'DashboardView' })
 // 注册看板用到的图表类型与组件（柱状图/折线图/饼图 + 提示框/网格/图例 + 空数据提示 graphic 文本 + Canvas 渲染）
 echarts.use([BarChart, LineChart, PieChart, TooltipComponent, GridComponent, LegendComponent, GraphicComponent, CanvasRenderer])
 
+/**
+ * 图表配色（Canvas 无法读取 CSS 变量，此处按值对齐 main.css 的飞书 Token）
+ * 轴/网格线用描边与填充色，文字用中性色，数据色只用品牌蓝与飞书功能色 600 级
+ */
+const CHART = {
+  primary: '#1456f0', // --brand-primary
+  primaryArea: 'rgba(20, 86, 240, 0.10)', // 同色系低透明面积，无渐变
+  axisLine: '#dee0e3', // --border-color-light
+  splitLine: '#eff0f1', // --bg-fill
+  axisText: '#646a73', // --text-regular
+  labelText: '#1f2329', // --text-primary
+  emptyText: '#8f959e', // --text-placeholder
+  pieGap: '#ffffff', // --bg-card：饼图分段间隙
+  palette: ['#1456f0', '#1a7526', '#a44904', '#c02a26', '#0e9594', '#646a73', '#8f959e']
+}
+
 const loading = ref(false)
 const quickRange = ref('30')
 const dateRange = ref([dayjs().subtract(29, 'day').format('YYYY-MM-DD'), dayjs().format('YYYY-MM-DD')])
@@ -132,8 +148,8 @@ function emptyGraphic(text) {
       top: 'middle',
       style: {
         text,
-        fontSize: 13,
-        fill: '#8b98a8' // 对齐 --text-placeholder Token
+        fontSize: 12,
+        fill: CHART.emptyText
       }
     }
   ]
@@ -164,33 +180,33 @@ function renderUsageRate(list) {
       xAxis: {
         type: 'category',
         data: names,
-        axisLabel: { rotate: 35, fontSize: 11 },
-        axisLine: { lineStyle: { color: '#d8dee6' } },
+        axisLabel: { rotate: 35, fontSize: 12, color: CHART.axisText },
+        axisLine: { lineStyle: { color: CHART.axisLine } },
         axisTick: { show: false }
       },
       yAxis: {
         type: 'value',
         name: '使用率（%）',
-        nameTextStyle: { color: '#8b98a8' },
-        axisLabel: { formatter: '{value}%', color: '#64748b' },
-        splitLine: { lineStyle: { color: '#e7ebf0' } }
+        nameTextStyle: { color: CHART.emptyText },
+        axisLabel: { formatter: '{value}%', fontSize: 12, color: CHART.axisText },
+        splitLine: { lineStyle: { color: CHART.splitLine } }
       },
       series: [
         {
           type: 'bar',
           data: values,
-          barMaxWidth: 34,
+          barMaxWidth: 32,
           itemStyle: {
-            borderRadius: [6, 6, 0, 0],
-            color: '#1e6091'
+            borderRadius: [4, 4, 0, 0],
+            color: CHART.primary
           },
           label: {
             show: true,
             position: 'top',
             formatter: (p) => `${p.value}%`,
-            fontSize: 11,
-            color: '#3d4a5a',
-            fontWeight: 600
+            fontSize: 12,
+            color: CHART.labelText,
+            fontWeight: 500
           }
         }
       ]
@@ -212,16 +228,17 @@ function renderTrend(list) {
       xAxis: {
         type: 'category',
         data: list.map((r) => r.month),
-        axisLine: { lineStyle: { color: '#d8dee6' } },
+        axisLabel: { fontSize: 12, color: CHART.axisText },
+        axisLine: { lineStyle: { color: CHART.axisLine } },
         axisTick: { show: false }
       },
       yAxis: {
         type: 'value',
         name: '预约条数',
         minInterval: 1,
-        nameTextStyle: { color: '#8b98a8' },
-        axisLabel: { color: '#64748b' },
-        splitLine: { lineStyle: { color: '#e7ebf0' } }
+        nameTextStyle: { color: CHART.emptyText },
+        axisLabel: { fontSize: 12, color: CHART.axisText },
+        splitLine: { lineStyle: { color: CHART.splitLine } }
       },
       series: [
         {
@@ -229,12 +246,12 @@ function renderTrend(list) {
           data: list.map((r) => r.count),
           smooth: true,
           symbolSize: 8,
-          itemStyle: { color: '#1e6091' },
-          lineStyle: { width: 3, color: '#1e6091' },
+          itemStyle: { color: CHART.primary },
+          lineStyle: { width: 2, color: CHART.primary },
           areaStyle: {
-            color: 'rgba(30, 96, 145, 0.10)'
+            color: CHART.primaryArea
           },
-          label: { show: true, position: 'top', fontSize: 11, color: '#3d4a5a', fontWeight: 600 }
+          label: { show: true, position: 'top', fontSize: 12, color: CHART.labelText, fontWeight: 500 }
         }
       ]
     },
@@ -242,28 +259,27 @@ function renderTrend(list) {
   )
 }
 
-/** 饼图：热门时段分布（占比口径与后端一致；承诺调色板，无紫/青/霓虹） */
+/** 饼图：热门时段分布（占比口径与后端一致；飞书功能色轮转，无紫/霓虹） */
 function renderTimeDistribution(list) {
   if (!list.length) {
     timeDistChart.setOption({ graphic: emptyGraphic('暂无时段分布数据') }, true)
     return
   }
-  const PALETTE = ['#1e6091', '#2e8b57', '#b45309', '#b3261e', '#0f766e', '#64748b', '#6d4a2f']
   timeDistChart.setOption(
     {
       tooltip: {
         trigger: 'item',
         formatter: (p) => `${p.name}<br/>${p.value} 条（${p.percent}%）`
       },
-      legend: { bottom: 0, type: 'scroll', fontSize: 11, textStyle: { color: '#64748b' } },
-      color: PALETTE,
+      legend: { bottom: 0, type: 'scroll', fontSize: 12, textStyle: { color: CHART.axisText } },
+      color: CHART.palette,
       series: [
         {
           type: 'pie',
           radius: ['38%', '66%'],
           center: ['50%', '46%'],
-          itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
-          label: { formatter: '{b}\n{d}%', fontSize: 11, color: '#3d4a5a' },
+          itemStyle: { borderRadius: 4, borderColor: CHART.pieGap, borderWidth: 2 },
+          label: { formatter: '{b}\n{d}%', fontSize: 12, color: CHART.labelText },
           data: list.map((r) => ({ name: r.slot, value: r.count }))
         }
       ]
@@ -314,13 +330,14 @@ onBeforeUnmount(() => {
 .filter-bar {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
 .page-title {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
   color: var(--text-primary);
   margin-right: 8px;
 }
@@ -331,15 +348,17 @@ onBeforeUnmount(() => {
 }
 
 .chart-title {
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
 .chart-sub {
   font-size: 12px;
+  line-height: 20px;
   color: var(--text-placeholder);
-  margin: 2px 0 10px;
+  margin: 4px 0 12px;
 }
 
 .chart-box {

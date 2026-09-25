@@ -486,11 +486,12 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 .nav-title {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 22px;
   color: var(--text-regular);
 }
 
@@ -502,14 +503,14 @@ onMounted(() => {
 .info-head {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   margin-bottom: 16px;
 }
 
 .room-type-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -536,10 +537,12 @@ onMounted(() => {
   margin: 0;
   color: var(--text-primary);
   font-size: 20px;
-  font-weight: 700;
+  font-weight: 600;
+  line-height: 28px;
 }
 .room-no {
   font-size: 12px;
+  line-height: 20px;
   color: var(--text-placeholder);
 }
 
@@ -549,9 +552,15 @@ onMounted(() => {
 
 .info-table {
   margin-top: 4px;
+  /* 飞书：说明表头统一浅底，不再用 EP 默认 #fafafa */
+  --el-descriptions-item-bordered-label-background: var(--bg-subtle);
 }
 .info-table :deep(.el-descriptions__label) {
-  font-weight: 600;
+  font-weight: 500;
+  color: var(--text-regular);
+}
+.info-table :deep(.el-descriptions__content) {
+  color: var(--text-primary);
 }
 
 .slots-card {
@@ -563,19 +572,20 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .slots-title {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 22px;
   color: var(--text-primary);
 }
 
 .timeline {
   position: relative;
   padding: 8px 0 4px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .timeline-axis {
@@ -586,15 +596,17 @@ onMounted(() => {
 .axis-hour {
   position: absolute;
   transform: translateX(-50%);
-  font-size: 11px;
+  font-size: 12px;
+  line-height: 18px;
   color: var(--text-placeholder);
 }
 
 .timeline-bar {
   position: relative;
   height: 32px;
-  background: var(--brand-info-light);
-  border-radius: 8px;
+  background: var(--bg-fill);
+  border: 1px solid var(--border-color-light);
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
@@ -604,7 +616,7 @@ onMounted(() => {
   bottom: 0;
   background: var(--brand-danger);
   color: #fff;
-  font-size: 11px;
+  font-size: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -614,12 +626,13 @@ onMounted(() => {
 }
 
 .slots-empty {
-  color: var(--text-secondary);
-  font-size: 13px;
+  color: var(--text-regular);
+  font-size: 14px;
+  line-height: 22px;
   background: var(--brand-success-light);
-  border: 1px dashed var(--el-color-success-light-7);
-  border-radius: 10px;
-  padding: 10px 14px;
+  border: 1px solid var(--el-color-success-light-7);
+  border-radius: var(--radius-md);
+  padding: 12px;
   display: inline-block;
 }
 

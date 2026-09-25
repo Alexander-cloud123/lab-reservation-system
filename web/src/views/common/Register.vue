@@ -143,7 +143,7 @@ async function handleRegister() {
   background: var(--bg-page);
 }
 
-/* ---- 左侧品牌区（与登录页统一：扁平深蓝面板 + 规则圆环） ---- */
+/* ---- 左侧品牌区（与登录页统一：飞书品牌蓝 + 排课表细线网格） ---- */
 .register-brand {
   flex: 1.15;
   min-width: 0;
@@ -156,66 +156,64 @@ async function handleRegister() {
   position: relative;
   overflow: hidden;
 }
-.register-brand::after {
-  content: '';
-  position: absolute;
-  right: -120px;
-  bottom: -120px;
-  width: 340px;
-  height: 340px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.2);
-}
 .register-brand::before {
   content: '';
   position: absolute;
-  right: -40px;
-  bottom: -40px;
-  width: 220px;
-  height: 220px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.16);
+  inset: 0;
+  /* 时段网格：教室 × 时段的产品本体意象，1px 细线示意结构 */
+  background-image: repeating-linear-gradient(
+      to right,
+      rgba(255, 255, 255, 0.1) 0 1px,
+      transparent 1px 64px
+    ),
+    repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.1) 0 1px, transparent 1px 64px);
+  pointer-events: none;
+}
+.brand-inner {
+  position: relative;
+  z-index: 1;
 }
 
 .brand-logo {
-  width: 58px;
-  height: 58px;
-  border-radius: var(--radius-lg);
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.24);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 22px;
+  margin-bottom: 20px;
 }
 .brand-name {
-  font-size: 30px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  margin-bottom: 12px;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 36px;
+  margin-bottom: 8px;
 }
 .brand-slogan {
-  font-size: 15px;
-  color: rgba(255, 255, 255, 0.82);
-  margin-bottom: 34px;
-  letter-spacing: 0.5px;
+  font-size: 14px;
+  line-height: 22px;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 32px;
 }
 .brand-points {
   list-style: none;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 .brand-points li {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.92);
+  line-height: 22px;
+  color: rgba(255, 255, 255, 0.88);
 }
 .brand-points li .el-icon {
-  font-size: 18px;
+  font-size: 16px;
   color: rgba(255, 255, 255, 0.7);
 }
 .brand-footer {
@@ -223,7 +221,9 @@ async function handleRegister() {
   bottom: 28px;
   left: 7%;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.55);
+  line-height: 20px;
+  color: rgba(255, 255, 255, 0.5);
+  z-index: 1;
 }
 
 /* ---- 右侧表单区 ---- */
@@ -237,41 +237,39 @@ async function handleRegister() {
 .register-card {
   width: 520px;
   max-width: 100%;
-  background: #fff;
+  background: var(--bg-card);
   border-radius: var(--radius-lg);
-  padding: 32px 36px 24px;
-  box-shadow: 0 6px 24px rgba(28, 39, 51, 0.08);
+  padding: 32px;
   border: 1px solid var(--border-color-light);
+  box-shadow: var(--shadow-raised);
 }
 .login-title {
-  text-align: center;
   font-size: 24px;
-  font-weight: 700;
+  font-weight: 600;
+  line-height: 32px;
   color: var(--text-primary);
   margin-bottom: 6px;
 }
 .login-subtitle {
-  text-align: center;
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin-bottom: 22px;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--text-regular);
+  margin-bottom: 20px;
 }
 .register-btn {
   width: 100%;
-  height: 44px;
-  font-size: 15px;
-  letter-spacing: 2px;
+  height: 40px;
+  font-size: 14px;
 }
 .login-footer {
-  margin-top: 16px;
-  text-align: center;
-  font-size: 13px;
-  color: var(--text-secondary);
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--text-regular);
 }
 .login-footer a {
   color: var(--brand-primary);
   text-decoration: none;
-  font-weight: 500;
 }
 .login-footer a:hover {
   text-decoration: underline;

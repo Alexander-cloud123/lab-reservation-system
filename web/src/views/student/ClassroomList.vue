@@ -308,12 +308,13 @@ onMounted(() => {
 
 <style scoped>
 .page-tip {
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--text-regular);
 }
 
 .search-card {
-  margin-bottom: 18px;
+  margin-bottom: 16px;
   border-radius: var(--radius-lg);
 }
 .search-card :deep(.el-form-item) {
@@ -323,27 +324,27 @@ onMounted(() => {
 .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 18px;
+  gap: 16px;
   min-height: 200px;
 }
 
-/* ---- 教室卡片（扁平面板：无顶部装饰条、无浮起） ---- */
+/* ---- 教室卡片（飞书卡片：1px 描边、无投影，hover 仅加深描边） ---- */
 .room-card {
-  background: #fff;
+  background: var(--bg-card);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-color-light);
-  box-shadow: var(--shadow-card);
-  padding: 18px 18px 14px;
+  box-shadow: none;
+  padding: 16px;
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
   display: flex;
   flex-direction: column;
 }
 .room-card:hover {
-  box-shadow: var(--shadow-hover);
   border-color: var(--border-color);
+  background: var(--bg-subtle);
 }
 
 .room-card-head {
@@ -354,9 +355,9 @@ onMounted(() => {
 }
 
 .room-type-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -384,7 +385,8 @@ onMounted(() => {
 }
 .room-name {
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 600;
+  line-height: 24px;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
@@ -392,6 +394,7 @@ onMounted(() => {
 }
 .room-no {
   font-size: 12px;
+  line-height: 20px;
   color: var(--text-placeholder);
 }
 
@@ -416,10 +419,11 @@ onMounted(() => {
 .room-meta {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   color: var(--text-regular);
-  font-size: 13px;
-  margin-bottom: 10px;
+  font-size: 12px;
+  line-height: 20px;
+  margin-bottom: 8px;
   flex-wrap: wrap;
 }
 .meta-item {
@@ -436,17 +440,18 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--text-secondary);
-  font-size: 12.5px;
-  margin-bottom: 10px;
+  color: var(--text-regular);
+  font-size: 12px;
+  line-height: 20px;
+  margin-bottom: 8px;
 }
 .remain-slots .el-icon {
-  color: var(--brand-info);
+  color: var(--text-placeholder);
   font-size: 14px;
 }
 .remain-slots b {
   color: var(--brand-primary);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .occupied-bar {
@@ -454,17 +459,19 @@ onMounted(() => {
   border: 1px solid var(--brand-warning-light);
   color: var(--brand-warning);
   font-size: 12px;
-  padding: 6px 10px;
-  border-radius: 8px;
-  margin-bottom: 10px;
+  line-height: 20px;
+  padding: 8px;
+  border-radius: var(--radius-md);
+  margin-bottom: 8px;
 }
 .occupied-bar b {
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .room-equipment {
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--text-regular);
   margin-bottom: 6px;
   display: flex;
   align-items: center;
@@ -476,7 +483,8 @@ onMounted(() => {
 }
 
 .room-desc {
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 22px;
   color: var(--text-regular);
   margin-bottom: 12px;
   flex: 1;
@@ -489,14 +497,14 @@ onMounted(() => {
 .room-foot {
   display: flex;
   justify-content: flex-end;
-  border-top: 1px dashed var(--border-color-light);
+  border-top: 1px solid var(--border-color-light);
   padding-top: 12px;
 }
 
 .pagination-wrap {
   display: flex;
   justify-content: flex-end;
-  margin-top: 20px;
+  margin-top: 16px;
 }
 
 /* ---------- 窄屏适配（P3-8：<480px 单列卡片 + 分页换行，避免横向溢出） ---------- */

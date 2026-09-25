@@ -132,9 +132,9 @@ async function handleLogout() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 60px;
-  padding: 0 28px;
-  background: #fff;
+  height: 56px;
+  padding: 0 24px;
+  background: var(--bg-card);
   border-bottom: 1px solid var(--border-color-light);
   position: sticky;
   top: 0;
@@ -144,12 +144,12 @@ async function handleLogout() {
 .header-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .logo-badge {
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   border-radius: var(--radius-md);
   background: var(--brand-primary);
   color: #fff;
@@ -159,20 +159,20 @@ async function handleLogout() {
 }
 
 .header-logo {
-  font-size: 17px;
-  font-weight: 700;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
   color: var(--text-primary);
-  letter-spacing: 0.5px;
 }
 
 .role-chip {
-  font-size: 11px;
-  padding: 2px 10px;
-  border-radius: 12px;
+  font-size: 12px;
+  line-height: 18px;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
   background: var(--brand-primary-light);
   color: var(--brand-primary);
-  font-weight: 600;
-  letter-spacing: 0.5px;
+  font-weight: 400;
 }
 
 .header-right {
@@ -184,38 +184,38 @@ async function handleLogout() {
 .header-menu {
   border-bottom: none;
   margin-right: 8px;
+  background: transparent;
 }
 
 .header-menu .el-menu-item {
-  height: 60px;
-  line-height: 60px;
+  height: 56px;
+  line-height: 56px;
+  padding: 0 12px;
+  margin: 0;
   font-size: 14px;
   color: var(--text-regular);
-  font-weight: 500;
+  font-weight: 400;
   border-bottom: none;
-  margin: 0 4px;
-  border-radius: var(--radius-md);
+  border-radius: 0;
 }
 .header-menu .el-menu-item .el-icon {
   font-size: 16px;
 }
 .header-menu .el-menu-item:hover {
-  background: var(--brand-primary-lighter);
+  background: transparent;
   color: var(--brand-primary);
 }
 .header-menu .el-menu-item.is-active {
   color: var(--brand-primary);
-  font-weight: 600;
+  font-weight: 500;
 }
 .header-menu .el-menu-item.is-active::after {
   content: '';
   position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: 8px;
-  width: 20px;
-  height: 3px;
-  border-radius: 2px;
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  height: 2px;
   background: var(--brand-primary);
 }
 
@@ -225,22 +225,22 @@ async function handleLogout() {
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  padding: 4px 10px;
-  border-radius: 16px;
+  padding: 4px 8px;
+  border-radius: var(--radius-md);
   transition: background-color 0.15s;
 }
 .user-entry:hover {
-  background: var(--brand-primary-lighter);
+  background: var(--bg-page);
 }
 .user-avatar {
   background: var(--brand-primary);
   color: #fff;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
 }
 .user-name {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 400;
   color: var(--text-regular);
 }
 .user-caret {
@@ -249,12 +249,13 @@ async function handleLogout() {
 }
 .user-account {
   font-size: 12px;
+  line-height: 20px;
   color: var(--text-placeholder);
 }
 
 .student-main {
   background: var(--bg-page);
-  padding: 20px 24px;
+  padding: 24px;
   overflow-y: auto;
 }
 
@@ -271,7 +272,7 @@ async function handleLogout() {
   }
   .header-menu .el-menu-item {
     margin: 0 2px;
-    padding: 0 10px;
+    padding: 0 8px;
   }
   /* 隐藏菜单文字仅留图标，避免 4 个菜单窄屏溢出 */
   .header-menu .el-menu-item span {
@@ -287,7 +288,7 @@ async function handleLogout() {
     display: none;
   }
   .student-main {
-    padding: 14px 12px;
+    padding: 12px;
   }
 }
 </style>

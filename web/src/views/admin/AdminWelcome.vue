@@ -134,26 +134,28 @@ function go(path) {
   margin: 0 auto;
 }
 
-/* 欢迎横幅（扁平深蓝，无渐变与光晕） */
+/* 欢迎横幅（品牌蓝实底，1px 内描边替代投影） */
 .welcome-banner {
   background: var(--brand-primary);
   border-radius: var(--radius-lg);
-  padding: 26px 30px;
+  padding: 24px 32px;
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
   flex-wrap: wrap;
 }
 .banner-title {
-  font-size: 21px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
   margin-bottom: 8px;
 }
 .banner-tip {
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 20px;
   color: rgba(255, 255, 255, 0.85);
   max-width: 560px;
 }
@@ -164,79 +166,82 @@ function go(path) {
 }
 .badge-chip {
   font-size: 12px;
-  padding: 4px 14px;
-  border-radius: 14px;
+  line-height: 20px;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.16);
   border: 1px solid rgba(255, 255, 255, 0.3);
-  font-weight: 600;
-  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+.chip-ok,
+.chip-off {
+  border-color: transparent;
+  color: #fff;
 }
 .chip-ok {
-  background: rgba(46, 139, 87, 0.55);
+  background: rgba(26, 117, 38, 0.92);
 }
 .chip-off {
-  background: rgba(179, 38, 30, 0.55);
+  background: rgba(192, 42, 38, 0.92);
 }
 
-/* 核心数据概览（与快捷入口同款扁平卡片：白底 + 细边框，无渐变/彩色底） */
+/* 核心数据概览（白底 + 1px 描边，无投影） */
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 14px;
-  margin-bottom: 18px;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 .stat-item {
-  background: #fff;
+  background: var(--bg-card);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-color-light);
-  box-shadow: var(--shadow-card);
-  padding: 16px 18px;
+  padding: 16px;
 }
 
 .stat-value {
-  font-size: 26px;
-  font-weight: 700;
+  font-size: 24px;
+  font-weight: 600;
   color: var(--text-primary);
-  line-height: 1.2;
-  letter-spacing: -0.4px;
+  line-height: 28px;
   font-variant-numeric: tabular-nums;
 }
 
 .stat-label {
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin-top: 6px;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--text-regular);
+  margin-top: 4px;
 }
 
 /* 快捷入口 */
 .quick-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 14px;
-  margin-bottom: 18px;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 .quick-card {
-  background: #fff;
+  background: var(--bg-card);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-color-light);
-  box-shadow: var(--shadow-card);
-  padding: 18px;
+  padding: 16px;
   display: flex;
   align-items: center;
   gap: 12px;
   cursor: pointer;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 .quick-card:hover {
-  box-shadow: var(--shadow-hover);
+  background: var(--bg-subtle);
   border-color: var(--border-color);
 }
 
 .quick-icon {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-md);
   background: var(--brand-primary-light);
   color: var(--brand-primary);
@@ -252,14 +257,16 @@ function go(path) {
 }
 .quick-name {
   font-size: 14px;
-  font-weight: 600;
+  line-height: 22px;
+  font-weight: 500;
   color: var(--text-primary);
   display: block;
-  margin-bottom: 3px;
+  margin-bottom: 4px;
 }
 .quick-desc {
   font-size: 12px;
-  color: var(--text-secondary);
+  line-height: 20px;
+  color: var(--text-regular);
 }
 
 /* 账号信息 */
@@ -267,12 +274,13 @@ function go(path) {
   border-radius: var(--radius-lg);
 }
 .section-title {
-  font-size: 15px;
+  font-size: 14px;
+  line-height: 22px;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 .info-table :deep(.el-descriptions__label) {
-  font-weight: 600;
+  font-weight: 500;
 }
 </style>

@@ -375,7 +375,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
   gap: 12px;
 }
@@ -387,8 +387,9 @@ onBeforeUnmount(() => {
 }
 
 .page-title {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
   color: var(--text-primary);
 }
 
@@ -442,19 +443,19 @@ onBeforeUnmount(() => {
 /* ============ FullCalendar 主题化（视觉优化轮，依据 docs/日历总览优化-任务提示词.md） ============ */
 /* 设计语言：排课表 Timetable —— 三级信息层级（星期表头 → 日期数字 → 事件色块） */
 .calendar-container :deep(.fc) {
-  font-size: 13px;
+  font-size: 14px;
   /* FullCalendar 官方 CSS 变量换肤，对齐项目 Design Token */
   --fc-border-color: var(--border-color-light);
-  --fc-page-bg-color: #fff;
-  --fc-neutral-bg-color: var(--el-fill-color-light);
-  --fc-neutral-text-color: var(--text-secondary);
-  --fc-small-font-size: 11px;
+  --fc-page-bg-color: var(--bg-card);
+  --fc-neutral-bg-color: var(--bg-page);
+  --fc-neutral-text-color: var(--text-regular);
+  --fc-small-font-size: 12px;
   --fc-event-border-color: transparent;
-  --fc-event-selected-overlay-color: rgba(30, 96, 145, 0.08);
+  --fc-event-selected-overlay-color: rgba(31, 35, 41, 0.08);
   --fc-button-text-color: var(--text-regular);
-  --fc-button-bg-color: #fff;
+  --fc-button-bg-color: var(--bg-card);
   --fc-button-border-color: var(--border-color);
-  --fc-button-hover-bg-color: var(--brand-primary-light);
+  --fc-button-hover-bg-color: var(--brand-primary-lighter);
   --fc-button-hover-border-color: var(--brand-primary);
   --fc-button-active-bg-color: var(--brand-primary);
   --fc-button-active-border-color: var(--brand-primary);
@@ -462,11 +463,11 @@ onBeforeUnmount(() => {
 
 /* 顶部工具栏：标题 + 导航按钮（对齐 Element Plus 小按钮体系） */
 .calendar-container :deep(.fc .fc-toolbar) {
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 .calendar-container :deep(.fc .fc-toolbar-title) {
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-primary);
 }
 .calendar-container :deep(.fc .fc-button) {
@@ -495,9 +496,9 @@ onBeforeUnmount(() => {
 }
 .calendar-container :deep(.fc .fc-col-header-cell-cushion) {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-regular);
-  padding: 7px 0;
+  padding: 8px 0;
 }
 .calendar-container :deep(.fc .fc-col-header-cell.fc-day-sat .fc-col-header-cell-cushion),
 .calendar-container :deep(.fc .fc-col-header-cell.fc-day-sun .fc-col-header-cell-cushion) {
@@ -515,15 +516,15 @@ onBeforeUnmount(() => {
   padding: 2px 2px 0;
 }
 .calendar-container :deep(.fc .fc-daygrid-day-number) {
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   color: var(--text-regular);
-  padding: 2px 5px;
-  border-radius: 10px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 .calendar-container :deep(.fc .fc-daygrid-day:hover .fc-daygrid-day-frame) {
-  background: var(--brand-primary-lighter);
+  background: var(--bg-fill);
 }
 /* 周末 / 跨月日期数字弱化（信息密度管理） */
 .calendar-container :deep(.fc .fc-daygrid-day.fc-day-sat .fc-daygrid-day-number),
@@ -552,22 +553,22 @@ onBeforeUnmount(() => {
 .calendar-container :deep(.fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number) {
   background: var(--brand-primary);
   color: #fff;
-  font-weight: 700;
+  font-weight: 600;
 }
 
-/* 事件块：左色条 + 状态浅底 + 深色文字（扁平纯色，无渐变） */
+/* 事件块：状态浅底 + 同色深色文字（飞书日历口径：整块着色，无侧边色条） */
 .calendar-container :deep(.fc .fc-daygrid-event) {
   border-radius: var(--radius-sm);
-  border-left: 3px solid var(--ev-bar, var(--brand-info));
-  background: var(--ev-bg, var(--brand-info-light));
+  border: none;
+  background: var(--ev-bg, var(--bg-fill));
+  color: var(--ev-bar, var(--text-regular));
   padding: 2px 6px;
   cursor: pointer;
   box-shadow: none;
-  transition: filter 0.15s ease, box-shadow 0.15s ease;
+  transition: filter 0.15s ease;
 }
 .calendar-container :deep(.fc .fc-daygrid-event:hover) {
   filter: brightness(0.96);
-  box-shadow: 0 1px 2px rgba(28, 39, 51, 0.1);
 }
 .calendar-container :deep(.fc .fc-event-main) {
   overflow: hidden;
@@ -587,7 +588,7 @@ onBeforeUnmount(() => {
 }
 .calendar-container :deep(.fc .fc-event.res-ev-3) {
   --ev-bar: var(--brand-info);
-  --ev-bg: var(--brand-info-light);
+  --ev-bg: var(--bg-fill);
 }
 
 /* 事件块内部两行：时段（等宽数字防跳动）+ 教室名（超长省略号） */
@@ -598,15 +599,13 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 .calendar-container :deep(.res-event-time) {
-  font-size: 10.5px;
-  color: var(--text-secondary);
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .calendar-container :deep(.res-event-name) {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

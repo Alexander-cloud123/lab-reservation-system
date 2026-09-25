@@ -196,8 +196,9 @@ onMounted(loadData)
 }
 
 .page-tip {
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--text-regular);
 }
 
 .reserve-card {
@@ -211,11 +212,12 @@ onMounted(loadData)
 
 .room-name {
   color: var(--text-primary);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .room-no {
   font-size: 12px;
+  line-height: 20px;
   color: var(--text-placeholder);
 }
 

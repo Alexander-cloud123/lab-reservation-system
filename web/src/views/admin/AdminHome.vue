@@ -138,9 +138,9 @@ async function handleLogout() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 60px;
-  padding: 0 28px;
-  background: #fff;
+  height: 56px;
+  padding: 0 24px;
+  background: var(--bg-card);
   border-bottom: 1px solid var(--border-color-light);
   position: sticky;
   top: 0;
@@ -150,12 +150,12 @@ async function handleLogout() {
 .header-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .logo-badge {
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   border-radius: var(--radius-md);
   background: var(--brand-primary);
   color: #fff;
@@ -165,20 +165,20 @@ async function handleLogout() {
 }
 
 .header-logo {
-  font-size: 17px;
-  font-weight: 700;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
   color: var(--text-primary);
-  letter-spacing: 0.5px;
 }
 
 .role-chip {
-  font-size: 11px;
-  padding: 2px 10px;
-  border-radius: 12px;
+  font-size: 12px;
+  line-height: 18px;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
   background: var(--brand-primary-light);
   color: var(--brand-primary);
-  font-weight: 600;
-  letter-spacing: 0.5px;
+  font-weight: 400;
 }
 
 .header-right {
@@ -191,22 +191,22 @@ async function handleLogout() {
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  padding: 4px 10px;
-  border-radius: 16px;
+  padding: 4px 8px;
+  border-radius: var(--radius-md);
   transition: background-color 0.15s;
 }
 .user-entry:hover {
-  background: var(--brand-primary-lighter);
+  background: var(--bg-page);
 }
 .user-avatar {
   background: var(--brand-primary);
   color: #fff;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
 }
 .user-name {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 400;
   color: var(--text-regular);
 }
 .user-caret {
@@ -215,46 +215,51 @@ async function handleLogout() {
 }
 .user-account {
   font-size: 12px;
+  line-height: 20px;
   color: var(--text-placeholder);
 }
 
 .admin-body {
-  height: calc(100vh - 60px);
+  height: calc(100vh - 56px);
 }
 
+/* 侧栏：飞书工作台式浅灰面板（选中项蓝底蓝字） */
 .admin-aside {
-  background: #fff;
+  background: var(--bg-page);
   border-right: 1px solid var(--border-color-light);
-  padding: 12px 10px;
+  padding: 8px;
 }
 
 .admin-menu {
   border-right: none;
+  background: transparent;
 }
 .admin-menu .el-menu-item {
-  height: 46px;
-  line-height: 46px;
+  height: 36px;
+  line-height: 36px;
+  padding: 0 8px;
   border-radius: var(--radius-md);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   font-size: 14px;
   color: var(--text-regular);
-  font-weight: 500;
+  font-weight: 400;
 }
 .admin-menu .el-menu-item .el-icon {
-  font-size: 18px;
-  color: var(--text-secondary);
+  font-size: 16px;
+  color: var(--text-regular);
+  margin-right: 8px;
 }
 .admin-menu .el-menu-item:hover {
-  background: var(--brand-primary-lighter);
-  color: var(--brand-primary);
+  background: rgba(31, 35, 41, 0.05);
+  color: var(--text-primary);
 }
 .admin-menu .el-menu-item:hover .el-icon {
-  color: var(--brand-primary);
+  color: var(--text-primary);
 }
 .admin-menu .el-menu-item.is-active {
   background: var(--brand-primary-light);
   color: var(--brand-primary);
-  font-weight: 600;
+  font-weight: 500;
 }
 .admin-menu .el-menu-item.is-active .el-icon {
   color: var(--brand-primary);
@@ -262,7 +267,7 @@ async function handleLogout() {
 
 .admin-main {
   background: var(--bg-page);
-  padding: 20px 24px;
+  padding: 24px;
   overflow-y: auto;
 }
 </style>

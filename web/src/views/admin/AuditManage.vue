@@ -449,8 +449,9 @@ onMounted(loadData)
 }
 
 .page-tip {
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--text-regular);
 }
 
 .search-card {
@@ -458,7 +459,7 @@ onMounted(loadData)
 }
 
 .toolbar {
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .user-cell,
@@ -475,7 +476,7 @@ onMounted(loadData)
 
 .room-name {
   color: var(--text-primary);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .no-action {
@@ -502,7 +503,7 @@ onMounted(loadData)
 
 .purpose-violation {
   color: var(--brand-danger);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .ai-tag {

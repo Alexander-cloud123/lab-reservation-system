@@ -66,9 +66,9 @@ function goDetail(item) {
 
 <style scoped>
 .ai-recommend-card {
-  margin-bottom: 18px;
+  margin-bottom: 16px;
   border-radius: var(--radius-lg);
-  background: #fff;
+  background: var(--bg-card);
   border: 1px solid var(--border-color-light);
 }
 
@@ -94,22 +94,23 @@ function goDetail(item) {
 }
 
 .ai-title {
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
 .recommend-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .recommend-item {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 12px;
   border: 1px solid var(--border-color-light);
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -118,21 +119,21 @@ function goDetail(item) {
 
 .recommend-item:hover {
   border-color: var(--border-color);
-  background: var(--brand-primary-lighter);
+  background: var(--bg-fill);
 }
 
 .rank {
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
   background: var(--brand-primary-light);
   color: var(--brand-primary);
-  font-weight: 600;
+  font-weight: 500;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .recommend-info {
@@ -149,22 +150,25 @@ function goDetail(item) {
 
 .room-name {
   font-size: 14px;
-  font-weight: 600;
+  line-height: 22px;
+  font-weight: 500;
   color: var(--text-primary);
 }
 
 .room-meta {
   font-size: 12px;
-  color: var(--text-secondary);
+  line-height: 20px;
+  color: var(--text-regular);
 }
 
 .recommend-reason {
   margin: 4px 0 0;
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 20px;
   color: var(--text-regular);
 }
 
 .ai-recommend-foot {
-  margin-top: 10px;
+  margin-top: 12px;
 }
 </style>

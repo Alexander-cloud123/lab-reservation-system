@@ -385,8 +385,9 @@ onMounted(loadData)
 }
 
 .page-tip {
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--text-regular);
 }
 
 .search-card {
@@ -394,7 +395,7 @@ onMounted(loadData)
 }
 
 .toolbar {
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .pagination-wrap {

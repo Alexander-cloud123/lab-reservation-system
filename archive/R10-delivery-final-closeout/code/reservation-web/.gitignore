@@ -1,0 +1,23 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# E2E 运行产物（报告与失败现场不入库，结论另以测试报告归档）
+e2e-report/
+test-results/
+playwright-report/
+
+# 编辑器
+.idea/
+.vscode/
+*.suo
+
+# 日志
+logs/
+*.log
+npm-debug.log*
+
+# 系统
+.DS_Store
+Thumbs.db

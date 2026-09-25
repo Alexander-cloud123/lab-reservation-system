@@ -1,0 +1,88 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: reservation-server
+  # ===== Jackson 序列化（修复日历总览页事件不渲染：LocalDate 默认按数组 [2026,9,18] 输出，
+  # 前端 FullCalendar/登录提醒按字符串拼接日期导致 Invalid Date。改为 ISO 字符串 2026-09-18）=====
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+  # ===== Redis（需求设计文档 2.2 第 145 行可选加分项）=====
+  # 连接信息全部走环境变量占位，禁止硬编码；本机演示默认无密码（容器仅监听 localhost）
+  # 下行 port 是默认值：容器端口映射非默认时用 REDIS_PORT 覆盖（本机开发容器映射为 6380）
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}   # 如需密码，通过环境变量 REDIS_PASSWORD 注入
+      database: ${REDIS_DATABASE:0}
+      timeout: 3000ms                # 命令超时 3s：Redis 不可用时快速失败，交由业务层降级，不拖慢接口
+      lettuce:
+        shutdown-timeout: 200ms
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # 下行 url 是默认值：容器端口映射非默认时用 MYSQL_URL 覆盖（本机开发容器映射为 3307）
+    # 注意：连错端口不会启动失败，而是所有接口返回 HTTP 200 + body code=500，排查时先看后端日志的 Connection refused
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/reservation?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:root}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    # SQL 日志打印（生产环境可通过环境变量 MYBATIS_LOG_IMPL 关闭，如 org.apache.ibatis.logging.nologging.NoLoggingImpl）
+    log-impl: ${MYBATIS_LOG_IMPL:org.apache.ibatis.logging.stdout.StdOutImpl}
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+
+knife4j:
+  # 接口文档开关（生产/答辩外网演示可通过环境变量 KNIFE4J_ENABLE=false 关闭）
+  enable: ${KNIFE4J_ENABLE:true}
+  openapi:
+    title: 教室预约系统接口文档
+    version: 3.1
+    group:
+      default:
+        group-name: 默认分组
+        api-rule: package
+        api-rule-resources: com.example.reservation.controller
+
+# ===== AI 模块配置（第 7 轮启用，密钥仅从环境变量读取，禁止硬编码）=====
+ai:
+  enable: false
+  base-url: https://api.agnes-ai.cn/v1  # 官方国内节点（2026-09-12 密钥实测 200；apihub.agnes-ai.cn 为国际站备用路由，对本项目国内密钥 401）
+  api-key: ${AGNES_API_KEY:}  # 密钥从环境变量读取，禁止硬编码
+  model: agnes-2.0-flash
+  timeout-seconds: 60          # 读取超时（实测模型响应可达数十秒，3s 过短会频繁降级）
+  max-tokens: 1024             # 单次输出上限（防止推荐等场景输出打满 4096 出现乱码/超时）
+  rpm-limit: 20                # 每用户限流（次/分钟）
+  global-rpm-limit: 100        # N2：全站聚合上限（默认 rpmLimit×5=100；超限直接降级，不调用外部）
+
+# ===== Redis 加分项自定义配置（需求设计文档 2.2 第 145 行；一键启停 + 缓存 TTL）=====
+redis:
+  enable: ${REDIS_ENABLE:true}     # 总开关：false 时完全不读写 Redis，退化为纯 JWT 校验 + 直接查库
+  token:
+    key-prefix: "auth:token:"   # 登录 Token Key 前缀（含冒号须加引号），完整 key = auth:token:{userId}
+  cache:
+    stats-ttl-seconds: 60          # 数据看板聚合结果缓存 60s（变化慢，预约/教室变更时主动失效）
+    classroom-ttl-seconds: 60      # 教室列表短缓存 60s（含今日剩余时段等动态数据，不做长缓存）
+
+# ===== 应用自定义配置 =====
+app:
+  jwt:
+    # Token 签名密钥：默认值仅供本地开发，生产/演示环境必须通过环境变量 JWT_SECRET 注入
+    secret: ${JWT_SECRET:reservation-system-jwt-secret-2026}
+    expire-hours: 24
+  cors:
+    # 跨域来源白名单（逗号分隔）；默认 * 保持开发便利，对外部署时收敛为前端实际域名，如 http://localhost:5173,http://127.0.0.1:5173
+    allowed-origins: "*"
+
+
+
+

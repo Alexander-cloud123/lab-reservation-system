@@ -131,7 +131,7 @@
           class="msg-item"
           :class="{ unread: !isRead(msg.id) }"
           v-clickable
-          @click="markRead(msg.id)"
+          @click="openMsgDetail(msg)"
         >
           <div class="msg-icon" :class="`msg-icon-${msg.type}`">
             <el-icon :size="17"><component :is="msgIcon(msg.type)" /></el-icon>
@@ -256,6 +256,58 @@
         <el-button type="warning" :loading="pwdSaving" @click="handleChangePassword">修改密码</el-button>
       </template>
     </el-dialog>
+
+    <!-- 消息详情弹窗：点击消息卡片居中展开该条预约的完整信息（只读，不改动任何数据） -->
+    <el-dialog
+      v-model="msgDialogVisible"
+      :title="activeMsg ? activeMsg.title : '消息详情'"
+      width="min(460px, calc(100vw - 32px))"
+      align-center
+    >
+      <div v-if="activeMsg && activeMsg.detail" class="msg-detail">
+        <div class="msg-detail-head">
+          <div class="msg-icon" :class="`msg-icon-${activeMsg.type}`">
+            <el-icon :size="17"><component :is="msgIcon(activeMsg.type)" /></el-icon>
+          </div>
+          <span class="msg-detail-room">{{ activeMsg.detail.classroomName }}</span>
+          <el-tag :type="statusTagType(activeMsg.detail.status)" size="small" round>
+            {{ statusText(activeMsg.detail.status) }}
+          </el-tag>
+        </div>
+        <dl class="msg-detail-list">
+          <div class="msg-detail-row">
+            <dt>教室位置</dt>
+            <dd>{{ activeMsg.detail.building }} {{ activeMsg.detail.roomNo }}</dd>
+          </div>
+          <div class="msg-detail-row">
+            <dt>预约日期</dt>
+            <dd>{{ activeMsg.detail.reserveDate }}</dd>
+          </div>
+          <div class="msg-detail-row">
+            <dt>使用时段</dt>
+            <dd>
+              {{ activeMsg.detail.startTime }} - {{ activeMsg.detail.endTime }}
+              <span class="msg-detail-note">共 {{ activeDuration }} 小时</span>
+            </dd>
+          </div>
+          <div class="msg-detail-row">
+            <dt>预约用途</dt>
+            <dd>{{ activeMsg.detail.purpose || '未填写' }}</dd>
+          </div>
+          <div class="msg-detail-row">
+            <dt>提交时间</dt>
+            <dd>{{ formatDateTime(activeMsg.detail.createTime) }}</dd>
+          </div>
+          <div v-if="activeMsg.detail.auditRemark" class="msg-detail-row">
+            <dt>审核备注</dt>
+            <dd>{{ activeMsg.detail.auditRemark }}</dd>
+          </div>
+        </dl>
+      </div>
+      <template #footer>
+        <el-button type="primary" @click="msgDialogVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -287,7 +339,7 @@ import { getFavoriteList } from '@/api/favorite'
 import { getMyReservations } from '@/api/reservation'
 import { useUserStore } from '@/stores/user'
 import { formatDateTime } from '@/utils/time'
-import { typeText } from '@/utils/dict'
+import { statusTagType, statusText, typeText } from '@/utils/dict'
 
 // 为满足 multi-word 规则并便于 devtools 辨识
 defineOptions({ name: 'ProfileView' })
@@ -326,6 +378,9 @@ const favLoading = ref(false)
 const favorites = ref([])
 const msgLoading = ref(false)
 const notifications = ref([])
+/** 消息详情弹窗：当前展开的消息（含所关联预约记录的完整字段） */
+const msgDialogVisible = ref(false)
+const activeMsg = ref(null)
 
 /** 最近一次预约展示（空值兜底"暂无"） */
 const lastReserveText = computed(() =>
@@ -405,6 +460,14 @@ function isRead(id) {
 }
 const unreadCount = computed(() => notifications.value.filter((m) => !isRead(m.id)).length)
 
+/** 详情弹窗中的时段时长（小时）：由起止时间字符串求差，保留一位小数 */
+const activeDuration = computed(() => {
+  const d = activeMsg.value && activeMsg.value.detail
+  if (!d) return 0
+  const minutes = dayjs(`2000-01-01 ${d.endTime}`).diff(dayjs(`2000-01-01 ${d.startTime}`), 'minute')
+  return minutes > 0 ? Math.round((minutes / 60) * 10) / 10 : 0
+})
+
 /** 加载数据概览 */
 async function loadStats() {
   try {
@@ -434,6 +497,7 @@ async function loadFavorites() {
  *  - 已通过(1) → 审核结果通知（通过）+ 即将开始提醒（24 小时内）
  *  - 已驳回(2) → 审核结果通知（驳回，含审核备注）
  *  - 已取消(3) 不生成
+ * 每条消息携带 detail（原始预约记录），供点击卡片时展开只读详情弹窗
  */
 async function loadNotifications() {
   msgLoading.value = true
@@ -444,13 +508,15 @@ async function loadNotifications() {
     const messages = []
     list.forEach((r) => {
       const base = `您的「${r.classroomName}」预约（${r.reserveDate} ${r.startTime}-${r.endTime}）`
+      // detail 挂原始预约记录：点击卡片展开详情弹窗时直接取用，无需再发请求
       if (r.status === 0) {
         messages.push({
           id: `pending_${r.id}`,
           type: 'pending',
           title: '预约待审核',
           content: `${base}已提交，等待管理员审核`,
-          time: r.createTime
+          time: r.createTime,
+          detail: r
         })
       } else if (r.status === 1) {
         messages.push({
@@ -458,7 +524,8 @@ async function loadNotifications() {
           type: 'approved',
           title: '审核通过',
           content: `${base}已通过审核`,
-          time: r.auditTime || r.createTime
+          time: r.auditTime || r.createTime,
+          detail: r
         })
         // 即将开始提醒：已通过且开始时间在未来 24 小时内
         const start = dayjs(`${r.reserveDate} ${r.startTime}`)
@@ -468,7 +535,8 @@ async function loadNotifications() {
             type: 'upcoming',
             title: '预约即将开始',
             content: `您的「${r.classroomName}」预约将于 ${r.reserveDate} ${r.startTime} 开始，请准时到场`,
-            time: r.auditTime || r.createTime
+            time: r.auditTime || r.createTime,
+            detail: r
           })
         }
       } else if (r.status === 2) {
@@ -477,7 +545,8 @@ async function loadNotifications() {
           type: 'rejected',
           title: '审核驳回',
           content: `${base}被驳回：${r.auditRemark || '未填写原因'}`,
-          time: r.auditTime || r.createTime
+          time: r.auditTime || r.createTime,
+          detail: r
         })
       }
     })
@@ -497,6 +566,16 @@ function markRead(id) {
     readIds.value = [...readIds.value, id]
     setReadIds(readIds.value)
   }
+}
+
+/**
+ * 点击消息卡片：标记已读并居中展开详情弹窗
+ * 键盘 Enter/Space 由 v-clickable 派发 click，与鼠标走同一入口，语义一致
+ */
+function openMsgDetail(msg) {
+  markRead(msg.id)
+  activeMsg.value = msg
+  msgDialogVisible.value = true
 }
 
 /** 全部标记已读 */
@@ -964,6 +1043,63 @@ onMounted(async () => {
   background: var(--brand-danger);
   flex-shrink: 0;
   margin-top: 8px;
+}
+
+/* ---- 消息详情弹窗（点击卡片居中展开，只读信息） ---- */
+.msg-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color-light);
+}
+
+/* 头部图标与文字同行居中，抵消列表态下的 2px 下移 */
+.msg-detail-head .msg-icon {
+  margin-top: 0;
+}
+
+.msg-detail-room {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.msg-detail-list {
+  margin: 0;
+  padding: 4px 0 0;
+}
+
+.msg-detail-row {
+  display: flex;
+  gap: 12px;
+  padding: 8px 0;
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.msg-detail-row dt {
+  flex-shrink: 0;
+  width: 76px;
+  color: var(--text-placeholder);
+}
+
+.msg-detail-row dd {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.msg-detail-note {
+  margin-left: 8px;
+  color: var(--text-placeholder);
 }
 
 /* ---- ⑥ 账户与安全（分组设置列表，行点击弹窗编辑） ---- */

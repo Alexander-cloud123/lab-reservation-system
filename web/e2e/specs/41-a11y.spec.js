@@ -193,10 +193,17 @@ test.describe('键盘可达性（v-clickable）', () => {
     await expectButtonSemantics(msg, '消息项')
     await expect(msg).toHaveClass(/unread/)
 
-    // Enter 激活消息项 → 即时标记已读（与鼠标点击一致，无需刷新）
+    // Enter 激活消息项 → 即时标记已读（与鼠标点击一致，无需刷新）+ 居中展开只读详情
+    // 注意：弹窗会接管焦点（Element Plus 焦点陷阱），必须先关闭再继续操作页面其他元素
     await msg.press('Enter')
     await expect(msg).not.toHaveClass(/unread/)
     await expect(msg.locator('.msg-dot')).toHaveCount(0)
+
+    const msgDialog = dialogByTitle(page, '预约待审核')
+    await expect(msgDialog).toBeVisible()
+    await expect(msgDialog.locator('.msg-detail-room')).toHaveText('A201')
+    await page.keyboard.press('Escape')
+    await expect(msgDialog).toBeHidden()
 
     // Enter 激活收藏卡片 → 直达教室详情
     await fav.press('Enter')

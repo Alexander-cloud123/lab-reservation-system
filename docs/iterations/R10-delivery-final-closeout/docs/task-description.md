@@ -1,6 +1,6 @@
 # R10 最终交付打包 —— 任务说明书（task-description）
 
-> 轮次：R10-delivery-final-closeout（阶段5 最终交付打包）｜日期：2026-09-25｜基线提交：11862a9（阶段5 无障碍修复）
+> 轮次：R10-delivery-final-closeout（阶段5 最终交付打包）｜日期：2026-09-25｜基线提交：188e4bc（阶段5 无障碍修复 + 41-a11y 无障碍回归用例；`web/src` 业务代码与 11862a9 一致）
 > 依据：《需求设计文档.md》（V3.1）第 1.3 / 1.4 / 1.5 / 2.2 / 2.4 / 2.5 / 3.3 / 3.4 节与第四章「冲优秀答辩核心策略」；AGENTS.md 第 3 节「单轮标准迭代工作流」、第 4.3–4.5 节开发规范、第 5 节交付物标准。
 > 说明：本轮所称「阶段1–5」是项目收尾期的内部阶段划分，**需求设计文档未单列对应章节**（需求文档 3.3 为 8 周迭代计划），故本说明对每项工作标注其真实需求依据来源，不虚构章节号。
 
@@ -10,11 +10,11 @@
 
 | 阶段 | 内容 | 实际产出 | 需求/规范依据 |
 | --- | --- | --- | --- |
-| 阶段1：Playwright E2E 基建 | 在 `web/e2e/` 建立浏览器级回归基建：Playwright 配置（串行 1 worker、Chromium、baseURL 前端 dev server、webServer 自动拉起前端、globalSetup 后端探活）、helpers（api/auth/admin/ui/ai/data/stable-seed）、15 个 spec 文件 | `web/e2e/` 全套基建 + 15 个 spec，覆盖 13 个页面与全部业务流程，共 98 条用例 | 需求文档 1.3（13 页功能清单）、1.4（核心业务规则）、2.4（13 页页面详细设计）；AGENTS.md 第 3 节第 4 步「测试验证」（全量验证：正常流程、边界场景、异常操作、权限校验） |
+| 阶段1：Playwright E2E 基建 | 在 `web/e2e/` 建立浏览器级回归基建：Playwright 配置（串行 1 worker、Chromium、baseURL 前端 dev server、webServer 自动拉起前端、globalSetup 后端探活）、helpers（api/auth/admin/ui/ai/data/stable-seed）、16 个 spec 文件 | `web/e2e/` 全套基建 + 16 个 spec，覆盖 13 个页面与全部业务流程，共 105 条用例 | 需求文档 1.3（13 页功能清单）、1.4（核心业务规则）、2.4（13 页页面详细设计）；AGENTS.md 第 3 节第 4 步「测试验证」（全量验证：正常流程、边界场景、异常操作、权限校验） |
 | 阶段2：后端冻结 | 后端功能与接口契约冻结，打标签 `v1.0-backend-freeze`；冻结后后端仅做质量重构与缺陷修复，不再新增接口语义 | Git 标签 `v1.0-backend-freeze`（仓库内已存在） | 需求文档 2.5（接口模块划分）、3.4（AI 模块专属开发约束）；AGENTS.md 4.3（代码架构规范） |
 | 阶段3：完整性复核 + 3 项前端修复 | 对 13 页功能点与需求清单做完整性复核，修复复核中发现的 3 项前端缺陷：① AI 校验入口消失；② 消息已读状态不响应式（点击后列表不刷新）；③ E2E 教室夹具字段与数据库实际数据不一致 | commit `8a8d024`（AI 校验入口消失、消息已读不刷新，同时把登录提醒改为顶部非阻塞提示）+ commit `651506d`（教室夹具收缩为纯编号索引，移除与库不一致的展示字段） | 需求文档 1.3（学生端「消息通知中心」「AI 预约合规校验」、公共页「登录状态提醒」） |
 | 阶段4：前端视觉改版（飞书工作台设计体系） | 全站视觉改版为「飞书工作台设计体系」，统一设计 token；改版后按 AGENTS.md 4.5 执行 avoid-ai-design 自检与 web-design-guidelines 合规审计 | commit `5a3b614`，**19 个文件**（`src/assets/main.css` + 18 个 .vue：登录/注册/学生端 5 页/管理端 6 页/公共布局/AI 组件 3 个） | AGENTS.md 4.5「前端 UI 去 AI 味规范」（含 4.5.2 设计计划流程、4.5.3 avoid-ai-design 自检、4.5.5 Element Plus 主题定制、4.5.6 web-design-guidelines 合规审计） |
-| 阶段5：无障碍修复 + 最终交付打包 | ① 修复阶段4 遗留的 P1 可访问性问题：为 div 式可点击卡片/列表项补键盘可达性；② 产出 R10 交付包（代码与数据库快照 + 4 份文档） | commit `11862a9`（新增全局指令 `web/src/directives/clickable.js`，在 `main.js` 注册，为 **6 个既有文件 9 类共 19 处** 补 `role="button"` + `tabindex="0"` + Enter/空格激活）；本交付目录 `R10-delivery-final-closeout/` | 需求文档 1.5（易用性：核心操作流程 ≤3 步、关键操作二次确认）；AGENTS.md 4.5.6（web-design-guidelines 100+ 条最佳实践合规审计，可访问性/焦点状态为其中一类）。**需求设计文档未单列「无障碍」章节**，本阶段依据为上述规范条款 |
+| 阶段5：无障碍修复 + 最终交付打包 | ① 修复阶段4 遗留的 P1 可访问性问题：为 div 式可点击卡片/列表项补键盘可达性；② 产出 R10 交付包（代码与数据库快照 + 4 份文档） | commit `11862a9`（新增全局指令 `web/src/directives/clickable.js`，在 `main.js` 注册，为 **6 个既有文件 9 类共 19 处** 补 `role="button"` + `tabindex="0"` + Enter/空格激活，并由 commit `188e4bc` 补 `web/e2e/specs/41-a11y.spec.js`（7 条）建立回归护栏）；本交付目录 `R10-delivery-final-closeout/` | 需求文档 1.5（易用性：核心操作流程 ≤3 步、关键操作二次确认）；AGENTS.md 4.5.6（web-design-guidelines 100+ 条最佳实践合规审计，可访问性/焦点状态为其中一类）。**需求设计文档未单列「无障碍」章节**，本阶段依据为上述规范条款 |
 
 阶段5 可访问性修复的逐处清单（6 个既有文件、9 类、19 处）：
 
@@ -52,7 +52,7 @@
 | --- | --- | --- | --- |
 | 1 | 前端静态检查 | `npm run lint`（ESLint flat config，`--max-warnings 0`）零告警 | 0 error / 0 warning ✅ |
 | 2 | 前端生产构建 | `npm run build`（Vite 5）成功且无报错 | 构建成功，2101 modules transformed ✅ |
-| 3 | 浏览器级全量回归 | 全部 spec 用例通过 | 98 passed / 98 total，耗时 1.9m，1 worker，Chromium ✅ |
+| 3 | 浏览器级全量回归 | 全部 spec 用例通过 | 105 passed / 105 total，耗时 2.0m，1 worker，Chromium ✅ |
 | 4 | 后端单元测试 | `mvn test`（Surefire）全部用例通过 | Tests run: 34, Failures: 0, Errors: 0, Skipped: 0；BUILD SUCCESS，耗时 1:48 ✅ |
 | 5 | 数据库基线 | 回归后数据回到交付基线 | 预约 13 / 用户 5 / 教室 12 / E2E 临时教室残留 0 ✅ |
 | 6 | 13 页功能完整 | 需求文档 1.3 功能点全覆盖，E2E 用例逐页对应 | 见 test-report 第四节覆盖映射 ✅ |
@@ -65,7 +65,7 @@
 ```
 npm run lint（web）      : 0 error / 0 warning
 npm run build（web）     : Vite 5 构建成功，2101 modules transformed
-全量 E2E（web/e2e）      : 98 passed / 98 total，耗时 1.9m，1 worker，Chromium
+全量 E2E（web/e2e）      : 105 passed / 105 total，耗时 2.0m，1 worker，Chromium
 mvn -B test（server）    : Tests run: 34, Failures: 0, Errors: 0, Skipped: 0 — BUILD SUCCESS，耗时 1:48
 数据库基线（回归后）      : 预约 13 / 用户 5 / 教室 12 / E2E 临时教室残留 0
 ```
@@ -76,13 +76,13 @@ mvn -B test（server）    : Tests run: 34, Failures: 0, Errors: 0, Skipped: 0 �
 
 交付物按**仓库既有约定分两处存放**（与 R1–R7 各轮交付包结构一致）：代码与数据库快照在 `archive/`，交付文档在 `docs/iterations/`。**文档不在 `archive/` 包内**，请勿在代码快照目录下查找。
 
-**① 代码与数据库快照** —— `archive/R10-delivery-final-closeout/`（共 182 个文件）
+**① 代码与数据库快照** —— `archive/R10-delivery-final-closeout/`（共 183 个文件）
 
 ```
 archive/R10-delivery-final-closeout/
 ├── code/
 │   ├── reservation-server/   # 后端快照 112 文件（= 项目根 server/，排除 target/ 与日志）
-│   └── reservation-web/      # 前端快照 69 文件（= 项目根 web/，排除 node_modules/ dist/ e2e-report/ test-results/ 与日志）
+│   └── reservation-web/      # 前端快照 70 文件（= 项目根 web/，排除 node_modules/ dist/ e2e-report/ test-results/ 与日志）
 └── database/
     └── init_db.sql           # 数据库初始化脚本（与项目根 database/init_db.sql SHA256 一致）
 ```
@@ -99,13 +99,13 @@ docs/iterations/R10-delivery-final-closeout/
 ```
 
 - **与 AGENTS.md 第 5 节字面形态的差异（如实声明）**：第 5 节描述的是「`代码/` + `文档/` + `启动说明.md` 同包」的中文命名单一交付包；本轮沿用仓库 R1–R9 既有约定，代码快照与文档分两处存放、文档用英文文件名。**内容齐备、无缺项**，仅为目录与命名形态差异。若需改为第 5 节字面形态，属交付规范调整，须经项目负责人确认后执行（AGENTS.md 1.1）。
-- 本轮为收尾打包轮：**未修改 `server/` 与 `web/src/` 下任何代码**，交付快照即为阶段5 完成后的代码状态（HEAD 11862a9）。
+- 本轮为收尾打包轮：**未修改 `server/` 与 `web/src/` 下任何代码**，交付快照即为阶段5 完成后的代码状态（`web/src` 与 HEAD 11862a9 一致），并在 `188e4bc` 追加 `web/e2e/specs/41-a11y.spec.js`（无障碍回归用例，同步进快照）。
 - 快照不含构建产物与运行日志；前端 `node_modules/` 需按 `startup-guide.md` 执行 `npm install` 还原。
 
 ## 六、已知限制与说明
 
 1. **`.room-card` 主动排除**：`ClassroomList.vue` 的教室卡片内部已有真实按钮，未加 `role="button"` 以避免嵌套交互与双 Tab 停靠；这是主动设计决策，不是遗漏。若后续调整该卡片内部结构（移除内部按钮），需重新评估是否补键盘语义。
-2. **无障碍覆盖边界**：阶段5 仅解决「div 式可点击元素键盘不可达」这一类问题（role/tabindex/Enter/空格）；未做完整 WCAG 审计（如对比度、读屏全流程脚本化验证），属已知未覆盖范围。
+2. **无障碍覆盖边界**：阶段5 仅解决「div 式可点击元素键盘不可达」这一类问题（role/tabindex/Enter/空格，19 处已由 `41-a11y.spec.js` 建立回归护栏）；未做完整 WCAG 审计（如对比度、读屏全流程脚本化验证），属已知未覆盖范围。
 3. **AI 为可降级外部依赖**：`ai.enable=false`（交付默认）时 AI 接口返回 `enabled=false` 友好提示，前端隐藏 AI 入口，核心系统不受影响；启用后无密钥/限流/超时自动降级本地规则，链路不阻断。
 4. **E2E 环境依赖**：E2E 依赖本地容器 MySQL/Redis 与已启动后端（脚本不自动启动后端），端口不符会导致探活失败；本轮实测环境为 1 worker 串行。
 5. **需求文档无「阶段」章节**：如本说明开篇所述，「阶段1–5」为项目内部收尾阶段划分，需求文档未单列，依据已逐条对应到 1.3 / 1.4 / 1.5 / 2.4 / 2.5 / 3.3 / 3.4 与 AGENTS.md 相关条款。

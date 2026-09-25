@@ -2,7 +2,7 @@
 
 > 交付包根目录：`archive/R10-delivery-final-closeout/`
 > 代码快照：后端 `code/reservation-server/`（= 项目根 `server/`，排除 `target/` 与日志）、前端 `code/reservation-web/`（= 项目根 `web/`，排除 `node_modules/`、`dist/`、`e2e-report/`、`test-results/` 与日志）；数据库脚本：`database/init_db.sql`。
-> 对应仓库提交：HEAD `11862a9`（阶段5 无障碍修复）；后端冻结标签：`v1.0-backend-freeze`。
+> 对应仓库提交：HEAD `188e4bc`（阶段5 无障碍修复 + 41-a11y 无障碍回归用例；`web/src` 业务代码与 `11862a9` 一致）；后端冻结标签：`v1.0-backend-freeze`。
 > 技术栈：Spring Boot 3.2.10 / Vue 3.4 + Vite 5 / Element Plus 2.7 / MySQL 8.0 / Redis 7.0。
 
 ## 一、环境要求
@@ -132,14 +132,14 @@ $env:MYSQL_PASSWORD='root'; $env:REDIS_PORT='6380'
 ```powershell
 # 前置：MySQL / Redis 容器在线，后端已启动（Playwright 不自动起后端，仅探活）
 cd archive\R10-delivery-final-closeout\code\reservation-web
-npm run test:e2e            # 全量 15 spec / 98 用例（串行 1 worker，Chromium）
+npm run test:e2e            # 全量 16 spec / 105 用例（串行 1 worker，Chromium）
 npm run test:e2e:smoke      # 仅骨架冒烟
 npm run test:e2e:report     # 查看 HTML 报告（e2e-report/html）
 ```
 
 - 默认后端端口 8080；若被占用：后端以 `--server.port=8081` 启动，并设 `$env:E2E_API_PORT='8081'` 后重跑。
 - 用例串行执行（共享同一 MySQL 库），前端 dev server 由 Playwright 自动拉起（`reuseExistingServer: true`）。
-- 实测基线（最终交付口径）：`npm run lint` 0 error / 0 warning；`npm run build` 成功（2101 modules）；E2E **98/98 通过**，耗时 1.9m（本轮实测后端为 **8081**——8080 被占用，经 `E2E_API_PORT=8081` + `VITE_API_TARGET=http://localhost:8081` 覆盖；交付默认仍为 8080，按本节上文默认配置复跑即可）；后端 `mvn test` **34/34 通过**（BUILD SUCCESS，1:48）；回归后数据库 预约 13 / 用户 5 / 教室 12 / E2E 临时教室残留 0。
+- 实测基线（最终交付口径）：`npm run lint` 0 error / 0 warning；`npm run build` 成功（2101 modules）；E2E **105/105 通过**，耗时 2.0m（最近一次全量回归实测后端为**交付默认端口 8080**；交付打包首次实测时 8080 曾一度被占用，当时经 `E2E_API_PORT=8081` + `VITE_API_TARGET=http://localhost:8081` 覆盖跑通，两种端口下结论一致）；后端 `mvn test` **34/34 通过**（BUILD SUCCESS，1:48）；回归后数据库 预约 13 / 用户 5 / 教室 12 / E2E 临时教室残留 0。
 
 ## 九、常见故障排查
 

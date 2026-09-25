@@ -9,7 +9,10 @@
     "preview": "vite preview",
     "lint": "eslint src --max-warnings 0",
     "lint:fix": "eslint src --fix",
-    "format": "prettier --write \"src/**/*.{js,vue,css}\""
+    "format": "prettier --write \"src/**/*.{js,vue,css}\"",
+    "test:e2e": "playwright test",
+    "test:e2e:smoke": "playwright test e2e/specs/00-smoke.spec.js",
+    "test:e2e:report": "playwright show-report e2e-report/html"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
@@ -23,6 +26,7 @@
     "vue-router": "4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@vitejs/plugin-vue": "^5.1.2",
     "eslint": "^9.39.4",
     "eslint-config-prettier": "^9.1.2",

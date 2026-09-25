@@ -3,6 +3,9 @@ import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
 
 // 开发代理：/api 转发到后端 8080，前端无跨域问题
+// VITE_API_TARGET 可覆盖代理目标：本机 8080 被他项目占用时（如 E2E 环境跑在 8081）无需改本文件
+const apiTarget = process.env.VITE_API_TARGET || 'http://localhost:8080'
+
 export default defineConfig({
   plugins: [vue()],
   resolve: {
@@ -15,7 +18,7 @@ export default defineConfig({
     host: '127.0.0.1',
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: apiTarget,
         changeOrigin: true
       }
     }

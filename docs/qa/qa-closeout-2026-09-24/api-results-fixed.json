@@ -1,0 +1,87 @@
+{
+  "total": 16,
+  "passed": 14,
+  "failed": 2,
+  "results": [
+    {
+      "case_id": "TC-CLASS-006",
+      "status": "passed",
+      "actual": "statusLabel 取值=[\"当前空闲\"]"
+    },
+    {
+      "case_id": "TC-FAV-004",
+      "status": "passed",
+      "actual": "收藏数=10 第11间code=400 msg=收藏数量已达上限（10 间），请先取消部分收藏"
+    },
+    {
+      "case_id": "TC-RES-001",
+      "status": "passed",
+      "actual": "无重叠(18:00-20:00) conflict=False"
+    },
+    {
+      "case_id": "TC-RES-002",
+      "status": "passed",
+      "actual": "部分重叠(14:30-15:30) conflict=True"
+    },
+    {
+      "case_id": "TC-RES-003",
+      "status": "failed",
+      "actual": "首尾相接(15:00-17:00) conflict=True"
+    },
+    {
+      "case_id": "TC-RES-004",
+      "status": "passed",
+      "actual": "完全包含(13:00-16:00) conflict=True"
+    },
+    {
+      "case_id": "TC-RES-006",
+      "status": "passed",
+      "actual": "重叠提交被拒 code=400 msg=该时段与「14:00-15:00」的已通过预约冲突"
+    },
+    {
+      "case_id": "TC-AUD-002",
+      "status": "passed",
+      "actual": "通过 code=200 状态=1 auditorId=1"
+    },
+    {
+      "case_id": "TC-AUD-003",
+      "status": "passed",
+      "actual": "驳回 code=200 状态=2 备注=用途不明确，请补充具体教学/实验用途"
+    },
+    {
+      "case_id": "TC-AUD-004",
+      "status": "passed",
+      "actual": "缺备注 code=400 msg=驳回必须填写审核备注"
+    },
+    {
+      "case_id": "TC-AUD-005",
+      "status": "passed",
+      "actual": "非待审核再审核 code=400 msg=仅待审核状态的预约可审核"
+    },
+    {
+      "case_id": "TC-AUD-006",
+      "status": "passed",
+      "actual": "批量通过 code=200 data=2 状态=1/1"
+    },
+    {
+      "case_id": "TC-AUD-007",
+      "status": "passed",
+      "actual": "混入已审核后 b1=1 b2=1（保持已通过不被覆盖）"
+    },
+    {
+      "case_id": "TC-PROF-002",
+      "status": "passed",
+      "actual": "旧密码错拒绝=True 改密=True 新密码登录=True"
+    },
+    {
+      "case_id": "TC-CAL-001",
+      "status": "failed",
+      "actual": "日历区间 events=0 首条=None"
+    },
+    {
+      "case_id": "TC-AI-001",
+      "status": "passed",
+      "actual": "推荐条数=0"
+    }
+  ]
+}

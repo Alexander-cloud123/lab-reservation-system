@@ -1,0 +1,22 @@
+{
+  "total": 3,
+  "passed": 3,
+  "failed": 0,
+  "results": [
+    {
+      "case_id": "TC-RES-003",
+      "status": "passed",
+      "actual": "首尾相接(15:00-17:00 接 14:00-15:00) conflict=False code=200 msg=操作成功"
+    },
+    {
+      "case_id": "TC-RES-012",
+      "status": "passed",
+      "actual": "1小时内取消 code=400 msg=预约开始前 1 小时内禁止取消，如需调整请联系管理员"
+    },
+    {
+      "case_id": "TC-CAL-001",
+      "status": "passed",
+      "actual": "日历区间 events=17 code=200 首条={\"id\": 72, \"classroomId\": 1, \"classroomName\": \"A101多媒体教室\", \"building\": \"信息楼\", \"roomNo\": \"A101\", \"reserveDate\": \"2026-09-"
+    }
+  ]
+}

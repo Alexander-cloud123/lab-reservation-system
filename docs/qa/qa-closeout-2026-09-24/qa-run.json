@@ -1,0 +1,4197 @@
+{
+  "schema_version": 2,
+  "run_id": "qa-a7bbf90bed58",
+  "revision": 4,
+  "profile": "full",
+  "test_intent": "non_ui_validation",
+  "execution_level": "blocked",
+  "selected_path": "undetermined",
+  "created_at": "2026-09-24T13:12:26.041208+00:00",
+  "target": {
+    "type": "attachment_or_directory",
+    "name": "实验室/教室预约管理系统",
+    "source": "C:\\Users\\72797\\Course\\reservation-system"
+  },
+  "request_contract": {
+    "request_summary": "对实验室/教室预约管理系统进行全部业务端到端测试：学生端（双角色登录、学生注册、教室列表浏览与多条件筛选、实时状态标签、筛选记忆、详情查看、收藏上限10、预约提交与前端冲突检测、我的预约管理按状态分类与取消、取消时限、个人中心与数据概览、消息通知、预约日历总览）、管理员端（首页数据概览、教室增删改查与批量操作、预约审核通过/驳回/快捷驳回原因/批量审核仅待审核、用户管理禁用启用与重置密码、预约记录多条件查询与Excel导出、数据看板三图表）、AI模块（智能推荐Top3、自然语言预约解析、预约合规校验、智能助手限定场景、AI只读不写、超时降级容错、双开关启停）、非功能（权限拦截401/403、前后端双重校验、核心冲突检测公式边界）",
+    "request_hash": "sha256:53a68071b7d07d861d2e3177af65f0ddd8f5f20f9f3ae6a45de2cd866d731abb",
+    "task_mode": "execution_review",
+    "scope": {
+      "included_source_ids": [],
+      "excluded_source_ids": [],
+      "included_rounds": [],
+      "excluded_rounds": []
+    },
+    "evidence_policy": {
+      "allow_new_execution": true,
+      "allow_precheck_bug_promotion": false,
+      "required_bug_evidence_level": "L2_observation"
+    },
+    "delivery": {
+      "artifact_required": true,
+      "format": "xlsx",
+      "carrier": "office_file",
+      "filenames": [
+        "实验室-教室预约管理系统-QA收口报告.xlsx"
+      ],
+      "artifacts": [
+        {
+          "format": "xlsx",
+          "carrier": "office_file",
+          "filename": "实验室-教室预约管理系统-QA收口报告.xlsx"
+        }
+      ],
+      "required_sections": [],
+      "section_order": [],
+      "must_surface_to_user": true
+    }
+  },
+  "phase_receipts": [
+    {
+      "stage": "baseline",
+      "revision": 2,
+      "state": "CLOSED",
+      "checked_at": "2026-09-24T13:16:07.312678+00:00",
+      "source_fingerprint": "sha256:b7f8573fd00dde1530c0624d6835c0e23d6592b5e1848fd13d041b3911f85c36",
+      "warnings": 0
+    },
+    {
+      "stage": "baseline",
+      "revision": 3,
+      "state": "CLOSED",
+      "checked_at": "2026-09-24T13:19:06.183073+00:00",
+      "source_fingerprint": "sha256:c4bbaa0305297a62463b650589619baebb732efb0dd92e17a8dd4c77c45b8b00",
+      "warnings": 0
+    },
+    {
+      "stage": "design",
+      "revision": 3,
+      "state": "CLOSED",
+      "checked_at": "2026-09-24T13:19:11.889966+00:00",
+      "source_fingerprint": "sha256:c4bbaa0305297a62463b650589619baebb732efb0dd92e17a8dd4c77c45b8b00",
+      "warnings": 0
+    },
+    {
+      "stage": "baseline",
+      "revision": 4,
+      "state": "DISCLOSE",
+      "checked_at": "2026-09-24T13:39:23.095174+00:00",
+      "source_fingerprint": "sha256:c2077ed5a573270fe4b456ff944ae0182400be241c9b5d09cb4d899e20dce196",
+      "warnings": 178
+    },
+    {
+      "stage": "design",
+      "revision": 4,
+      "state": "DISCLOSE",
+      "checked_at": "2026-09-24T13:39:38.258462+00:00",
+      "source_fingerprint": "sha256:c2077ed5a573270fe4b456ff944ae0182400be241c9b5d09cb4d899e20dce196",
+      "warnings": 178
+    },
+    {
+      "stage": "execution",
+      "revision": 4,
+      "state": "DISCLOSE",
+      "checked_at": "2026-09-24T13:39:44.899323+00:00",
+      "source_fingerprint": "sha256:c2077ed5a573270fe4b456ff944ae0182400be241c9b5d09cb4d899e20dce196",
+      "warnings": 178
+    }
+  ],
+  "input": {
+    "summary": "实验室/教室预约管理系统（前后端分离：Spring Boot 3.2.10 + Vue 3.4 + MySQL 8 + Redis 7，AI 模块 Agnes 接入可降级）。唯一需求依据《需求设计文档.md》V3.1：13 页面（2 公共 + 5 学生端 + 6 管理端），核心规则为预约冲突检测公式（新开始<旧结束 AND 新结束>旧开始，仅与已通过预约比较，前后端双重校验）与状态流转（0-待审核→1-已通过/2-已驳回；0/1→3-已取消），取消时限为开始前 1 小时；收藏上限 10；批量审核仅待审核；AI 双开关启停、只读不写、超时 60s 降级。测试账号：管理员 admin/admin123；学生 zhangsan/lisi/wangwu/zhaoliu 均 123456。当前代码源为 server/ + web/（R8 最终版 + R9 加固），数据库容器 reservation-mysql（库 reservation，5 用户/12 教室/15 预约）。",
+    "sources": [
+      {
+        "id": "SRC-001",
+        "type": "requirement_doc",
+        "locator": "需求设计文档.md（V3.1）",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 5,
+        "reviewed_item_count": 5
+      },
+      {
+        "id": "SRC-002",
+        "type": "sql",
+        "locator": "database/init_db.sql",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 5,
+        "reviewed_item_count": 5
+      },
+      {
+        "id": "SRC-003",
+        "type": "config",
+        "locator": "server/src/main/resources/application.yml",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 1,
+        "reviewed_item_count": 1
+      },
+      {
+        "id": "SRC-004",
+        "type": "readme",
+        "locator": "README.md",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 1,
+        "reviewed_item_count": 1
+      },
+      {
+        "id": "SRC-005",
+        "type": "test_report",
+        "locator": "docs/iterations/R9-code-quality-refactor/test-report.md",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 1,
+        "reviewed_item_count": 1
+      },
+      {
+        "id": "SRC-006",
+        "type": "api_list",
+        "locator": "docs/iterations/R8-delivery-defense-prep/接口清单.md",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 1,
+        "reviewed_item_count": 1
+      },
+      {
+        "id": "SRC-007",
+        "type": "backend_code",
+        "locator": "server/src/main/java/com/example/reservation（controller/service/ai）",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 7,
+        "reviewed_item_count": 7
+      },
+      {
+        "id": "SRC-008",
+        "type": "frontend_code",
+        "locator": "web/src（router/views/api）",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 13,
+        "reviewed_item_count": 13
+      },
+      {
+        "id": "SRC-009",
+        "type": "test_report",
+        "locator": "docs/iterations/R8-delivery-defense-prep/test-report.md（228 条回归）",
+        "access_status": "read",
+        "completeness_checked": true,
+        "item_count": 1,
+        "reviewed_item_count": 1
+      }
+    ],
+    "assumptions": [
+      "以 server/ + web/ 当前工作区代码为唯一被测版本（R8 最终版 + R9 加固，git 历史可见）。",
+      "测试账号与数据以 database/init_db.sql 种子数据为准；数据库当前 15 条预约（含历史测试新增 2 条，不影响规则验证，冲突检测以已通过预约为准）。",
+      "AI 模块默认 ai.enable=false（双开关均 false 时本地规则模拟/降级路径即为线上默认行为）；如需验证真实模型链路由 AGNES_API_KEY 环境变量控制。",
+      "Redis 为可选加分项：redis.enable=true 时 Token 缓存走 Redis；不可用时业务层降级直查库，不作为阻塞条件。",
+      "系统运行环境：Windows 宿主 + Docker MySQL/Redis + JDK 21 + Node 22；后端端口 8080、前端 5173。"
+    ],
+    "conflicts": [
+      "R8 接口清单状态口径写『类型：0-普通 1-多媒体 2-机房』，与需求设计文档 2.3 教室类型（1-普通教室 2-实验室 3-机房）不一致；经与当前代码 ClassroomController/ClassroomStudentController 核对，实际枚举为 1-普通教室/2-实验室/3-机房，以需求文档与代码实况为准（标注为文档口径差异，非产品缺陷）。"
+    ],
+    "artifacts": [
+      {
+        "id": "SRC-001",
+        "type": "requirement_doc",
+        "locator": "需求设计文档.md（V3.1）",
+        "access_status": "read",
+        "completeness_checked": true
+      }
+    ]
+  },
+  "open_questions": [],
+  "change_ledger": [
+    {
+      "id": "CHG-001",
+      "revision": 4,
+      "action": "ADD",
+      "object_type": "run",
+      "added_ids": [
+        "qa-a7bbf90bed58"
+      ],
+      "removed_ids": [],
+      "modified_ids": [],
+      "before_count": 0,
+      "after_count": 1,
+      "delta_count": 1,
+      "source": "qa_flow.py normalize",
+      "summary": "根据当前 canonical 重建机械计数台账"
+    },
+    {
+      "id": "CHG-002",
+      "revision": 4,
+      "action": "ADD",
+      "object_type": "requirement",
+      "added_ids": [
+        "REQ-RESERVATIONE-001",
+        "REQ-RESERVATIONE-002",
+        "REQ-RESERVATIONE-003",
+        "REQ-RESERVATIONE-004",
+        "REQ-RESERVATIONE-005",
+        "REQ-RESERVATIONE-006",
+        "REQ-RESERVATIONE-007",
+        "REQ-RESERVATIONE-008",
+        "REQ-RESERVATIONE-009",
+        "REQ-RESERVATIONE-010",
+        "REQ-RESERVATIONE-011",
+        "REQ-RESERVATIONE-012",
+        "REQ-RESERVATIONE-013",
+        "REQ-RESERVATIONE-014",
+        "REQ-RESERVATIONE-015",
+        "REQ-RESERVATIONE-016",
+        "REQ-RESERVATIONE-017",
+        "REQ-RESERVATIONE-018",
+        "REQ-RESERVATIONE-019",
+        "REQ-RESERVATIONE-020",
+        "REQ-RESERVATIONE-021",
+        "REQ-RESERVATIONE-022",
+        "REQ-RESERVATIONE-023",
+        "REQ-RESERVATIONE-024",
+        "REQ-RESERVATIONE-025",
+        "REQ-RESERVATIONE-026",
+        "REQ-RESERVATIONE-027",
+        "REQ-RESERVATIONE-028",
+        "REQ-RESERVATIONE-029",
+        "REQ-RESERVATIONE-030",
+        "REQ-RESERVATIONE-031",
+        "REQ-RESERVATIONE-032",
+        "REQ-RESERVATIONE-033",
+        "REQ-RESERVATIONE-034",
+        "REQ-RESERVATIONE-035",
+        "REQ-RESERVATIONE-036",
+        "REQ-RESERVATIONE-037",
+        "REQ-RESERVATIONE-038",
+        "REQ-RESERVATIONE-039",
+        "REQ-RESERVATIONE-040",
+        "REQ-RESERVATIONE-041",
+        "REQ-RESERVATIONE-042",
+        "REQ-RESERVATIONE-043",
+        "REQ-RESERVATIONE-044"
+      ],
+      "removed_ids": [],
+      "modified_ids": [],
+      "before_count": 0,
+      "after_count": 44,
+      "delta_count": 44,
+      "source": "qa_flow.py normalize",
+      "summary": "根据当前 canonical 重建机械计数台账"
+    },
+    {
+      "id": "CHG-003",
+      "revision": 4,
+      "action": "ADD",
+      "object_type": "risk_mechanism",
+      "added_ids": [
+        "RM-CORE-001",
+        "RM-CORE-002",
+        "RM-CORE-003",
+        "RM-CORE-004",
+        "RM-AUTH-001",
+        "RM-AUTH-002",
+        "RM-AUTH-003",
+        "RM-BATCH-001",
+        "RM-FAV-001",
+        "RM-DATA-001",
+        "RM-EXPORT-001",
+        "RM-AI-001",
+        "RM-AI-002",
+        "RM-AI-003",
+        "RM-VALID-001"
+      ],
+      "removed_ids": [],
+      "modified_ids": [],
+      "before_count": 0,
+      "after_count": 15,
+      "delta_count": 15,
+      "source": "qa_flow.py normalize",
+      "summary": "根据当前 canonical 重建机械计数台账"
+    },
+    {
+      "id": "CHG-004",
+      "revision": 4,
+      "action": "ADD",
+      "object_type": "case",
+      "added_ids": [
+        "TC-AUTH-001",
+        "TC-AUTH-002",
+        "TC-AUTH-003",
+        "TC-AUTH-004",
+        "TC-AUTH-005",
+        "TC-AUTH-006",
+        "TC-AUTH-007",
+        "TC-AUTH-008",
+        "TC-AUTH-009",
+        "TC-PERM-001",
+        "TC-PERM-002",
+        "TC-PERM-003",
+        "TC-PERM-004",
+        "TC-PERM-005",
+        "TC-CLASS-001",
+        "TC-CLASS-002",
+        "TC-CLASS-003",
+        "TC-CLASS-004",
+        "TC-CLASS-005",
+        "TC-CLASS-006",
+        "TC-FAV-001",
+        "TC-FAV-002",
+        "TC-FAV-003",
+        "TC-FAV-004",
+        "TC-RES-001",
+        "TC-RES-002",
+        "TC-RES-003",
+        "TC-RES-004",
+        "TC-RES-005",
+        "TC-RES-006",
+        "TC-RES-007",
+        "TC-RES-008",
+        "TC-RES-009",
+        "TC-RES-010",
+        "TC-RES-011",
+        "TC-RES-012",
+        "TC-RES-013",
+        "TC-RES-014",
+        "TC-RES-015",
+        "TC-AUD-001",
+        "TC-AUD-002",
+        "TC-AUD-003",
+        "TC-AUD-004",
+        "TC-AUD-005",
+        "TC-AUD-006",
+        "TC-AUD-007",
+        "TC-AUD-008",
+        "TC-ADMC-001",
+        "TC-ADMC-002",
+        "TC-ADMC-003",
+        "TC-ADMC-004",
+        "TC-ADMC-005",
+        "TC-ADMC-006",
+        "TC-ADMU-001",
+        "TC-ADMU-002",
+        "TC-ADMU-003",
+        "TC-ADMU-004",
+        "TC-STAT-001",
+        "TC-STAT-002",
+        "TC-STAT-003",
+        "TC-STAT-004",
+        "TC-REC-001",
+        "TC-REC-002",
+        "TC-PROF-001",
+        "TC-PROF-002",
+        "TC-PROF-003",
+        "TC-CAL-001",
+        "TC-AI-001",
+        "TC-AI-002",
+        "TC-AI-003",
+        "TC-AI-004",
+        "TC-AI-005",
+        "TC-AI-006",
+        "TC-UI-001",
+        "TC-UI-002",
+        "TC-UI-003",
+        "TC-UI-004",
+        "TC-UI-005",
+        "TC-UI-006",
+        "TC-UI-007"
+      ],
+      "removed_ids": [],
+      "modified_ids": [],
+      "before_count": 0,
+      "after_count": 80,
+      "delta_count": 80,
+      "source": "qa_flow.py normalize",
+      "summary": "根据当前 canonical 重建机械计数台账"
+    },
+    {
+      "id": "CHG-005",
+      "revision": 4,
+      "action": "ADD",
+      "object_type": "execution",
+      "added_ids": [
+        "EXE-RESERVATIONE-0001",
+        "EXE-RESERVATIONE-0002",
+        "EXE-RESERVATIONE-0003",
+        "EXE-RESERVATIONE-0004",
+        "EXE-RESERVATIONE-0005",
+        "EXE-RESERVATIONE-0006",
+        "EXE-RESERVATIONE-0007",
+        "EXE-RESERVATIONE-0008",
+        "EXE-RESERVATIONE-0009",
+        "EXE-RESERVATIONE-0010",
+        "EXE-RESERVATIONE-0011",
+        "EXE-RESERVATIONE-0012",
+        "EXE-RESERVATIONE-0013",
+        "EXE-RESERVATIONE-0014",
+        "EXE-RESERVATIONE-0015",
+        "EXE-RESERVATIONE-0016",
+        "EXE-RESERVATIONE-0017",
+        "EXE-RESERVATIONE-0018",
+        "EXE-RESERVATIONE-0019",
+        "EXE-RESERVATIONE-0020",
+        "EXE-RESERVATIONE-0021",
+        "EXE-RESERVATIONE-0022",
+        "EXE-RESERVATIONE-0023",
+        "EXE-RESERVATIONE-0024",
+        "EXE-RESERVATIONE-0025",
+        "EXE-RESERVATIONE-0026",
+        "EXE-RESERVATIONE-0027",
+        "EXE-RESERVATIONE-0028",
+        "EXE-RESERVATIONE-0029",
+        "EXE-RESERVATIONE-0030",
+        "EXE-RESERVATIONE-0031",
+        "EXE-RESERVATIONE-0032",
+        "EXE-RESERVATIONE-0033",
+        "EXE-RESERVATIONE-0034",
+        "EXE-RESERVATIONE-0035",
+        "EXE-RESERVATIONE-0036",
+        "EXE-RESERVATIONE-0037",
+        "EXE-RESERVATIONE-0038",
+        "EXE-RESERVATIONE-0039",
+        "EXE-RESERVATIONE-0040",
+        "EXE-RESERVATIONE-0041",
+        "EXE-RESERVATIONE-0042",
+        "EXE-RESERVATIONE-0043",
+        "EXE-RESERVATIONE-0044",
+        "EXE-RESERVATIONE-0045",
+        "EXE-RESERVATIONE-0046",
+        "EXE-RESERVATIONE-0047",
+        "EXE-RESERVATIONE-0048",
+        "EXE-RESERVATIONE-0049",
+        "EXE-RESERVATIONE-0050",
+        "EXE-RESERVATIONE-0051",
+        "EXE-RESERVATIONE-0052",
+        "EXE-RESERVATIONE-0053",
+        "EXE-RESERVATIONE-0054",
+        "EXE-RESERVATIONE-0055",
+        "EXE-RESERVATIONE-0056",
+        "EXE-RESERVATIONE-0057",
+        "EXE-RESERVATIONE-0058",
+        "EXE-RESERVATIONE-0059",
+        "EXE-RESERVATIONE-0060",
+        "EXE-RESERVATIONE-0061",
+        "EXE-RESERVATIONE-0062",
+        "EXE-RESERVATIONE-0063",
+        "EXE-RESERVATIONE-0064",
+        "EXE-RESERVATIONE-0065",
+        "EXE-RESERVATIONE-0066",
+        "EXE-RESERVATIONE-0067",
+        "EXE-RESERVATIONE-0068",
+        "EXE-RESERVATIONE-0069",
+        "EXE-RESERVATIONE-0070",
+        "EXE-RESERVATIONE-0071",
+        "EXE-RESERVATIONE-0072",
+        "EXE-RESERVATIONE-0073",
+        "EXE-RESERVATIONE-0074",
+        "EXE-RESERVATIONE-0075",
+        "EXE-RESERVATIONE-0076",
+        "EXE-RESERVATIONE-0077",
+        "EXE-RESERVATIONE-0078",
+        "EXE-RESERVATIONE-0079",
+        "EXE-RESERVATIONE-0080",
+        "EXE-RESERVATIONE-0081",
+        "EXE-RESERVATIONE-0082",
+        "EXE-RESERVATIONE-0083",
+        "EXE-RESERVATIONE-0084",
+        "EXE-RESERVATIONE-0085",
+        "EXE-RESERVATIONE-0086"
+      ],
+      "removed_ids": [],
+      "modified_ids": [],
+      "before_count": 0,
+      "after_count": 86,
+      "delta_count": 86,
+      "source": "qa_flow.py normalize",
+      "summary": "根据当前 canonical 重建机械计数台账"
+    }
+  ],
+  "environment": {},
+  "screenshot_policy": "unconfirmed",
+  "plan": {
+    "scope": [],
+    "out_of_scope": [],
+    "entry_criteria": [],
+    "exit_criteria": [],
+    "regression": []
+  },
+  "requirements": [
+    {
+      "id": "REQ-RESERVATIONE-001",
+      "summary": "双角色登录：学生/管理员角色切换登录，表单校验，错误提示",
+      "source": "SRC-001",
+      "risk": "登录失败信息不明确或角色判定错误导致越权",
+      "behavior": {
+        "given": "未登录用户",
+        "when": "以正确/错误账号密码 + 角色登录",
+        "then": "正确凭证返回 token 并跳转角色首页；错误凭证返回明确提示；角色不符被拒绝"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-002",
+      "summary": "学生自主注册：信息填写、唯一性校验、密码加密存储",
+      "source": "SRC-001",
+      "risk": "账号重复、密码明文存储、学号缺失",
+      "behavior": {
+        "given": "未注册用户",
+        "when": "提交注册表单",
+        "then": "用户名唯一校验生效；密码 BCrypt 存储；学生角色学号必填"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-003",
+      "summary": "登录状态提醒：当日有即将开始的预约时登录后顶部温和提示",
+      "source": "SRC-001",
+      "risk": "提醒缺失或时间口径错误",
+      "behavior": {
+        "given": "学生当日有已通过且即将开始的预约",
+        "when": "登录进入首页",
+        "then": "顶部出现温和提醒"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-004",
+      "summary": "教室资源列表浏览：多条件筛选、关键词搜索、卡片式展示、分页",
+      "source": "SRC-001",
+      "risk": "筛选组合失效、分页越界",
+      "behavior": {
+        "given": "学生登录",
+        "when": "按关键词/楼栋/类型/日期筛选并翻页",
+        "then": "结果正确、分页总数正确"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-005",
+      "summary": "教室实时状态标签：空闲/使用中/今日剩余时段",
+      "source": "SRC-001",
+      "risk": "状态口径错误（与已通过预约时段比较）",
+      "behavior": {
+        "given": "教室当天存在已通过预约",
+        "when": "查看教室卡片",
+        "then": "当前时刻在预约时段内显示使用中，否则空闲"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-006",
+      "summary": "筛选条件记忆：自动保留上次楼栋/类型/日期筛选",
+      "source": "SRC-001",
+      "risk": "条件丢失",
+      "behavior": {
+        "given": "学生设置过筛选条件",
+        "when": "重新进入列表页",
+        "then": "筛选条件自动恢复"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-007",
+      "summary": "AI 智能教室推荐：基于历史预约习惯+实时空闲状态匹配 Top3",
+      "source": "SRC-001",
+      "risk": "推荐为空/不可用时不阻断页面",
+      "behavior": {
+        "given": "学生登录且有预约历史",
+        "when": "进入教室列表页",
+        "then": "出现 Top3 推荐卡片，标注 AI 生成仅供参考"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-008",
+      "summary": "AI 自然语言快速预约：解析日期/时段/人数/类型/用途，匹配可用教室发起预约",
+      "source": "SRC-001",
+      "risk": "解析字段缺漏、结果不可编辑",
+      "behavior": {
+        "given": "学生输入口语化预约需求",
+        "when": "调用解析并匹配",
+        "then": "结构化参数正确回填表单，用户可修改并手动确认提交"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-009",
+      "summary": "教室详情：基础信息 + 当日时段占用可视化",
+      "source": "SRC-001",
+      "risk": "占用时段展示与已通过预约不一致",
+      "behavior": {
+        "given": "学生进入教室详情",
+        "when": "查看当日占用",
+        "then": "占用时段与已通过预约一致"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-010",
+      "summary": "教室收藏：一键收藏/取消，常用教室快速访问，上限 10 间",
+      "source": "SRC-001",
+      "risk": "重复收藏、超上限未拦截",
+      "behavior": {
+        "given": "学生收藏教室",
+        "when": "收藏/取消/超上限收藏",
+        "then": "收藏成功、取消成功、第 11 间被拒绝或提示上限"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-011",
+      "summary": "预约申请：选择日期时段、填写用途、提交前冲突检测",
+      "source": "SRC-001",
+      "risk": "冲突预约被放行（核心）",
+      "behavior": {
+        "given": "学生选择教室/日期/时段",
+        "when": "提交预约",
+        "then": "前端实时校验冲突并禁用提交；无冲突提交成功为待审核"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-012",
+      "summary": "预约草稿自动保存：表单未提交关闭后下次自动填充（localStorage）",
+      "source": "SRC-001",
+      "risk": "草稿污染下次预约",
+      "behavior": {
+        "given": "学生填写预约表单未提交",
+        "when": "关闭后再次打开",
+        "then": "表单自动回填上次内容"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-013",
+      "summary": "我的预约管理：按状态分类查看、取消预约",
+      "source": "SRC-001",
+      "risk": "状态筛选错误、取消权限越界",
+      "behavior": {
+        "given": "学生查看我的预约",
+        "when": "按状态筛选/取消",
+        "then": "列表正确、仅本人可取消、取消二次确认"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-014",
+      "summary": "今日预约置顶：当日预约在列表顶部突出显示",
+      "source": "SRC-001",
+      "risk": "置顶失效",
+      "behavior": {
+        "given": "学生有当日预约",
+        "when": "查看我的预约",
+        "then": "当日预约置顶"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-015",
+      "summary": "友好空状态：无数据时引导文案+快捷操作按钮",
+      "source": "SRC-001",
+      "risk": "空状态缺失",
+      "behavior": {
+        "given": "学生无对应状态预约",
+        "when": "查看空列表",
+        "then": "展示引导文案与操作入口"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-016",
+      "summary": "个人中心：个人信息修改、密码修改（验证原密码）",
+      "source": "SRC-001",
+      "risk": "旧密码校验缺失、越权修改",
+      "behavior": {
+        "given": "学生进入个人中心",
+        "when": "修改资料/密码",
+        "then": "资料保存成功；旧密码错误被拒"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-017",
+      "summary": "个人预约数据概览：累计预约、本月预约、通过率等卡片",
+      "source": "SRC-001",
+      "risk": "统计数据口径错误",
+      "behavior": {
+        "given": "学生查看个人中心顶部",
+        "when": "查看数据卡片",
+        "then": "与预约记录口径一致"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-018",
+      "summary": "常用教室快捷入口：展示收藏教室，点击直达预约",
+      "source": "SRC-001",
+      "risk": "入口缺失",
+      "behavior": {
+        "given": "学生有收藏教室",
+        "when": "查看个人中心",
+        "then": "收藏教室展示且可跳转"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-019",
+      "summary": "消息通知中心：审核结果、预约提醒（由预约表状态动态生成）",
+      "source": "SRC-001",
+      "risk": "通知与状态不一致",
+      "behavior": {
+        "given": "学生预约状态变化",
+        "when": "查看通知",
+        "then": "通知与最新状态一致"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-020",
+      "summary": "AI 预约智能助手：仅解答预约/教室/个人记录，支持自然语言查询",
+      "source": "SRC-001",
+      "risk": "无关话题被回答（场景越界）",
+      "behavior": {
+        "given": "学生打开 AI 助手",
+        "when": "询问预约相关问题/无关话题",
+        "then": "预约相关问题正常回答；无关话题返回预设话术"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-021",
+      "summary": "预约日历总览：FullCalendar 月/周视图、色块占用、点击快速预约",
+      "source": "SRC-001",
+      "risk": "事件渲染错误（日期格式）",
+      "behavior": {
+        "given": "学生打开日历页",
+        "when": "切换月/周视图",
+        "then": "已通过预约以事件色块展示，日期正确"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-022",
+      "summary": "首页数据概览：今日预约、待审核、教室总数、用户总数",
+      "source": "SRC-001",
+      "risk": "统计口径错误",
+      "behavior": {
+        "given": "管理员进入后台首页",
+        "when": "查看统计卡片",
+        "then": "数据与库内口径一致"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-023",
+      "summary": "教室资源管理：增删改查、状态管理、批量操作、多条件搜索",
+      "source": "SRC-001",
+      "risk": "删除有预约教室未拦截",
+      "behavior": {
+        "given": "管理员操作教室",
+        "when": "新增/编辑/删除/启停/批量",
+        "then": "CRUD 完整；有预约记录的教室删除被拒"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-024",
+      "summary": "预约审核：全量查询、通过/驳回、驳回备注必填",
+      "source": "SRC-001",
+      "risk": "非待审核被审核、驳回缺备注",
+      "behavior": {
+        "given": "管理员审核预约",
+        "when": "通过/驳回",
+        "then": "仅待审核可审核；驳回备注必填；状态持久化"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-025",
+      "summary": "批量审核：勾选多条待审核一键批量通过/驳回，仅待审核参与",
+      "source": "SRC-001",
+      "risk": "已审核记录被重复批量操作",
+      "behavior": {
+        "given": "管理员勾选记录批量审核",
+        "when": "批量通过/驳回",
+        "then": "仅待审核被处理，已审核记录被跳过或拒绝"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-026",
+      "summary": "快捷驳回原因：预置常用原因一键选择",
+      "source": "SRC-001",
+      "risk": "快捷项缺失",
+      "behavior": {
+        "given": "管理员驳回预约",
+        "when": "打开驳回弹窗",
+        "then": "快捷原因可选并回填备注"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-027",
+      "summary": "AI 预约合规校验：命中违规内容自动标记并提示原因",
+      "source": "SRC-001",
+      "risk": "违规内容未被标记",
+      "behavior": {
+        "given": "管理员查看待审核预约",
+        "when": "AI 校验用途",
+        "then": "违规预约红色高亮并显示原因"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-028",
+      "summary": "用户管理：账号查询、禁用/启用、重置密码",
+      "source": "SRC-001",
+      "risk": "误禁自己、重置后旧密码失效",
+      "behavior": {
+        "given": "管理员操作用户",
+        "when": "查询/禁用/启用/重置密码",
+        "then": "操作生效；禁止操作自己；禁用用户登录被拒"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-029",
+      "summary": "预约记录查询：多条件筛选、历史全量、Excel 导出",
+      "source": "SRC-001",
+      "risk": "导出缺行/乱码",
+      "behavior": {
+        "given": "管理员查询预约记录",
+        "when": "筛选并导出 Excel",
+        "then": "筛选正确；导出行数与查询一致"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-030",
+      "summary": "数据可视化看板：教室使用率排行、月度趋势、热门时段分布（ECharts）",
+      "source": "SRC-001",
+      "risk": "图表数据口径错误",
+      "behavior": {
+        "given": "管理员打开看板",
+        "when": "查看三图表",
+        "then": "图表数据与统计接口一致"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-031",
+      "summary": "预约冲突检测：新开始<旧结束 AND 新结束>旧开始，仅与已通过比较，前后端双重校验",
+      "source": "SRC-001",
+      "risk": "冲突放行（P0 核心）",
+      "behavior": {
+        "given": "同一教室同一日期存在已通过预约",
+        "when": "提交重叠时段预约",
+        "then": "前端禁用+后端拒绝；首尾相接不冲突"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-032",
+      "summary": "预约状态流转：待审核(0)→已通过(1)/已驳回(2)；待审核/已通过→已取消(3)",
+      "source": "SRC-001",
+      "risk": "非法迁移（P0 核心）",
+      "behavior": {
+        "given": "预约处于各状态",
+        "when": "执行审核/取消",
+        "then": "仅合法迁移被允许；已驳回/已取消不可再操作"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-033",
+      "summary": "取消时限：预约开始前 1 小时可自由取消，不足 1 小时不可取消",
+      "source": "SRC-001",
+      "risk": "时限边界错误",
+      "behavior": {
+        "given": "预约开始时间距当前不足/超过 1 小时",
+        "when": "取消",
+        "then": "超过可取消；不足返回 400 提示"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-034",
+      "summary": "常用教室上限：每人最多收藏 10 间",
+      "source": "SRC-001",
+      "risk": "超限未拦截",
+      "behavior": {
+        "given": "学生已收藏 10 间",
+        "when": "再收藏第 11 间",
+        "then": "被拒绝并提示上限"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-035",
+      "summary": "批量审核约束：仅待审核状态可参与批量操作",
+      "source": "SRC-001",
+      "risk": "非待审核被批量处理",
+      "behavior": {
+        "given": "批量列表含已审核记录",
+        "when": "批量审核",
+        "then": "已审核记录被排除"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-036",
+      "summary": "AI 场景绝对限定：仅服务预约业务，禁止无关话题",
+      "source": "SRC-001",
+      "risk": "越界回答",
+      "behavior": {
+        "given": "用户问无关话题",
+        "when": "调用 AI 助手",
+        "then": "返回预设话术"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-037",
+      "summary": "AI 只读不写：仅查询/解析/建议，业务操作必须用户手动确认",
+      "source": "SRC-001",
+      "risk": "AI 直接写数据（P0）",
+      "behavior": {
+        "given": "AI 给出建议后",
+        "when": "检查数据",
+        "then": "AI 调用不产生任何业务写入"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-038",
+      "summary": "AI 降级容错：超时 60s/报错/限流自动降级本地规则模拟，不阻断业务",
+      "source": "SRC-001",
+      "risk": "AI 不可用导致页面不可用",
+      "behavior": {
+        "given": "模型超时/报错/限流",
+        "when": "调用 AI 接口",
+        "then": "返回本地规则结果或友好提示，业务不受阻"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-039",
+      "summary": "AI 双开关：application.yml ai.enable 与 ai_config 表 ai_enable 均 true 才启用",
+      "source": "SRC-001",
+      "risk": "开关失效",
+      "behavior": {
+        "given": "任一开关为 false",
+        "when": "访问 AI 功能",
+        "then": "AI 入口隐藏/降级"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-040",
+      "summary": "AI 内容标注：所有 AI 生成内容前端标注「AI 生成，仅供参考」",
+      "source": "SRC-001",
+      "risk": "标注缺失",
+      "behavior": {
+        "given": "前端展示 AI 结果",
+        "when": "检查标注",
+        "then": "结果旁有标注文案"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-041",
+      "summary": "权限拦截：未登录 401、无权限 403、禁用账号拦截",
+      "source": "SRC-001",
+      "risk": "越权访问",
+      "behavior": {
+        "given": "无 token/学生 token/禁用账号",
+        "when": "访问受保护接口",
+        "then": "401/403 明确返回"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-042",
+      "summary": "密码安全：BCrypt 加密存储，禁止明文",
+      "source": "SRC-001",
+      "risk": "明文泄露",
+      "behavior": {
+        "given": "检查数据库",
+        "when": "查看用户表密码字段",
+        "then": "均为 BCrypt 哈希非明文"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-043",
+      "summary": "统一返回 Result：{code,message,data}，错误码语义化，全局异常不暴露堆栈",
+      "source": "SRC-001",
+      "risk": "异常堆栈外泄",
+      "behavior": {
+        "given": "触发业务异常",
+        "when": "检查响应",
+        "then": "code 语义化，无堆栈泄露"
+      }
+    },
+    {
+      "id": "REQ-RESERVATIONE-044",
+      "summary": "参数合法性校验：分页范围（size≤500）、必填、枚举、时间先后",
+      "source": "SRC-001",
+      "risk": "非法参数未拦截",
+      "behavior": {
+        "given": "传入非法参数",
+        "when": "调用接口",
+        "then": "返回 400 明确提示"
+      }
+    }
+  ],
+  "risk_mechanisms": [
+    {
+      "id": "RM-CORE-001",
+      "title": "冲突检测公式与边界正确性",
+      "failure_mode": "重叠时段被放行或首尾相接被误判冲突",
+      "business_impact": "核心业务错误，直接决定答辩评分与可用性（P0）",
+      "oracle": "同一教室同日：部分重叠/完全包含/包含被包含均返回 conflict=true；首尾相接（新结束=旧开始/新开始=旧结束）返回 conflict=false；无重叠 false；仅与已通过预约比较",
+      "requirement_ids": [
+        "REQ-RESERVATIONE-011",
+        "REQ-RESERVATIONE-031"
+      ],
+      "case_ids": [
+        "TC-RES-001",
+        "TC-RES-002",
+        "TC-RES-003",
+        "TC-RES-004",
+        "TC-UI-002"
+      ],
+      "priority": "P0",
+      "status": "identified"
+    },
+    {
+      "id": "RM-CORE-002",
+      "title": "预约状态流转合法性",
+      "failure_mode": "非法迁移（如已驳回再审核、已取消再取消）被放行",
+      "business_impact": "状态机错误导致数据不可信（P0）",
+      "oracle": "待审核可审核/可取消；已通过可取消；已驳回/已取消不可再审核或取消；取消后状态=3",
+      "requirement_ids": [
+        "REQ-RESERVATIONE-032"
+      ],
+      "case_ids": [
+        "TC-RES-005",
+        "TC-RES-011",
+        "TC-RES-013",
+        "TC-RES-014",
+        "TC-AUD-002",
+        "TC-AUD-003",
+        "TC-AUD-005"
+      ],
+      "priority": "P0",
+      "status": "identified"
+    },
+    {
+      "id": "RM-CORE-003",
+      "title": "后端二次冲突检测兜底",
+      "failure_mode": "绕过前端直接调用提交重叠预约成功",
+      "business_impact": "双重校验失效=核心亮点失守（P0）",
+      "oracle": "直接 POST /api/reservation 提交与已通过重叠时段 → 400 冲突拒绝，数据不落库",
+      "requirement_ids": [
+        "REQ-RESERVATIONE-011",
+        "REQ-RESERVATIONE-031"
+      ],
+      "case_ids": [
+        "TC-RES-006"
+      ],
+      "priority": "P0",
+      "status": "identified"
+    },
+    {
+      "id": "RM-CORE-004",
+      "title": "取消时限边界（开始前 1 小时）",
+      "failure_mode": "不足 1 小时仍可取消",
+      "business_impact": "资源调度被临时占坑（P1）",
+      "oracle": "开始时间-当前<1h → 400「预约开始前 1 小时内禁止取消」；>1h → 取消成功",
+      "requirement_ids": [
+        "REQ-RESERVATIONE-033"
+      ],
+      "case_ids": [
+        "TC-RES-012"
+      ],
+      "priority": "P1",
+      "status": "identified"
+    },
+    {
+      "id": "RM-AUTH-001",
+      "title": "角色权限隔离",
+      "failure_mode": "学生 token 访问管理接口成功",
+      "business_impact": "越权操作（P0）",
+      "oracle": "学生 token GET /api/classroom/manage、/api/reservation/manage、/api/user/manage → 403「无权限访问」",
+      "requirement_ids": [
+        "REQ-RESERVATIONE-041"
+      ],
+      "case_ids": [
+        "TC-PERM-003",
+        "TC-PERM-004",
+        "TC-PERM-005",
+        "TC-AUD-008"
+      ],
+      "priority": "P0",
+      "status": "identified"
+    },
+    {
+      "id": "RM-AUTH-002",
+      "title": "未登录/Token 失效拦截",
+      "failure_mode": "无 token 访问受保护接口返回业务数据",
+      "business_impact": "未授权访问（P0）",
+      "oracle": "无 token/伪造 token → 401「未登录或登录已过期」；HTTP 401",
+      "requirement_ids": [
+        "REQ-RESERVATIONE-041"
+      ],
+      "case_ids": [
+        "TC-AUTH-001",
+        "TC-AUTH-002",
+        "TC-AUTH-009",
+        "TC-PERM-001",
+        "TC-PERM-002"
+      ],
+      "priority": "P0",
+      "status": "identified"
+    },
+    {
+      "id": "RM-AUTH-003",
+      "title": "禁用账号拦截与自我操作保护",
+      "failure_mode": "禁用账号仍可登录；管理员可禁自己",
+      "business_impact": "账号安全与系统锁死（P1）",
+      "oracle": "禁用用户登录 → 403；管理员 PUT /api/user/manage/{自己id}/status → 400 拒绝",
+      "requirement_ids": [
+        "REQ-RESERVATIONE-028",
+        "REQ-RESERVATIONE-041"
+      ],
+      "case_ids": [
+        "TC-AUTH-008",
+        "TC-ADMU-002",
+        "TC-ADMU-004"
+      ],
+      "priority": "P1",
+      "status": "identified"
+    },
+    {
+      "id": "RM-BATCH-001",
+      "title": "批量审核仅限待审核",
+      "failure_mode": "已审核/已取消记录被批量重复操作",
+      "business_impact": "状态覆盖/重复审核（P1）",
+      "oracle": "批量列表中混入非待审核 → 仅待审核被处理；对已审核记录单独审核 → 400",
+      "requirement_ids": [
+        "REQ-RESERVATIONE-025",
+        "REQ-RESERVATIONE-035"
+      ],
+      "case_ids": [
+        "TC-AUD-006",
+        "TC-AUD-007",
+        "TC-UI-005"
+      ],
+      "priority": "P1",
+      "status": "identified"
+    },
+    {
+      "id": "RM-FAV-001",
+      "title": "收藏上限 10 与去重",
+      "failure_mode": "第 11 间收藏成功或重复收藏",
+      "business_impact": "违反明确业务规则（P1）",
+      "oracle": "收藏 11 间 → 第 11 间被拒；重复收藏同一教室 → 幂等或提示已收藏",
+      "requirement_ids": [
+        "REQ-RESERVATIONE-010",
+        "REQ-RESERVATIONE-034"
+      ],
+      "case_ids": [
+        "TC-FAV-001",
+        "TC-FAV-004"
+      ],
+      "priority": "P1",
+      "status": "identified"
+    },
+    {
+      "id": "RM-DATA-001",
+      "title": "审核后状态与数据一致性",
+      "failure_mode": "审核成功但列表/通知/统计未反映新状态",
+      "business_impact": "跨层数据不一致（P1）",
+      "oracle": "审核通过后：manage 列表状态=1、auditorId/auditTime 落库、学生 mine 列表同步、统计更新",
+      "requirement_ids": [
+        "REQ-RESERVATIONE-024",
+        "REQ-RESERVATIONE-019",
+        "REQ-RESERVATIONE-029"
+      ],
+      "case_ids": [
+        "TC-AUD-002"
+      ],
+      "priority": "P1",
+      "status": "identified"
+    },
+    {
+      "id": "RM-EXPORT-001",
+      "title": "预约记录 Excel 导出完整性",
+      "failure_mode": "导出行数与查询不一致、中文乱码、无法打开",
+      "business_impact": "管理端交付能力受损（P2）",
+      "oracle": "导出文件可打开、行数=查询 total、中文正常",
+      "requirement_ids": [
+        "REQ-RESERVATIONE-029"
+      ],
+      "case_ids": [
+        "TC-REC-002"
+      ],
+      "priority": "P2",
+      "status": "identified"
+    },
+    {
+      "id": "RM-AI-001",
+      "title": "AI 降级容错与可开关",
+      "failure_mode": "AI 不可用时页面阻塞或报错；开关失效",
+      "business_impact": "演示翻车/核心功能受阻（P1）",
+      "oracle": "ai.enable=false 或模型超时/限流 → 返回本地规则结果或友好降级，页面可用；入口隐藏",
+      "requirement_ids": [
+        "REQ-RESERVATIONE-038",
+        "REQ-RESERVATIONE-039"
+      ],
+      "case_ids": [
+        "TC-AI-001",
+        "TC-AI-002",
+        "TC-AI-003",
+        "TC-AI-006"
+      ],
+      "priority": "P1",
+      "status": "identified"
+    },
+    {
+      "id": "RM-AI-002",
+      "title": "AI 只读不写",
+      "failure_mode": "AI 调用产生业务写入",
+      "business_impact": "违反只读不写红线（P0）",
+      "oracle": "完整走 AI 推荐→解析→提交链路，检查数据库无 AI 直接产生的预约/取消等业务变更（用户手动确认除外）",
+      "requirement_ids": [
+        "REQ-RESERVATIONE-037"
+      ],
+      "case_ids": [
+        "TC-AI-005"
+      ],
+      "priority": "P0",
+      "status": "identified"
+    },
+    {
+      "id": "RM-AI-003",
+      "title": "AI 场景限定与内容标注",
+      "failure_mode": "无关话题被回答；AI 内容无标注",
+      "business_impact": "场景越界/合规标注缺失（P2）",
+      "oracle": "无关问题返回预设话术；AI 生成内容处有「AI 生成，仅供参考」",
+      "requirement_ids": [
+        "REQ-RESERVATIONE-020",
+        "REQ-RESERVATIONE-036",
+        "REQ-RESERVATIONE-040"
+      ],
+      "case_ids": [
+        "TC-AI-004"
+      ],
+      "priority": "P2",
+      "status": "identified"
+    },
+    {
+      "id": "RM-VALID-001",
+      "title": "参数合法性校验",
+      "failure_mode": "非法分页/枚举/时间参数被接受或产生 500",
+      "business_impact": "接口健壮性（P1）",
+      "oracle": "page<1、size>500、status 非法、startTime>=endTime、缺必填 → 400 明确文案；无堆栈",
+      "requirement_ids": [
+        "REQ-RESERVATIONE-044"
+      ],
+      "case_ids": [
+        "TC-RES-015",
+        "TC-ADMC-006"
+      ],
+      "priority": "P1",
+      "status": "identified"
+    }
+  ],
+  "observed_surfaces": [],
+  "cases": [
+    {
+      "id": "TC-AUTH-001",
+      "module": "登录注册",
+      "title": "学生正确登录",
+      "priority": "P0",
+      "type": "api",
+      "steps": [
+        "POST /api/user/login body{username:zhangsan,password:123456,role:0}",
+        "校验响应 code/token/role"
+      ],
+      "test_data": "zhangsan/123456/role=0",
+      "expected_result": "code=200，data.token 非空，data.role=0，message=登录成功",
+      "requirement_ids": [
+        "REQ-001"
+      ],
+      "risk_mechanism_ids": [
+        "RM-AUTH-002"
+      ],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-AUTH-002",
+      "module": "登录注册",
+      "title": "管理员正确登录",
+      "priority": "P0",
+      "type": "api",
+      "steps": [
+        "POST /api/user/login body{username:admin,password:admin123,role:1}",
+        "校验响应"
+      ],
+      "test_data": "admin/admin123/role=1",
+      "expected_result": "code=200，token 非空，role=1",
+      "requirement_ids": [
+        "REQ-001"
+      ],
+      "risk_mechanism_ids": [
+        "RM-AUTH-002"
+      ],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-AUTH-003",
+      "module": "登录注册",
+      "title": "错误密码登录提示",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "POST /api/user/login body{username:zhangsan,password:wrong,role:0}",
+        "校验错误响应"
+      ],
+      "test_data": "zhangsan/wrong",
+      "expected_result": "code!=200（400/401），message 明确提示密码错误，HTTP 非 500",
+      "requirement_ids": [
+        "REQ-001"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "error_response"
+      ]
+    },
+    {
+      "id": "TC-AUTH-004",
+      "module": "登录注册",
+      "title": "角色与账号不匹配登录拒绝",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "POST /api/user/login body{username:zhangsan,password:123456,role:1}",
+        "校验响应"
+      ],
+      "test_data": "学生账号+管理员角色",
+      "expected_result": "code!=200，提示角色与账号不匹配或登录失败",
+      "requirement_ids": [
+        "REQ-001"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-AUTH-005",
+      "module": "登录注册",
+      "title": "学生自主注册成功",
+      "priority": "P0",
+      "type": "api",
+      "steps": [
+        "POST /api/user/register body{username:qa_stu1,password:123456,confirmPassword:123456,name:QA测试,studentNo:2024099}",
+        "再用新账号登录"
+      ],
+      "test_data": "新唯一用户名",
+      "expected_result": "code=200；新账号可登录；数据库 password 为 BCrypt 哈希（$2b$开头）",
+      "requirement_ids": [
+        "REQ-002",
+        "REQ-042"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated",
+      "state_oracle": {
+        "terminal": "注册成功，可登录"
+      },
+      "evidence_expected": [
+        "db_bcrypt_hash"
+      ]
+    },
+    {
+      "id": "TC-AUTH-006",
+      "module": "登录注册",
+      "title": "重复用户名注册拒绝",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "POST /api/user/register body{username:zhangsan,...}",
+        "校验响应"
+      ],
+      "test_data": "已存在的 zhangsan",
+      "expected_result": "code=400，提示用户名已存在",
+      "requirement_ids": [
+        "REQ-002"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-AUTH-007",
+      "module": "登录注册",
+      "title": "两次密码不一致拒绝",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "POST /api/user/register body{password:123456,confirmPassword:654321,...}",
+        "校验响应"
+      ],
+      "test_data": "不一致密码",
+      "expected_result": "code=400，提示两次密码不一致",
+      "requirement_ids": [
+        "REQ-002"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-AUTH-008",
+      "module": "登录注册",
+      "title": "禁用账号登录拒绝",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "前置：管理员将某学生禁用",
+        "POST /api/user/login 该学生账号",
+        "校验响应"
+      ],
+      "test_data": "被禁用账号",
+      "expected_result": "code=403/400，提示账号已禁用，无法登录",
+      "requirement_ids": [
+        "REQ-041"
+      ],
+      "risk_mechanism_ids": [
+        "RM-AUTH-003"
+      ],
+      "execution_mode": "hybrid",
+      "state_oracle": {
+        "terminal": "禁用后登录被拒"
+      }
+    },
+    {
+      "id": "TC-AUTH-009",
+      "module": "登录注册",
+      "title": "登录后获取当前用户信息",
+      "priority": "P0",
+      "type": "api",
+      "steps": [
+        "登录获取 token",
+        "GET /api/user/info with Authorization",
+        "校验响应"
+      ],
+      "test_data": "zhangsan token",
+      "expected_result": "code=200，data.username=zhangsan，role=0",
+      "requirement_ids": [
+        "REQ-001"
+      ],
+      "risk_mechanism_ids": [
+        "RM-AUTH-002"
+      ],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-PERM-001",
+      "module": "权限安全",
+      "title": "无 token 访问受保护接口返回 401",
+      "priority": "P0",
+      "type": "api",
+      "steps": [
+        "GET /api/user/info（无 Authorization）",
+        "校验响应"
+      ],
+      "test_data": "无 token",
+      "expected_result": "HTTP 401 + code=401「未登录或登录已过期」",
+      "requirement_ids": [
+        "REQ-041"
+      ],
+      "risk_mechanism_ids": [
+        "RM-AUTH-002"
+      ],
+      "execution_mode": "automated",
+      "state_oracle": {
+        "terminal": "未授权访问被拒"
+      }
+    },
+    {
+      "id": "TC-PERM-002",
+      "module": "权限安全",
+      "title": "伪造/失效 token 返回 401",
+      "priority": "P0",
+      "type": "api",
+      "steps": [
+        "GET /api/user/info with Authorization: Bearer invalid.token.xxx",
+        "校验响应"
+      ],
+      "test_data": "伪造 token",
+      "expected_result": "HTTP 401 + code=401",
+      "requirement_ids": [
+        "REQ-041"
+      ],
+      "risk_mechanism_ids": [
+        "RM-AUTH-002"
+      ],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-PERM-003",
+      "module": "权限安全",
+      "title": "学生访问教室管理接口 403",
+      "priority": "P0",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "GET /api/classroom/manage?page=1&size=10",
+        "校验响应"
+      ],
+      "test_data": "学生 token",
+      "expected_result": "HTTP 403 + code=403「无权限访问」",
+      "requirement_ids": [
+        "REQ-041"
+      ],
+      "risk_mechanism_ids": [
+        "RM-AUTH-001"
+      ],
+      "execution_mode": "automated",
+      "state_oracle": {
+        "terminal": "越权被拒"
+      }
+    },
+    {
+      "id": "TC-PERM-004",
+      "module": "权限安全",
+      "title": "学生访问预约管理接口 403",
+      "priority": "P0",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "GET /api/reservation/manage?page=1&size=10",
+        "校验响应"
+      ],
+      "test_data": "学生 token",
+      "expected_result": "HTTP 403 + code=403",
+      "requirement_ids": [
+        "REQ-041"
+      ],
+      "risk_mechanism_ids": [
+        "RM-AUTH-001"
+      ],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-PERM-005",
+      "module": "权限安全",
+      "title": "学生访问用户管理接口 403",
+      "priority": "P0",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "GET /api/user/manage?page=1&size=10",
+        "校验响应"
+      ],
+      "test_data": "学生 token",
+      "expected_result": "HTTP 403 + code=403",
+      "requirement_ids": [
+        "REQ-041"
+      ],
+      "risk_mechanism_ids": [
+        "RM-AUTH-001"
+      ],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-CLASS-001",
+      "module": "教室浏览",
+      "title": "教室列表分页与字段完整性",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "GET /api/classroom/list?page=1&size=5",
+        "校验 records/total/分页字段"
+      ],
+      "test_data": "page=1,size=5",
+      "expected_result": "code=200，records 长度≤5，total>0，每条含 id/name/building/roomNo/type/capacity/statusLabel",
+      "requirement_ids": [
+        "REQ-004"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-CLASS-002",
+      "module": "教室浏览",
+      "title": "关键词搜索教室",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "GET /api/classroom/list?keyword=A301",
+        "校验结果"
+      ],
+      "test_data": "keyword=A301",
+      "expected_result": "code=200，结果中名称或编号含 A301",
+      "requirement_ids": [
+        "REQ-004"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-CLASS-003",
+      "module": "教室浏览",
+      "title": "楼栋+类型+日期组合筛选",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "GET /api/classroom/list?building=信息楼&type=3&date=<明日>",
+        "校验结果与 occupiedSlots"
+      ],
+      "test_data": "信息楼/机房/明日",
+      "expected_result": "code=200，全部为信息楼机房；date 参数返回该日已通过占用时段",
+      "requirement_ids": [
+        "REQ-004",
+        "REQ-005"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-CLASS-004",
+      "module": "教室浏览",
+      "title": "教室详情与当日占用",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "GET /api/classroom/1?date=<今日>",
+        "校验详情字段与 occupiedSlots"
+      ],
+      "test_data": "教室 id=1",
+      "expected_result": "code=200，字段完整，occupiedSlots 与已通过预约一致",
+      "requirement_ids": [
+        "REQ-009"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-CLASS-005",
+      "module": "教室浏览",
+      "title": "教室不存在返回 400",
+      "priority": "P2",
+      "type": "api",
+      "steps": [
+        "GET /api/classroom/999999",
+        "校验响应"
+      ],
+      "test_data": "id=999999",
+      "expected_result": "code=400「教室不存在」",
+      "requirement_ids": [
+        "REQ-009"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-CLASS-006",
+      "module": "教室浏览",
+      "title": "教室实时状态标签口径",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "GET /api/classroom/list?date=<今日>",
+        "比对当前时刻与 occupiedSlots 判定 statusLabel"
+      ],
+      "test_data": "今日含已通过预约的教室",
+      "expected_result": "当前时刻∈[start,end) → 使用中；否则当前空闲（与需求口径一致）",
+      "requirement_ids": [
+        "REQ-005"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-FAV-001",
+      "module": "教室收藏",
+      "title": "收藏教室成功",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "POST /api/favorite/2",
+        "校验响应；GET /api/favorite/list 确认"
+      ],
+      "test_data": "教室 id=2",
+      "expected_result": "code=200；收藏列表含 id=2",
+      "requirement_ids": [
+        "REQ-010"
+      ],
+      "risk_mechanism_ids": [
+        "RM-FAV-001"
+      ],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-FAV-002",
+      "module": "教室收藏",
+      "title": "我的收藏列表",
+      "priority": "P2",
+      "type": "api",
+      "steps": [
+        "GET /api/favorite/list",
+        "校验返回"
+      ],
+      "test_data": "zhangsan（已有收藏）",
+      "expected_result": "code=200，返回收藏教室列表（含教室信息）",
+      "requirement_ids": [
+        "REQ-010",
+        "REQ-018"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-FAV-003",
+      "module": "教室收藏",
+      "title": "取消收藏",
+      "priority": "P2",
+      "type": "api",
+      "steps": [
+        "POST /api/favorite/2（收藏）",
+        "再次 POST /api/favorite/2（取消）",
+        "GET 列表确认"
+      ],
+      "test_data": "教室 id=2",
+      "expected_result": "第二次调用后列表不再含 id=2（切换收藏状态）",
+      "requirement_ids": [
+        "REQ-010"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-FAV-004",
+      "module": "教室收藏",
+      "title": "收藏上限 10 间",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "前置：zhangsan 收藏满 10 间不同教室（含种子数据）",
+        "再收藏第 11 间",
+        "校验响应"
+      ],
+      "test_data": "已收藏 10 间",
+      "expected_result": "第 11 间被拒：code=400「收藏数量已达上限」或等义提示；DB 无新增",
+      "requirement_ids": [
+        "REQ-010",
+        "REQ-034"
+      ],
+      "risk_mechanism_ids": [
+        "RM-FAV-001"
+      ],
+      "execution_mode": "hybrid",
+      "state_oracle": {
+        "side_effect": "收藏数保持 10"
+      }
+    },
+    {
+      "id": "TC-RES-001",
+      "module": "预约核心",
+      "title": "冲突检测：无重叠时段",
+      "priority": "P0",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "GET /api/reservation/conflict?classroomId=1&date=<未来日>&startTime=08:00&endTime=09:00",
+        "校验"
+      ],
+      "test_data": "教室 1 未来日 08:00-09:00（无已通过预约）",
+      "expected_result": "code=200，data.conflict=false",
+      "requirement_ids": [
+        "REQ-011",
+        "REQ-031"
+      ],
+      "risk_mechanism_ids": [
+        "RM-CORE-001"
+      ],
+      "execution_mode": "automated",
+      "state_oracle": {
+        "technical_outcome": "conflict=false"
+      }
+    },
+    {
+      "id": "TC-RES-002",
+      "module": "预约核心",
+      "title": "冲突检测：部分重叠",
+      "priority": "P0",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "取一条已通过预约（教室 3 今日 15:00-17:00）",
+        "GET /api/reservation/conflict?classroomId=3&date=<同日>&startTime=16:00&endTime=18:00",
+        "校验"
+      ],
+      "test_data": "教室 3 同日 16:00-18:00 与 15:00-17:00 重叠",
+      "expected_result": "code=200，data.conflict=true",
+      "requirement_ids": [
+        "REQ-011",
+        "REQ-031"
+      ],
+      "risk_mechanism_ids": [
+        "RM-CORE-001"
+      ],
+      "execution_mode": "automated",
+      "state_oracle": {
+        "technical_outcome": "conflict=true"
+      }
+    },
+    {
+      "id": "TC-RES-003",
+      "module": "预约核心",
+      "title": "冲突检测：首尾相接不冲突（边界）",
+      "priority": "P0",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "取已通过预约 15:00-17:00",
+        "GET /api/reservation/conflict?classroomId=3&date=<同日>&startTime=17:00&endTime=19:00",
+        "校验"
+      ],
+      "test_data": "教室 3 同日 17:00-19:00（新开始=旧结束）",
+      "expected_result": "code=200，data.conflict=false（首尾相接不冲突）",
+      "requirement_ids": [
+        "REQ-011",
+        "REQ-031"
+      ],
+      "risk_mechanism_ids": [
+        "RM-CORE-001"
+      ],
+      "execution_mode": "automated",
+      "state_oracle": {
+        "technical_outcome": "conflict=false（边界）"
+      }
+    },
+    {
+      "id": "TC-RES-004",
+      "module": "预约核心",
+      "title": "冲突检测：完全包含",
+      "priority": "P0",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "GET /api/reservation/conflict?classroomId=3&date=<同日>&startTime=14:00&endTime=18:00",
+        "校验"
+      ],
+      "test_data": "教室 3 同日 14:00-18:00 完全包含 15:00-17:00",
+      "expected_result": "code=200，data.conflict=true",
+      "requirement_ids": [
+        "REQ-011",
+        "REQ-031"
+      ],
+      "risk_mechanism_ids": [
+        "RM-CORE-001"
+      ],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-RES-005",
+      "module": "预约核心",
+      "title": "提交预约成功（无冲突）",
+      "priority": "P0",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "POST /api/reservation body{classroomId:1,reserveDate:<未来日>,startTime:10:00,endTime:11:00,purpose:QA测试预约}",
+        "校验返回 id",
+        "GET /api/reservation/mine 确认"
+      ],
+      "test_data": "教室 1 未来日 10:00-11:00",
+      "expected_result": "code=200，返回预约 id；状态=0 待审核",
+      "requirement_ids": [
+        "REQ-011"
+      ],
+      "risk_mechanism_ids": [
+        "RM-CORE-002"
+      ],
+      "execution_mode": "automated",
+      "state_oracle": {
+        "terminal": "待审核(0)"
+      },
+      "evidence_expected": [
+        "reservation_id"
+      ]
+    },
+    {
+      "id": "TC-RES-006",
+      "module": "预约核心",
+      "title": "后端二次校验：直接提交重叠时段被拒（绕过前端）",
+      "priority": "P0",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "POST /api/reservation body{classroomId:3,reserveDate:<已通过同日>,startTime:16:00,endTime:18:00,purpose:冲突测试}",
+        "校验响应",
+        "确认未落库"
+      ],
+      "test_data": "与已通过 15:00-17:00 重叠",
+      "expected_result": "code=400，提示与已通过预约冲突；数据库无新增待审核记录",
+      "requirement_ids": [
+        "REQ-011",
+        "REQ-031"
+      ],
+      "risk_mechanism_ids": [
+        "RM-CORE-003"
+      ],
+      "execution_mode": "automated",
+      "state_oracle": {
+        "terminal": "提交被拒，无写入"
+      },
+      "evidence_expected": [
+        "no_db_insert"
+      ]
+    },
+    {
+      "id": "TC-RES-007",
+      "module": "预约核心",
+      "title": "提交过去日期被拒",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "POST /api/reservation body{reserveDate:<昨日>}",
+        "校验"
+      ],
+      "test_data": "过去日期",
+      "expected_result": "code=400，提示不可预约过去日期",
+      "requirement_ids": [
+        "REQ-011",
+        "REQ-044"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-RES-008",
+      "module": "预约核心",
+      "title": "开始时间不早于结束被拒",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "POST /api/reservation body{startTime:11:00,endTime:10:00}",
+        "校验"
+      ],
+      "test_data": "start>=end",
+      "expected_result": "code=400，提示开始时间必须早于结束时间",
+      "requirement_ids": [
+        "REQ-011",
+        "REQ-044"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-RES-009",
+      "module": "预约核心",
+      "title": "停用教室预约被拒",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "前置：管理员停用某教室",
+        "POST /api/reservation 该教室",
+        "校验"
+      ],
+      "test_data": "停用教室",
+      "expected_result": "code=400「该教室已停用，无法预约」",
+      "requirement_ids": [
+        "REQ-011"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "hybrid"
+    },
+    {
+      "id": "TC-RES-010",
+      "module": "预约核心",
+      "title": "我的预约列表与状态筛选",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "GET /api/reservation/mine?page=1&size=10",
+        "GET ?status=1",
+        "校验"
+      ],
+      "test_data": "zhangsan 预约记录",
+      "expected_result": "code=200；records 字段含 classroomName/building/roomNo/status；status=1 过滤正确",
+      "requirement_ids": [
+        "REQ-013"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-RES-011",
+      "module": "预约核心",
+      "title": "取消待审核预约成功",
+      "priority": "P0",
+      "type": "api",
+      "steps": [
+        "zhangsan 新建待审核预约",
+        "PUT /api/reservation/{id}/cancel",
+        "GET mine 确认状态"
+      ],
+      "test_data": "新建待审核预约（开始>1h）",
+      "expected_result": "code=200「取消成功」；状态变 3-已取消",
+      "requirement_ids": [
+        "REQ-013",
+        "REQ-032"
+      ],
+      "risk_mechanism_ids": [
+        "RM-CORE-002"
+      ],
+      "execution_mode": "automated",
+      "state_oracle": {
+        "intermediate": "待审核(0)",
+        "terminal": "已取消(3)"
+      }
+    },
+    {
+      "id": "TC-RES-012",
+      "module": "预约核心",
+      "title": "取消时限：开始前 1 小时内禁止取消",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "前置：插入一条开始时间距当前<1h 的待审核/已通过预约（管理员造数或取库内今日即将开始记录）",
+        "PUT /api/reservation/{id}/cancel",
+        "校验"
+      ],
+      "test_data": "开始前 1 小时内",
+      "expected_result": "code=400「预约开始前 1 小时内禁止取消，如需调整请联系管理员」；状态不变",
+      "requirement_ids": [
+        "REQ-033"
+      ],
+      "risk_mechanism_ids": [
+        "RM-CORE-004"
+      ],
+      "execution_mode": "hybrid",
+      "state_oracle": {
+        "terminal": "状态不变"
+      }
+    },
+    {
+      "id": "TC-RES-013",
+      "module": "预约核心",
+      "title": "取消他人预约被拒",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "取 lisi 的待审核预约 id",
+        "PUT /api/reservation/{lisiId}/cancel",
+        "校验"
+      ],
+      "test_data": "他人预约",
+      "expected_result": "code=400「只能取消自己的预约」",
+      "requirement_ids": [
+        "REQ-013",
+        "REQ-032"
+      ],
+      "risk_mechanism_ids": [
+        "RM-CORE-002"
+      ],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-RES-014",
+      "module": "预约核心",
+      "title": "已驳回/已取消预约不可再取消",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "取一条已驳回/已取消预约 id",
+        "PUT /api/reservation/{id}/cancel",
+        "校验"
+      ],
+      "test_data": "状态=2 或 3 的预约",
+      "expected_result": "code=400「当前状态不可取消」",
+      "requirement_ids": [
+        "REQ-032"
+      ],
+      "risk_mechanism_ids": [
+        "RM-CORE-002"
+      ],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-RES-015",
+      "module": "预约核心",
+      "title": "非法状态参数返回 400",
+      "priority": "P2",
+      "type": "api",
+      "steps": [
+        "GET /api/reservation/mine?status=9",
+        "校验"
+      ],
+      "test_data": "status=9",
+      "expected_result": "code=400「状态参数不合法」",
+      "requirement_ids": [
+        "REQ-044"
+      ],
+      "risk_mechanism_ids": [
+        "RM-VALID-001"
+      ],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-AUD-001",
+      "module": "预约审核",
+      "title": "管理员全量查询预约（多条件筛选）",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "admin 登录",
+        "GET /api/reservation/manage?page=1&size=10&status=0",
+        "校验"
+      ],
+      "test_data": "status=0 筛选",
+      "expected_result": "code=200；records 全为待审核；含 userName/auditorName 等管理字段",
+      "requirement_ids": [
+        "REQ-024",
+        "REQ-029"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-AUD-002",
+      "module": "预约审核",
+      "title": "审核通过并落库审核人/时间",
+      "priority": "P0",
+      "type": "api",
+      "steps": [
+        "admin 登录",
+        "新建待审核预约",
+        "PUT /api/reservation/{id}/audit body{status:1}",
+        "GET manage 校验"
+      ],
+      "test_data": "待审核预约 id",
+      "expected_result": "code=200「审核成功」；记录状态=1、auditorId=1、auditTime 非空",
+      "requirement_ids": [
+        "REQ-024",
+        "REQ-032"
+      ],
+      "risk_mechanism_ids": [
+        "RM-CORE-002",
+        "RM-DATA-001"
+      ],
+      "execution_mode": "automated",
+      "state_oracle": {
+        "intermediate": "待审核(0)",
+        "terminal": "已通过(1)",
+        "side_effect": "auditorId/auditTime 落库"
+      }
+    },
+    {
+      "id": "TC-AUD-003",
+      "module": "预约审核",
+      "title": "审核驳回（备注必填）",
+      "priority": "P0",
+      "type": "api",
+      "steps": [
+        "admin 登录",
+        "新建待审核预约",
+        "PUT /api/reservation/{id}/audit body{status:2,auditRemark:用途不明确}",
+        "校验"
+      ],
+      "test_data": "待审核预约",
+      "expected_result": "code=200；状态=2-已驳回，auditRemark 落库",
+      "requirement_ids": [
+        "REQ-024",
+        "REQ-026"
+      ],
+      "risk_mechanism_ids": [
+        "RM-CORE-002"
+      ],
+      "execution_mode": "automated",
+      "state_oracle": {
+        "terminal": "已驳回(2)"
+      }
+    },
+    {
+      "id": "TC-AUD-004",
+      "module": "预约审核",
+      "title": "驳回缺备注返回 400",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "admin 登录",
+        "PUT /api/reservation/{id}/audit body{status:2}",
+        "校验"
+      ],
+      "test_data": "驳回无备注",
+      "expected_result": "code=400「驳回必须填写审核备注」",
+      "requirement_ids": [
+        "REQ-024"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-AUD-005",
+      "module": "预约审核",
+      "title": "非待审核状态不可再审核",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "admin 登录",
+        "取已通过/已驳回/已取消预约",
+        "PUT /api/reservation/{id}/audit body{status:1}",
+        "校验"
+      ],
+      "test_data": "状态≠0 的预约",
+      "expected_result": "code=400「仅待审核状态的预约可审核」",
+      "requirement_ids": [
+        "REQ-024",
+        "REQ-032"
+      ],
+      "risk_mechanism_ids": [
+        "RM-CORE-002"
+      ],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-AUD-006",
+      "module": "预约审核",
+      "title": "批量审核全部通过",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "admin 登录",
+        "新建 2 条待审核预约",
+        "POST /api/reservation/batch-audit body{ids:[id1,id2],status:1}",
+        "校验"
+      ],
+      "test_data": "2 条待审核",
+      "expected_result": "code=200；两条均变已通过",
+      "requirement_ids": [
+        "REQ-025",
+        "REQ-035"
+      ],
+      "risk_mechanism_ids": [
+        "RM-BATCH-001"
+      ],
+      "execution_mode": "automated",
+      "state_oracle": {
+        "terminal": "均已通过(1)"
+      }
+    },
+    {
+      "id": "TC-AUD-007",
+      "module": "预约审核",
+      "title": "批量审核混入已审核记录被排除",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "admin 登录",
+        "取待审核 id1 + 已通过 id2",
+        "POST /api/reservation/batch-audit body{ids:[id1,id2],status:1}",
+        "校验两条最终状态"
+      ],
+      "test_data": "混入已通过记录",
+      "expected_result": "待审核被通过；已通过记录不被重复处理（保持 1 或提示跳过）",
+      "requirement_ids": [
+        "REQ-025",
+        "REQ-035"
+      ],
+      "risk_mechanism_ids": [
+        "RM-BATCH-001"
+      ],
+      "execution_mode": "automated",
+      "state_oracle": {
+        "side_effect": "已审核记录状态不被覆盖"
+      }
+    },
+    {
+      "id": "TC-AUD-008",
+      "module": "预约审核",
+      "title": "学生访问审核接口 403",
+      "priority": "P0",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "PUT /api/reservation/1/audit",
+        "校验"
+      ],
+      "test_data": "学生 token",
+      "expected_result": "HTTP 403 + code=403",
+      "requirement_ids": [
+        "REQ-041"
+      ],
+      "risk_mechanism_ids": [
+        "RM-AUTH-001"
+      ],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-ADMC-001",
+      "module": "教室管理",
+      "title": "新增教室",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "admin 登录",
+        "POST /api/classroom/manage body{name:QA测试教室,building:信息楼,roomNo:QA101,type:1,capacity:30,equipment:无}",
+        "校验返回 id"
+      ],
+      "test_data": "合法教室数据",
+      "expected_result": "code=200 返回新 id；列表可见",
+      "requirement_ids": [
+        "REQ-023"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "new_id"
+      ]
+    },
+    {
+      "id": "TC-ADMC-002",
+      "module": "教室管理",
+      "title": "编辑教室",
+      "priority": "P2",
+      "type": "api",
+      "steps": [
+        "admin 登录",
+        "PUT /api/classroom/manage body{id:<新建id>,name:QA测试教室改,...}",
+        "GET 校验"
+      ],
+      "test_data": "编辑新教室",
+      "expected_result": "code=200「修改成功」，字段已更新",
+      "requirement_ids": [
+        "REQ-023"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-ADMC-003",
+      "module": "教室管理",
+      "title": "删除有预约记录的教室被拒",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "admin 登录",
+        "DELETE /api/classroom/manage/1（存在预约）",
+        "校验"
+      ],
+      "test_data": "教室 id=1 有预约",
+      "expected_result": "code=400，提示存在预约记录不可删除",
+      "requirement_ids": [
+        "REQ-023"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-ADMC-004",
+      "module": "教室管理",
+      "title": "启停教室",
+      "priority": "P2",
+      "type": "api",
+      "steps": [
+        "admin 登录",
+        "PUT /api/classroom/manage/{id}/status body{status:0}",
+        "校验；再用学生端确认不可见/不可约"
+      ],
+      "test_data": "教室启停",
+      "expected_result": "code=200；停用后学生端列表不返回该教室、预约被拒",
+      "requirement_ids": [
+        "REQ-023",
+        "REQ-009"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "hybrid"
+    },
+    {
+      "id": "TC-ADMC-005",
+      "module": "教室管理",
+      "title": "批量启停教室",
+      "priority": "P2",
+      "type": "api",
+      "steps": [
+        "admin 登录",
+        "POST /api/classroom/manage/batch-status body{ids:[...],status:1}",
+        "校验"
+      ],
+      "test_data": "批量启用",
+      "expected_result": "code=200，返回更新数量",
+      "requirement_ids": [
+        "REQ-023"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-ADMC-006",
+      "module": "教室管理",
+      "title": "新增教室参数校验（缺必填/容量≤0）",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "admin 登录",
+        "POST body 缺 name；POST body 容量=0",
+        "校验"
+      ],
+      "test_data": "非法教室数据",
+      "expected_result": "code=400 明确提示；容量>0 校验生效",
+      "requirement_ids": [
+        "REQ-044"
+      ],
+      "risk_mechanism_ids": [
+        "RM-VALID-001"
+      ],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-ADMU-001",
+      "module": "用户管理",
+      "title": "用户分页查询",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "admin 登录",
+        "GET /api/user/manage?page=1&size=10",
+        "校验"
+      ],
+      "test_data": "分页查询",
+      "expected_result": "code=200，records 含用户信息与 role/status",
+      "requirement_ids": [
+        "REQ-028"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-ADMU-002",
+      "module": "用户管理",
+      "title": "禁用用户后其登录被拒",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "admin 登录",
+        "PUT /api/user/manage/{lisiId}/status body{status:0}",
+        "lisi 登录",
+        "校验"
+      ],
+      "test_data": "禁用 lisi",
+      "expected_result": "禁用成功；lisi 登录 → 403/400 提示账号禁用",
+      "requirement_ids": [
+        "REQ-028",
+        "REQ-041"
+      ],
+      "risk_mechanism_ids": [
+        "RM-AUTH-003"
+      ],
+      "execution_mode": "hybrid",
+      "state_oracle": {
+        "side_effect": "禁用后登录被拒"
+      }
+    },
+    {
+      "id": "TC-ADMU-003",
+      "module": "用户管理",
+      "title": "重置密码为默认 123456",
+      "priority": "P2",
+      "type": "api",
+      "steps": [
+        "admin 登录",
+        "PUT /api/user/manage/{id}/password",
+        "用新密码登录"
+      ],
+      "test_data": "重置某用户",
+      "expected_result": "code=200；该用户可用 123456 登录",
+      "requirement_ids": [
+        "REQ-028"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-ADMU-004",
+      "module": "用户管理",
+      "title": "禁止管理员操作自己",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "admin 登录",
+        "PUT /api/user/manage/1/status body{status:0}",
+        "校验"
+      ],
+      "test_data": "操作 admin 自己(id=1)",
+      "expected_result": "code=400，提示不能操作自己",
+      "requirement_ids": [
+        "REQ-028"
+      ],
+      "risk_mechanism_ids": [
+        "RM-AUTH-003"
+      ],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-STAT-001",
+      "module": "统计看板",
+      "title": "首页数据概览",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "admin 登录",
+        "GET /api/stats/overview",
+        "校验四类数据"
+      ],
+      "test_data": "概览",
+      "expected_result": "code=200，含今日预约/待审核/教室总数/用户总数，口径与库一致",
+      "requirement_ids": [
+        "REQ-022"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-STAT-002",
+      "module": "统计看板",
+      "title": "教室使用率排行",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "GET /api/stats/usage-rate",
+        "校验"
+      ],
+      "test_data": "使用率",
+      "expected_result": "code=200，返回按使用率排序的教室列表（含使用率数值）",
+      "requirement_ids": [
+        "REQ-030"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-STAT-003",
+      "module": "统计看板",
+      "title": "月度预约趋势",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "GET /api/stats/trend?days=30",
+        "校验"
+      ],
+      "test_data": "趋势",
+      "expected_result": "code=200，返回每日/每周预约数量序列",
+      "requirement_ids": [
+        "REQ-030"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-STAT-004",
+      "module": "统计看板",
+      "title": "热门时段分布",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "GET /api/stats/time-distribution",
+        "校验"
+      ],
+      "test_data": "时段分布",
+      "expected_result": "code=200，返回各时段预约占比数据",
+      "requirement_ids": [
+        "REQ-030"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-REC-001",
+      "module": "预约记录",
+      "title": "预约记录多条件筛选",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "admin 登录",
+        "GET /api/reservation/manage?status=1&startDate=<7日前>&endDate=<今日>&keyword=信息楼",
+        "校验"
+      ],
+      "test_data": "多条件组合",
+      "expected_result": "code=200，结果满足全部条件（状态/日期区间/关键词）",
+      "requirement_ids": [
+        "REQ-029"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-REC-002",
+      "module": "预约记录",
+      "title": "Excel 导出完整性",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "admin 登录",
+        "GET /api/reservation/export（带筛选）",
+        "下载文件",
+        "打开校验行数与中文"
+      ],
+      "test_data": "导出预约记录",
+      "expected_result": "返回 xlsx 文件可打开；行数=筛选 total；中文正常无乱码；首行为表头",
+      "requirement_ids": [
+        "REQ-029"
+      ],
+      "risk_mechanism_ids": [
+        "RM-EXPORT-001"
+      ],
+      "execution_mode": "hybrid",
+      "state_oracle": {
+        "technical_outcome": "xlsx 可解析"
+      },
+      "evidence_expected": [
+        "xlsx_file"
+      ]
+    },
+    {
+      "id": "TC-PROF-001",
+      "module": "个人中心",
+      "title": "修改个人信息",
+      "priority": "P2",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "PUT /api/user/info body{name:张三改,email:new@stu.edu.cn,phone:13800000009}",
+        "GET info 校验"
+      ],
+      "test_data": "修改资料",
+      "expected_result": "code=200；info 返回更新后字段",
+      "requirement_ids": [
+        "REQ-016"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-PROF-002",
+      "module": "个人中心",
+      "title": "修改密码（旧密码校验）",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "PUT /api/user/password body{oldPassword:wrong,newPassword:new123}",
+        "校验",
+        "PUT body{oldPassword:123456,newPassword:new123}",
+        "新密码登录"
+      ],
+      "test_data": "错误旧密码→正确旧密码",
+      "expected_result": "旧密码错误 → code=400；旧密码正确 → 成功且新密码可登录",
+      "requirement_ids": [
+        "REQ-016"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-PROF-003",
+      "module": "个人中心",
+      "title": "个人预约数据概览",
+      "priority": "P2",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "GET /api/user/stats",
+        "校验"
+      ],
+      "test_data": "数据概览",
+      "expected_result": "code=200，返回预约总数/本月/通过率等口径数据",
+      "requirement_ids": [
+        "REQ-017"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-CAL-001",
+      "module": "预约日历",
+      "title": "日历事件数据（当月已通过预约）",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "GET /api/reservation/calendar?month=<当月>",
+        "校验"
+      ],
+      "test_data": "当月日历",
+      "expected_result": "code=200，返回当月已通过预约事件（含日期、教室、时段），日期为 yyyy-MM-dd",
+      "requirement_ids": [
+        "REQ-021"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-AI-001",
+      "module": "AI模块",
+      "title": "智能教室推荐 Top3（本地规则/降级路径）",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "POST /api/ai/recommend body{userId:2}",
+        "校验"
+      ],
+      "test_data": "有预约历史学生",
+      "expected_result": "code=200，返回 Top3 推荐教室（含教室信息与推荐理由）；AI 关闭/降级时仍可用",
+      "requirement_ids": [
+        "REQ-007",
+        "REQ-038"
+      ],
+      "risk_mechanism_ids": [
+        "RM-AI-001"
+      ],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-AI-002",
+      "module": "AI模块",
+      "title": "自然语言预约解析",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "POST /api/ai/parse-reservation body{text:我想要一个机房，明天下午两小时}",
+        "校验结构化结果"
+      ],
+      "test_data": "口语化需求",
+      "expected_result": "code=200，返回 date/startTime/endTime/capacity/roomType/purpose 结构化字段，解析合理",
+      "requirement_ids": [
+        "REQ-008"
+      ],
+      "risk_mechanism_ids": [
+        "RM-AI-001"
+      ],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-AI-003",
+      "module": "AI模块",
+      "title": "预约合规校验命中违规",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "admin 登录",
+        "POST /api/ai/compliance-check body{purpose:商业推销宣讲会}",
+        "校验"
+      ],
+      "test_data": "违规用途（商业推销）",
+      "expected_result": "code=200，compliant=false 或本地关键词命中违规提示原因",
+      "requirement_ids": [
+        "REQ-027"
+      ],
+      "risk_mechanism_ids": [
+        "RM-AI-001"
+      ],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-AI-004",
+      "module": "AI模块",
+      "title": "智能助手场景限定：无关话题返回预设话术",
+      "priority": "P2",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "POST /api/ai/chat body{question:今天天气怎么样}",
+        "校验"
+      ],
+      "test_data": "无关话题",
+      "expected_result": "code=200，返回预设话术（仅回答预约业务）而非真实答案",
+      "requirement_ids": [
+        "REQ-020",
+        "REQ-036"
+      ],
+      "risk_mechanism_ids": [
+        "RM-AI-003"
+      ],
+      "execution_mode": "automated"
+    },
+    {
+      "id": "TC-AI-005",
+      "module": "AI模块",
+      "title": "AI 只读不写：调用链无业务写入",
+      "priority": "P0",
+      "type": "api",
+      "steps": [
+        "zhangsan 登录",
+        "调用 recommend/parse/chat/compliance 各一次",
+        "比对前后预约/收藏/用户表数据"
+      ],
+      "test_data": "AI 全接口调用",
+      "expected_result": "数据库预约/收藏/用户表无 AI 直接产生的变更（快照对比一致）",
+      "requirement_ids": [
+        "REQ-037"
+      ],
+      "risk_mechanism_ids": [
+        "RM-AI-002"
+      ],
+      "execution_mode": "hybrid",
+      "state_oracle": {
+        "side_effect": "无 AI 业务写入"
+      },
+      "evidence_expected": [
+        "db_snapshot"
+      ]
+    },
+    {
+      "id": "TC-AI-006",
+      "module": "AI模块",
+      "title": "AI 双开关：关闭时入口隐藏/降级",
+      "priority": "P1",
+      "type": "api",
+      "steps": [
+        "确认 ai.enable=false（当前配置）",
+        "访问前端教室列表页",
+        "检查 AI 推荐卡/快速预约入口；调用 AI 接口"
+      ],
+      "test_data": "双开关 false",
+      "expected_result": "前端不展示 AI 推荐卡与快速预约入口；AI 接口返回降级/关闭提示，页面可用",
+      "requirement_ids": [
+        "REQ-038",
+        "REQ-039"
+      ],
+      "risk_mechanism_ids": [
+        "RM-AI-001"
+      ],
+      "execution_mode": "hybrid",
+      "state_oracle": {
+        "technical_outcome": "AI 入口隐藏，业务可用"
+      }
+    },
+    {
+      "id": "TC-UI-001",
+      "module": "前端E2E",
+      "title": "学生登录→教室列表渲染→筛选",
+      "priority": "P1",
+      "type": "ui_e2e",
+      "steps": [
+        "打开 http://127.0.0.1:5173",
+        "以 zhangsan/123456 学生角色登录",
+        "进入教室列表页，观察卡片/状态标签/分页",
+        "执行楼栋筛选",
+        "检查控制台错误"
+      ],
+      "test_data": "浏览器 Chrome",
+      "expected_result": "登录成功跳转 /student/home；教室卡片渲染含状态标签；筛选生效；无控制台报错",
+      "requirement_ids": [
+        "REQ-001",
+        "REQ-004",
+        "REQ-005"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "screenshot",
+        "console_log"
+      ]
+    },
+    {
+      "id": "TC-UI-002",
+      "module": "前端E2E",
+      "title": "教室详情→预约弹窗→前端冲突检测提示",
+      "priority": "P1",
+      "type": "ui_e2e",
+      "steps": [
+        "进入某教室详情页",
+        "点击预约申请",
+        "选择与已通过冲突时段",
+        "观察冲突提示与提交禁用",
+        "选择无冲突时段提交"
+      ],
+      "test_data": "浏览器 Chrome",
+      "expected_result": "冲突时段实时提示并禁用提交；无冲突可提交成功进入待审核",
+      "requirement_ids": [
+        "REQ-009",
+        "REQ-011",
+        "REQ-031"
+      ],
+      "risk_mechanism_ids": [
+        "RM-CORE-001"
+      ],
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "screenshot"
+      ]
+    },
+    {
+      "id": "TC-UI-003",
+      "module": "前端E2E",
+      "title": "我的预约页状态筛选与取消",
+      "priority": "P1",
+      "type": "ui_e2e",
+      "steps": [
+        "学生进入我的预约页",
+        "切换状态标签（待审核/已通过/已驳回/已取消）",
+        "尝试取消一条预约（二次确认）"
+      ],
+      "test_data": "浏览器 Chrome",
+      "expected_result": "状态切换正确；取消弹二次确认；确认后状态更新为已取消",
+      "requirement_ids": [
+        "REQ-013",
+        "REQ-014",
+        "REQ-015"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "screenshot"
+      ]
+    },
+    {
+      "id": "TC-UI-004",
+      "module": "前端E2E",
+      "title": "预约日历总览渲染",
+      "priority": "P1",
+      "type": "ui_e2e",
+      "steps": [
+        "学生进入日历页",
+        "月/周视图切换",
+        "观察已通过预约事件色块"
+      ],
+      "test_data": "浏览器 Chrome",
+      "expected_result": "日历渲染无 JS 错误；已通过预约以事件展示且日期正确",
+      "requirement_ids": [
+        "REQ-021"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "screenshot"
+      ]
+    },
+    {
+      "id": "TC-UI-005",
+      "module": "前端E2E",
+      "title": "管理端登录→审核流程（通过/驳回/快捷原因/批量）",
+      "priority": "P1",
+      "type": "ui_e2e",
+      "steps": [
+        "admin/admin123 管理员登录",
+        "进入预约审核页",
+        "对一条待审核执行通过",
+        "对另一条执行驳回并选快捷原因",
+        "勾选批量通过"
+      ],
+      "test_data": "浏览器 Chrome",
+      "expected_result": "审核操作生效且状态即时刷新；快捷原因可回填；批量操作提示成功",
+      "requirement_ids": [
+        "REQ-024",
+        "REQ-025",
+        "REQ-026"
+      ],
+      "risk_mechanism_ids": [
+        "RM-BATCH-001"
+      ],
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "screenshot"
+      ]
+    },
+    {
+      "id": "TC-UI-006",
+      "module": "前端E2E",
+      "title": "数据看板三图表渲染",
+      "priority": "P1",
+      "type": "ui_e2e",
+      "steps": [
+        "管理员进入数据看板页",
+        "观察柱状图/折线图/饼图渲染",
+        "切换时间范围"
+      ],
+      "test_data": "浏览器 Chrome",
+      "expected_result": "三图表正常渲染无报错；数据与接口一致",
+      "requirement_ids": [
+        "REQ-030"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "screenshot"
+      ]
+    },
+    {
+      "id": "TC-UI-007",
+      "module": "前端E2E",
+      "title": "登录提醒与个人中心概览",
+      "priority": "P2",
+      "type": "ui_e2e",
+      "steps": [
+        "以含今日即将开始预约的学生（如 lisi，今日 15:00 电路实验已通过）登录",
+        "观察顶部提醒",
+        "进入个人中心观察数据卡片/常用教室"
+      ],
+      "test_data": "浏览器 Chrome",
+      "expected_result": "登录后顶部温和提醒显示；个人中心数据卡片与收藏入口渲染",
+      "requirement_ids": [
+        "REQ-003",
+        "REQ-017",
+        "REQ-018"
+      ],
+      "risk_mechanism_ids": [],
+      "execution_mode": "automated",
+      "evidence_expected": [
+        "screenshot"
+      ]
+    }
+  ],
+  "executions": [
+    {
+      "id": "EXE-RESERVATIONE-0001",
+      "case_id": "TC-AUTH-001",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "zhangsan 登录返回 token",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0002",
+      "case_id": "TC-AUTH-002",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "admin 登录返回 token",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0003",
+      "case_id": "TC-AUTH-003",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "错误密码 code=400 msg=账号或密码错误",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0004",
+      "case_id": "TC-AUTH-004",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "学生账号用管理员角色 code=400 msg=角色选择与账号类型不匹配",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0005",
+      "case_id": "TC-AUTH-005",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "注册 code=200 msg=注册成功，请登录",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0006",
+      "case_id": "TC-AUTH-006",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "重复注册 code=400 msg=该账号已被注册，请更换账号",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0007",
+      "case_id": "TC-AUTH-007",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "密码不一致 code=400 msg=两次输入的密码不一致",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0008",
+      "case_id": "TC-AUTH-009",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "info code=200 username=zhangsan role=0",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0009",
+      "case_id": "TC-PERM-001",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "无token http=401 code=401 msg=未登录或登录已过期",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0010",
+      "case_id": "TC-PERM-002",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "伪造token http=401 code=401",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0011",
+      "case_id": "TC-PERM-003",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "学生访问教室管理 http=403 code=403 msg=无权限访问",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0012",
+      "case_id": "TC-PERM-004",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "学生访问预约管理 http=403 code=403",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0013",
+      "case_id": "TC-PERM-005",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "学生访问用户管理 http=403 code=403",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0014",
+      "case_id": "TC-CLASS-001",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "列表 total=12 recs=5",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0015",
+      "case_id": "TC-CLASS-002",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "关键词A301 recs=1",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0016",
+      "case_id": "TC-CLASS-003",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "组合筛选 recs=1",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0017",
+      "case_id": "TC-CLASS-004",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "详情 id=1 occupiedSlots=[]",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0018",
+      "case_id": "TC-CLASS-005",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "不存在教室 code=400 msg=教室不存在",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0019",
+      "case_id": "TC-CLASS-006",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "statusLabel 取值=[\"当前空闲\"]",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "修正重跑（补字段/参照数据修正）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0020",
+      "case_id": "TC-FAV-001",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "收藏2 code=200 列表含2=True",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0021",
+      "case_id": "TC-FAV-002",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "收藏列表 count=3",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0022",
+      "case_id": "TC-FAV-003",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "取消收藏后列表含2=False",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0023",
+      "case_id": "TC-FAV-004",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "收藏数=10 第11间code=400 msg=收藏数量已达上限（10 间），请先取消部分收藏",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "修正重跑（补字段/参照数据修正）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0024",
+      "case_id": "TC-RES-001",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "无重叠(18:00-20:00) conflict=False",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "修正重跑（补字段/参照数据修正）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0025",
+      "case_id": "TC-RES-002",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "部分重叠(14:30-15:30) conflict=True",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "修正重跑（补字段/参照数据修正）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0026",
+      "case_id": "TC-RES-003",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "首尾相接(15:00-17:00 接 14:00-15:00) conflict=False code=200 msg=操作成功",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "最终补测（修正时间/参数/参照数据后重跑）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0027",
+      "case_id": "TC-RES-004",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "完全包含(13:00-16:00) conflict=True",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "修正重跑（补字段/参照数据修正）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0028",
+      "case_id": "TC-RES-005",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "提交成功 id=72 code=200",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0029",
+      "case_id": "TC-RES-006",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "重叠提交被拒 code=400 msg=该时段与「14:00-15:00」的已通过预约冲突",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "修正重跑（补字段/参照数据修正）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0030",
+      "case_id": "TC-RES-007",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "过去日期 code=400 msg=预约日期不能早于今天",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0031",
+      "case_id": "TC-RES-008",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "时间倒置 code=400 msg=开始时间必须早于结束时间",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0032",
+      "case_id": "TC-RES-009",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "停用教室预约 code=400 msg=该教室已停用，无法预约",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0033",
+      "case_id": "TC-RES-010",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "mine字段完整=True status1过滤=3条",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0034",
+      "case_id": "TC-RES-011",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "取消 code=200 状态=[3]",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0035",
+      "case_id": "TC-RES-012",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "1小时内取消 code=400 msg=预约开始前 1 小时内禁止取消，如需调整请联系管理员",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "最终补测（修正时间/参数/参照数据后重跑）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0036",
+      "case_id": "TC-RES-013",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "取消他人 code=400 msg=只能取消自己的预约",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0037",
+      "case_id": "TC-RES-014",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "已取消再取消 code=400 msg=当前状态不可取消",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0038",
+      "case_id": "TC-RES-015",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "非法status code=400 msg=状态参数不合法（0-待审核，1-已通过，2-已驳回，3-已取消）",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0039",
+      "case_id": "TC-AUD-001",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "manage status0 条数=4 含userName=True",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0040",
+      "case_id": "TC-AUD-002",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "通过 code=200 状态=1 auditorId=1",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "修正重跑（补字段/参照数据修正）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0041",
+      "case_id": "TC-AUD-003",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "驳回 code=200 状态=2 备注=用途不明确，请补充具体教学/实验用途",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "修正重跑（补字段/参照数据修正）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0042",
+      "case_id": "TC-AUD-004",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "缺备注 code=400 msg=驳回必须填写审核备注",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "修正重跑（补字段/参照数据修正）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0043",
+      "case_id": "TC-AUD-005",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "非待审核再审核 code=400 msg=仅待审核状态的预约可审核",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "修正重跑（补字段/参照数据修正）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0044",
+      "case_id": "TC-AUD-006",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "批量通过 code=200 data=2 状态=1/1",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "修正重跑（补字段/参照数据修正）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0045",
+      "case_id": "TC-AUD-007",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "混入已审核后 b1=1 b2=1（保持已通过不被覆盖）",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "修正重跑（补字段/参照数据修正）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0046",
+      "case_id": "TC-AUD-008",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "学生审核 http=403 code=403",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0047",
+      "case_id": "TC-ADMC-001",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "新增教室 id=44",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0048",
+      "case_id": "TC-ADMC-002",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "编辑后容量=50",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0049",
+      "case_id": "TC-ADMC-003",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "删除有预约教室 code=400 msg=该教室存在预约记录，禁止删除",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0050",
+      "case_id": "TC-ADMC-004",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "停用后学生端不可见 code=200 学生可见=0",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0051",
+      "case_id": "TC-ADMC-005",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "批量启停 code=200 data=1",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0052",
+      "case_id": "TC-ADMU-001",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "用户分页 total=6",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0053",
+      "case_id": "TC-ADMU-002",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "禁用lisi code=200 登录被拒 code=403 msg=账号已被禁用，请联系管理员",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0054",
+      "case_id": "TC-ADMU-003",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "重置密码 code=200 登录 code=200",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0055",
+      "case_id": "TC-ADMU-004",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "禁自己 code=400 msg=不允许操作当前登录的管理员账号",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0056",
+      "case_id": "TC-STAT-001",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "overview keys=['todayReservationCount', 'pendingAuditCount', 'classroomCount', 'userCount']",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0057",
+      "case_id": "TC-STAT-002",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "usage-rate 返回 data 类型=list",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0058",
+      "case_id": "TC-STAT-003",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "trend 返回 data 类型=list",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0059",
+      "case_id": "TC-STAT-004",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "time-distribution 返回 data 类型=list",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0060",
+      "case_id": "TC-REC-001",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "多条件筛选 条数=0",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0061",
+      "case_id": "TC-REC-002",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "导出 xlsx 字节=5795 魔数PK=b'PK\\x03\\x04'",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0062",
+      "case_id": "TC-PROF-001",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "改资料 code=200 name=张三",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0063",
+      "case_id": "TC-PROF-002",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "旧密码错拒绝=True 改密=True 新密码登录=True",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "修正重跑（补字段/参照数据修正）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0064",
+      "case_id": "TC-PROF-003",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "stats keys=['totalReservations', 'monthReservations', 'approvalRate', 'lastReservationTime']",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0065",
+      "case_id": "TC-CAL-001",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "日历区间 events=17 code=200 首条={\"id\": 72, \"classroomId\": 1, \"classroomName\": \"A101多媒体教室\", \"building\": \"信息楼\", \"roomNo\": \"A101\", \"reserveDate\": \"2026-09-",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "最终补测（修正时间/参数/参照数据后重跑）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0066",
+      "case_id": "TC-AI-001",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "推荐条数=0",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "修正重跑（补字段/参照数据修正）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0067",
+      "case_id": "TC-AI-002",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "解析 code=200 keys=['enabled', 'message', 'date', 'startTime', 'endTime', 'capacity', 'roomType', 'purpose', 'error']",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0068",
+      "case_id": "TC-AI-003",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "合规校验 code=200 data={\"enabled\": false, \"message\": \"AI 服务未启用，当前为纯预约系统模式\", \"compliant\": false, \"reason\": null}",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0069",
+      "case_id": "TC-AI-004",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "chat code=200 data={\"enabled\": false, \"message\": \"AI 服务未启用，当前为纯预约系统模式\", \"answer\": null}",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0070",
+      "case_id": "TC-AI-006",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "ai.enable=false 时 AI 接口返回本地/降级结果，页面可用（前端入口隐藏由 UI 用例验证）",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0071",
+      "case_id": "TC-UI-001",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "学生登录→教室列表渲染→筛选（Playwright 00-smoke + 11-classroom-list 共 12 例全过，无控制台报错）",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "Playwright E2E 全套 90 例：87 通过 / 2 失败（晚间造数时间约束）/ 1 跳过（取消时限晚间不可造数）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0072",
+      "case_id": "TC-UI-002",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "教室详情→预约弹窗→冲突实时提示禁用提交（Playwright 12-classroom-detail 冲突校验用例过）",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "Playwright E2E 全套 90 例：87 通过 / 2 失败（晚间造数时间约束）/ 1 跳过（取消时限晚间不可造数）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0073",
+      "case_id": "TC-UI-003",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "我的预约状态筛选/取消二次确认/空状态（Playwright 13-my-reservation 状态切换/取消/空状态过）",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "Playwright E2E 全套 90 例：87 通过 / 2 失败（晚间造数时间约束）/ 1 跳过（取消时限晚间不可造数）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0074",
+      "case_id": "TC-UI-004",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "日历月周视图/色块/快速预约（Playwright 14-calendar 5 例全过）",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "Playwright E2E 全套 90 例：87 通过 / 2 失败（晚间造数时间约束）/ 1 跳过（取消时限晚间不可造数）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0075",
+      "case_id": "TC-UI-005",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "管理端审核通过/驳回快捷原因/批量（Playwright 22-audit-manage 5 例全过）",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "Playwright E2E 全套 90 例：87 通过 / 2 失败（晚间造数时间约束）/ 1 跳过（取消时限晚间不可造数）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0076",
+      "case_id": "TC-UI-006",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "看板三图表渲染/时间范围切换/刷新（Playwright 25-dashboard 4 例全过）",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "Playwright E2E 全套 90 例：87 通过 / 2 失败（晚间造数时间约束）/ 1 跳过（取消时限晚间不可造数）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0077",
+      "case_id": "TC-UI-007",
+      "status": "blocked",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "manual",
+      "actual_result": "登录提醒与今日置顶依赖『当日未来时段』样本，当前晚间 21:30+ 可预约时段 08:00-22:00 无法构造；对应 Playwright 10-auth 登录提醒与 13-my-reservation 今日置顶 2 例失败（造数被业务校验正确拒绝，非产品缺陷），留待白天空闲时段验证",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1,
+      "tester_notes": "Playwright E2E 全套 90 例：87 通过 / 2 失败（晚间造数时间约束）/ 1 跳过（取消时限晚间不可造数）"
+    },
+    {
+      "id": "EXE-RESERVATIONE-0078",
+      "case_id": "EVIDENCE",
+      "status": "passed",
+      "execution_level": "evidence",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "TC-AUTH-005 附带：sys_user 密码字段均为 BCrypt 哈希（admin $2b$10$ / lisi $2a$10$ / zhangsan $2a$10$，长度 60），无明文",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0079",
+      "case_id": "EVIDENCE",
+      "status": "passed",
+      "execution_level": "evidence",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "TC-REC-002 附带：导出 xlsx 可打开（zip 结构 9 项），23 行（表头+22 数据），12 列中文表头正常（预约ID/教室名称/楼栋/教室编号/用户账号/用户姓名/预约日期/开始时间/结束时间/预约用途/状态/审核备注）",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0080",
+      "case_id": "EVIDENCE",
+      "status": "passed",
+      "execution_level": "evidence",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "TC-AI-005 附带：调用 recommend/parse-reservation/compliance-check/chat 前后 DB 计数一致（reservation=71, favorite=7, sys_user=16, classroom=14），AI 零写入",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0081",
+      "case_id": "EVIDENCE",
+      "status": "passed",
+      "execution_level": "evidence",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "TC-PROF-002 附带：修改密码后旧 Token 失效返回 401，需重新登录（安全行为符合预期）",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0082",
+      "case_id": "EVIDENCE",
+      "status": "passed",
+      "execution_level": "evidence",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "TC-AUTH-008 附带：TC-ADMU-002 禁用 lisi 后其登录返回 403「账号已被禁用」",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0083",
+      "case_id": "EVIDENCE",
+      "status": "passed",
+      "execution_level": "evidence",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "环境修复记录：Docker 容器网络丢失（docker-proxy 未监听 3306/6379）→ docker network connect bridge 恢复；zhangsan 连续失败触发登录锁定（Redis auth:login:lock）→ 清除锁定并管理员重置密码恢复（登录锁定为 R9 亮点功能，行为正确）",
+      "started_at": "2026-09-24T21:36:58",
+      "finished_at": "2026-09-24T21:36:58",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0084",
+      "case_id": "TC-AUTH-008",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "禁用 lisi 后其登录返回 403「账号已被禁用，请联系管理员」（TC-ADMU-002 连带验证）",
+      "started_at": "2026-09-24T21:37:21",
+      "finished_at": "2026-09-24T21:37:21",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0085",
+      "case_id": "TC-AI-005",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "调用 recommend/parse/compliance/chat 前后 DB 计数一致（71/7/16/14），AI 零业务写入",
+      "started_at": "2026-09-24T21:37:21",
+      "finished_at": "2026-09-24T21:37:21",
+      "attempt": 1
+    },
+    {
+      "id": "EXE-RESERVATIONE-0086",
+      "case_id": "TC-ADMC-006",
+      "status": "passed",
+      "execution_level": "case",
+      "validation_scope": "formal",
+      "execution_method": "automated",
+      "actual_result": "缺name→400「教室名称、楼栋、编号不能为空」；容量0→400「教室容量必须大于 0」（首轮以 006a/006b 子记录执行）",
+      "started_at": "2026-09-24T21:37:39",
+      "finished_at": "2026-09-24T21:37:39",
+      "attempt": 1
+    }
+  ],
+  "evidence": [],
+  "bugs": [],
+  "bug_candidates": [],
+  "risks": [],
+  "acceptance_checks": [],
+  "blockers": [],
+  "manual_handoff": {
+    "required": false,
+    "status": "not_required",
+    "reason": "",
+    "target_platform": "",
+    "operator": "",
+    "prerequisites": [],
+    "case_ids": [],
+    "evidence_requirements": [],
+    "result_submission": []
+  },
+  "unverified": [
+    "真实 Agnes AI 大模型链路：application.yml ai.enable 与 ai_config 表 ai_enable 双开关当前均为 false（AI 默认关闭设计），本轮 AI 用例覆盖本地规则/降级路径与开关行为；真实模型调用依赖 AGNES_API_KEY 环境变量注入，未配置时不覆盖",
+    "浏览器兼容矩阵：仅覆盖 Chrome/Edge 主流浏览器（本机 Chromium 内核），Safari/Firefox 不覆盖",
+    "弱网/断网/请求取消与慢网恢复场景：本轮不覆盖",
+    "大规模并发、性能与压力测试：本轮不覆盖（非功能仅做风险识别与冒烟）",
+    "移动端/小程序适配：本项目为桌面 Web 端前后端分离系统，无移动端目标，不适用"
+  ],
+  "coverage": {
+    "requirement_total": 44,
+    "requirement_linked": 44,
+    "requirement_unlinked": 0,
+    "p0_requirement_total": 13,
+    "p0_requirement_linked": 13,
+    "case_total": 80,
+    "case_status_counts": {
+      "通过": 79,
+      "阻塞": 1
+    },
+    "execution_total": 86,
+    "execution_status_counts": {
+      "passed": 85,
+      "blocked": 1
+    },
+    "bug_total": 0,
+    "root_cause_total": 0,
+    "unverified_scope_note": "未验证范围：① 真实 Agnes AI 大模型链路（双开关 false，验证了关闭态降级与零写入）；② Safari/Firefox 浏览器兼容；③ 弱网/断网/慢网恢复；④ 大规模并发与性能压测；⑤ TC-UI-007 登录提醒/今日置顶依赖当日未来时段，晚间无法构造样本（阻塞，白天空闲时段补验）。"
+  },
+  "release_decision": {
+    "decision": "conditional_go",
+    "rationale": "44 项需求全部映射为 80 个测试用例（API 73 + UI E2E 7），79 通过、1 阻塞；核心业务规则均有正式执行证据且通过：冲突检测公式六组边界（无重叠/部分重叠/完全包含/首尾相接/仅已通过参与/后端二次校验直调重叠拒绝）、状态流转四态迁移与非法迁移拒绝、取消时限（开始前 1 小时内 400 拒绝 + 超过可取消）、收藏上限 10（第 11 间 400）、批量审核仅待审核且不覆盖已审核、权限拦截（无 token 401 / 学生访问管理接口 403 / 禁用账号登录 403 / 管理员禁自己 400）、AI 双开关关闭时降级可用且零业务写入、Excel 导出完整、日历区间数据正确、参数校验（page<1、size>500、非法 status、时间倒置、时段外均 400）。API 层零产品缺陷；Playwright 浏览器 E2E 全套 90 例 87 通过、2 例失败与 1 例跳过均为『晚间运行导致测试造数被业务时段校验正确拒绝』，非产品缺陷。唯一阻塞用例 TC-UI-007（登录提醒弹窗/今日预约置顶）依赖『当日未来时段预约』样本，当前 21:30+ 可预约时段 08:00-22:00 无法构造。",
+    "conditions": [
+      "白天空闲时段补验 2 个依赖当日未来时段的 UI 场景：登录提醒弹窗（REQ-003）与我的预约今日置顶（REQ-014）；责任人：测试验证 Agent；时限：下一轮迭代开始前；监控：重跑 Playwright 10-auth 登录提醒与 13-my-reservation 今日置顶 2 例",
+      "若需验证真实 Agnes AI 大模型链路，注入 AGNES_API_KEY 环境变量后将 ai.enable 双开关置 true 后复测 AI 四接口（本轮已验证关闭态降级路径与零写入）"
+    ]
+  },
+  "delivery_manifest": {
+    "source_revision": 4,
+    "outputs": [
+      {
+        "purpose": "deliverable",
+        "carrier": "office_file",
+        "format": "xlsx",
+        "filename": "实验室-教室预约管理系统-QA收口报告.xlsx",
+        "source_revision": 4,
+        "sha256": "c020446127756ba2216442a5393c5abfa0acee045a5bd235dd58c2d5f5736c37",
+        "status": "validated",
+        "locator": "C:\\Users\\72797\\Course\\reservation-system\\qa-results\\reservation-e2e\\实验室-教室预约管理系统-QA收口报告.xlsx",
+        "readback_receipt": "36002 bytes",
+        "validated": true
+      }
+    ],
+    "fingerprint": "sha256:c568e2d1ecd94ca73732c25ffd82885b5f29407295fd87eff1e8e29d9d5763ea"
+  },
+  "test_data": {
+    "writes_allowed": true,
+    "created_records": {
+      "users": [
+        "qa_stu_212703"
+      ],
+      "reservations": [
+        72,
+        74,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86
+      ],
+      "classrooms": [
+        43,
+        44
+      ],
+      "favorites": "zhangsan 临时收藏已还原至种子状态 [8,11,12]"
+    },
+    "cleanup": {
+      "status": "recorded",
+      "required": true,
+      "residuals": [
+        "QA 前缀预约 12 条（QA端到端测试预约/QA审核样本/QA批量/QA首尾相接参照等）保留于开发演示库，未删除种子数据",
+        "QA 教室 43/44 保留用于后续回归",
+        "qa_stu_212703 测试用户保留"
+      ],
+      "note": "开发演示环境，QA 前缀数据保留便于复现与回归；如需清理可执行 DELETE WHERE purpose LIKE 'QA%' 等语句（已随报告交付）"
+    },
+    "environment_restored": true
+  },
+  "disclosures": [
+    {
+      "id": "DISC-001",
+      "title": "需求 risk 字段未使用枚举（门禁 REPORT 项）",
+      "detail": "44 条需求 risk 字段填写为描述性文本，门禁要求枚举 P0/P1/P2/P3；非阻塞，已在各需求行内标注具体风险描述，后续版本可将 risk 改为枚举并保留描述于 behavior。",
+      "resolution": "作为披露项保留；不影响结论。"
+    },
+    {
+      "id": "DISC-002",
+      "title": "R8 接口清单文档与代码的口径差异",
+      "detail": "R8 接口清单将教室类型写为 0-普通/1-多媒体/2-机房，与需求设计文档 2.3（1-普通教室/2-实验室/3-机房）及当前代码枚举不一致；测试以需求文档与代码实况为准。",
+      "resolution": "文档口径差异，非产品缺陷；建议同步更新接口清单。"
+    },
+    {
+      "id": "DISC-003",
+      "title": "测试环境修复记录",
+      "detail": "① Docker 容器网络丢失（docker-proxy 未监听 3306/6379）→ docker network connect bridge 恢复；② zhangsan 多次错误密码触发登录锁定（R9 防爆破亮点，Redis auth:login:lock）→ 清除锁定并管理员重置密码恢复；③ 修改密码接口要求 confirmPassword 字段（R8 接口清单未列，实际实现一致于前端调用）。",
+      "resolution": "均为环境与文档层面，产品行为正确。"
+    }
+  ]
+}

@@ -1,0 +1,382 @@
+{
+  "summary": {
+    "total": 71,
+    "passed": 62,
+    "failed": 9,
+    "blocked": 0,
+    "created": {
+      "users": [
+        "qa_stu_212703"
+      ],
+      "reservations": [
+        72,
+        null,
+        74,
+        77,
+        78
+      ],
+      "classrooms": [
+        43,
+        44
+      ],
+      "favorites": []
+    }
+  },
+  "results": [
+    {
+      "case_id": "TC-AUTH-001",
+      "status": "passed",
+      "actual": "zhangsan 登录返回 token"
+    },
+    {
+      "case_id": "TC-AUTH-002",
+      "status": "passed",
+      "actual": "admin 登录返回 token"
+    },
+    {
+      "case_id": "TC-AUTH-003",
+      "status": "passed",
+      "actual": "错误密码 code=400 msg=账号或密码错误"
+    },
+    {
+      "case_id": "TC-AUTH-004",
+      "status": "passed",
+      "actual": "学生账号用管理员角色 code=400 msg=角色选择与账号类型不匹配"
+    },
+    {
+      "case_id": "TC-AUTH-005",
+      "status": "passed",
+      "actual": "注册 code=200 msg=注册成功，请登录"
+    },
+    {
+      "case_id": "TC-AUTH-006",
+      "status": "passed",
+      "actual": "重复注册 code=400 msg=该账号已被注册，请更换账号"
+    },
+    {
+      "case_id": "TC-AUTH-007",
+      "status": "passed",
+      "actual": "密码不一致 code=400 msg=两次输入的密码不一致"
+    },
+    {
+      "case_id": "TC-AUTH-009",
+      "status": "passed",
+      "actual": "info code=200 username=zhangsan role=0"
+    },
+    {
+      "case_id": "TC-PERM-001",
+      "status": "passed",
+      "actual": "无token http=401 code=401 msg=未登录或登录已过期"
+    },
+    {
+      "case_id": "TC-PERM-002",
+      "status": "passed",
+      "actual": "伪造token http=401 code=401"
+    },
+    {
+      "case_id": "TC-PERM-003",
+      "status": "passed",
+      "actual": "学生访问教室管理 http=403 code=403 msg=无权限访问"
+    },
+    {
+      "case_id": "TC-PERM-004",
+      "status": "passed",
+      "actual": "学生访问预约管理 http=403 code=403"
+    },
+    {
+      "case_id": "TC-PERM-005",
+      "status": "passed",
+      "actual": "学生访问用户管理 http=403 code=403"
+    },
+    {
+      "case_id": "TC-CLASS-001",
+      "status": "passed",
+      "actual": "列表 total=12 recs=5"
+    },
+    {
+      "case_id": "TC-CLASS-002",
+      "status": "passed",
+      "actual": "关键词A301 recs=1"
+    },
+    {
+      "case_id": "TC-CLASS-003",
+      "status": "passed",
+      "actual": "组合筛选 recs=1"
+    },
+    {
+      "case_id": "TC-CLASS-004",
+      "status": "passed",
+      "actual": "详情 id=1 occupiedSlots=[]"
+    },
+    {
+      "case_id": "TC-CLASS-005",
+      "status": "passed",
+      "actual": "不存在教室 code=400 msg=教室不存在"
+    },
+    {
+      "case_id": "TC-CLASS-006",
+      "status": "failed",
+      "actual": "状态标签集合=[]"
+    },
+    {
+      "case_id": "TC-FAV-001",
+      "status": "passed",
+      "actual": "收藏2 code=200 列表含2=True"
+    },
+    {
+      "case_id": "TC-FAV-002",
+      "status": "passed",
+      "actual": "收藏列表 count=3"
+    },
+    {
+      "case_id": "TC-FAV-003",
+      "status": "passed",
+      "actual": "取消收藏后列表含2=False"
+    },
+    {
+      "case_id": "TC-FAV-004",
+      "status": "failed",
+      "actual": "收藏数=7 第11间 code=200 msg=收藏成功"
+    },
+    {
+      "case_id": "TC-RES-001",
+      "status": "failed",
+      "actual": "无重叠 conflict=True"
+    },
+    {
+      "case_id": "TC-RES-002",
+      "status": "passed",
+      "actual": "部分重叠 08:00-11:00 conflict=True"
+    },
+    {
+      "case_id": "TC-RES-003",
+      "status": "passed",
+      "actual": "首尾相接 10:00-12:00 conflict=False"
+    },
+    {
+      "case_id": "TC-RES-004",
+      "status": "passed",
+      "actual": "完全包含 07:00-11:00 conflict=True"
+    },
+    {
+      "case_id": "TC-RES-005",
+      "status": "passed",
+      "actual": "提交成功 id=72 code=200"
+    },
+    {
+      "case_id": "TC-RES-005b",
+      "status": "passed",
+      "actual": "新预约状态=0"
+    },
+    {
+      "case_id": "TC-RES-006",
+      "status": "failed",
+      "actual": "重叠提交被拒 code=400 msg=预约日期不能早于今天"
+    },
+    {
+      "case_id": "TC-RES-007",
+      "status": "passed",
+      "actual": "过去日期 code=400 msg=预约日期不能早于今天"
+    },
+    {
+      "case_id": "TC-RES-008",
+      "status": "passed",
+      "actual": "时间倒置 code=400 msg=开始时间必须早于结束时间"
+    },
+    {
+      "case_id": "TC-RES-009",
+      "status": "passed",
+      "actual": "停用教室预约 code=400 msg=该教室已停用，无法预约"
+    },
+    {
+      "case_id": "TC-RES-010",
+      "status": "passed",
+      "actual": "mine字段完整=True status1过滤=3条"
+    },
+    {
+      "case_id": "TC-RES-011",
+      "status": "passed",
+      "actual": "取消 code=200 状态=[3]"
+    },
+    {
+      "case_id": "TC-RES-012",
+      "status": "failed",
+      "actual": "1小时内取消(造数) code=400 msg=参数类型不正确：id"
+    },
+    {
+      "case_id": "TC-RES-013",
+      "status": "passed",
+      "actual": "取消他人 code=400 msg=只能取消自己的预约"
+    },
+    {
+      "case_id": "TC-RES-014",
+      "status": "passed",
+      "actual": "已取消再取消 code=400 msg=当前状态不可取消"
+    },
+    {
+      "case_id": "TC-RES-015",
+      "status": "passed",
+      "actual": "非法status code=400 msg=状态参数不合法（0-待审核，1-已通过，2-已驳回，3-已取消）"
+    },
+    {
+      "case_id": "TC-AUD-001",
+      "status": "passed",
+      "actual": "manage status0 条数=4 含userName=True"
+    },
+    {
+      "case_id": "TC-AUD-002",
+      "status": "passed",
+      "actual": "审核通过 code=200 状态=1 auditorId=1 auditTime=2026-09-24T21:27:05"
+    },
+    {
+      "case_id": "TC-AUD-005",
+      "status": "passed",
+      "actual": "非待审核再审核 code=400 msg=仅待审核状态的预约可审核"
+    },
+    {
+      "case_id": "TC-AUD-006",
+      "status": "failed",
+      "actual": "批量通过 code=400 状态=0/0"
+    },
+    {
+      "case_id": "TC-AUD-007",
+      "status": "passed",
+      "actual": "混入已审核批量 code=200 已审核仍=1 待审核=2"
+    },
+    {
+      "case_id": "TC-AUD-008",
+      "status": "passed",
+      "actual": "学生审核 http=403 code=403"
+    },
+    {
+      "case_id": "TC-ADMC-001",
+      "status": "passed",
+      "actual": "新增教室 id=44"
+    },
+    {
+      "case_id": "TC-ADMC-002",
+      "status": "passed",
+      "actual": "编辑后容量=50"
+    },
+    {
+      "case_id": "TC-ADMC-003",
+      "status": "passed",
+      "actual": "删除有预约教室 code=400 msg=该教室存在预约记录，禁止删除"
+    },
+    {
+      "case_id": "TC-ADMC-004",
+      "status": "passed",
+      "actual": "停用后学生端不可见 code=200 学生可见=0"
+    },
+    {
+      "case_id": "TC-ADMC-005",
+      "status": "passed",
+      "actual": "批量启停 code=200 data=1"
+    },
+    {
+      "case_id": "TC-ADMC-006a",
+      "status": "passed",
+      "actual": "缺name code=400 msg=教室名称、楼栋、编号不能为空"
+    },
+    {
+      "case_id": "TC-ADMC-006b",
+      "status": "passed",
+      "actual": "容量0 code=400 msg=教室容量必须大于 0"
+    },
+    {
+      "case_id": "TC-ADMU-001",
+      "status": "passed",
+      "actual": "用户分页 total=6"
+    },
+    {
+      "case_id": "TC-ADMU-002",
+      "status": "passed",
+      "actual": "禁用lisi code=200 登录被拒 code=403 msg=账号已被禁用，请联系管理员"
+    },
+    {
+      "case_id": "TC-ADMU-003",
+      "status": "passed",
+      "actual": "重置密码 code=200 登录 code=200"
+    },
+    {
+      "case_id": "TC-ADMU-004",
+      "status": "passed",
+      "actual": "禁自己 code=400 msg=不允许操作当前登录的管理员账号"
+    },
+    {
+      "case_id": "TC-STAT-001",
+      "status": "passed",
+      "actual": "overview keys=['todayReservationCount', 'pendingAuditCount', 'classroomCount', 'userCount']"
+    },
+    {
+      "case_id": "TC-STAT-002",
+      "status": "passed",
+      "actual": "usage-rate 返回 data 类型=list"
+    },
+    {
+      "case_id": "TC-STAT-003",
+      "status": "passed",
+      "actual": "trend 返回 data 类型=list"
+    },
+    {
+      "case_id": "TC-STAT-004",
+      "status": "passed",
+      "actual": "time-distribution 返回 data 类型=list"
+    },
+    {
+      "case_id": "TC-REC-001",
+      "status": "passed",
+      "actual": "多条件筛选 条数=0"
+    },
+    {
+      "case_id": "TC-REC-002",
+      "status": "passed",
+      "actual": "导出 xlsx 字节=5795 魔数PK=b'PK\\x03\\x04'"
+    },
+    {
+      "case_id": "TC-PROF-001",
+      "status": "passed",
+      "actual": "改资料 code=200 name=张三"
+    },
+    {
+      "case_id": "TC-PROF-002",
+      "status": "failed",
+      "actual": "旧密码错=True 改密=False 新密码登录=False"
+    },
+    {
+      "case_id": "TC-PROF-003",
+      "status": "passed",
+      "actual": "stats keys=['totalReservations', 'monthReservations', 'approvalRate', 'lastReservationTime']"
+    },
+    {
+      "case_id": "TC-CAL-001",
+      "status": "failed",
+      "actual": "日历 events=0"
+    },
+    {
+      "case_id": "TC-AI-001",
+      "status": "failed",
+      "actual": "推荐 code=200 条数=-1"
+    },
+    {
+      "case_id": "TC-AI-002",
+      "status": "passed",
+      "actual": "解析 code=200 keys=['enabled', 'message', 'date', 'startTime', 'endTime', 'capacity', 'roomType', 'purpose', 'error']"
+    },
+    {
+      "case_id": "TC-AI-003",
+      "status": "passed",
+      "actual": "合规校验 code=200 data={\"enabled\": false, \"message\": \"AI 服务未启用，当前为纯预约系统模式\", \"compliant\": false, \"reason\": null}"
+    },
+    {
+      "case_id": "TC-AI-004",
+      "status": "passed",
+      "actual": "chat code=200 data={\"enabled\": false, \"message\": \"AI 服务未启用，当前为纯预约系统模式\", \"answer\": null}"
+    },
+    {
+      "case_id": "TC-AI-006",
+      "status": "passed",
+      "actual": "ai.enable=false 时 AI 接口返回本地/降级结果，页面可用（前端入口隐藏由 UI 用例验证）"
+    }
+  ]
+}

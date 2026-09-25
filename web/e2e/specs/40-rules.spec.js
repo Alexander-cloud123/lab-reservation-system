@@ -102,7 +102,8 @@ test.describe('预约冲突检测（核心公式）', () => {
   test('六组边界：仅与「已通过」预约按重叠公式判定', async ({ request }) => {
     const adminToken = await login(request, 'admin')
     const studentToken = await login(request, 'student')
-    const room = CLASSROOMS.C201
+    const roomKey = 'C201'
+    const room = CLASSROOMS[roomKey]
     const date = futureDate(10)
 
     // 基准：已通过预约 10:00-12:00（按真实链路造：提交 → 管理员审核通过）
@@ -113,7 +114,7 @@ test.describe('预约冲突检测（核心公式）', () => {
       date,
       startTime: '10:00',
       endTime: '12:00',
-      purpose: e2ePurpose(`冲突基准-${room.name}-10:00-12:00`)
+      purpose: e2ePurpose(`冲突基准-${roomKey}-10:00-12:00`)
     })
 
     const cases = [
@@ -183,7 +184,8 @@ test.describe('预约冲突检测（核心公式）', () => {
   test('后端二次校验：绕过前端直调提交接口，重叠时段仍被拒绝', async ({ request }) => {
     const adminToken = await login(request, 'admin')
     const studentToken = await login(request, 'student')
-    const room = CLASSROOMS.C401
+    const roomKey = 'C401'
+    const room = CLASSROOMS[roomKey]
     const date = futureDate(12)
 
     await seedApprovedReservation(request, {
@@ -193,7 +195,7 @@ test.describe('预约冲突检测（核心公式）', () => {
       date,
       startTime: '10:00',
       endTime: '12:00',
-      purpose: e2ePurpose(`二次校验基准-${room.name}`)
+      purpose: e2ePurpose(`二次校验基准-${roomKey}`)
     })
 
     // 重叠 → 业务失败 400（前端校验被绕过仍被后端拦下）

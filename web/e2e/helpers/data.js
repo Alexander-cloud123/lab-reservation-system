@@ -17,20 +17,25 @@ export function e2ePurpose(tag) {
 /**
  * 教室 ID 分配表（database/init_db.sql 固定 12 间，id 1-12）
  * 按用例分组占用，避免两条用例抢同一间教室同一时段造成互相干扰。
+ *
+ * key 即 room_no（与库内一致），value 只放「稳定且可断言」的字段：
+ * - id / type 由 init_db.sql 固定，可安全引用
+ * - 教室名称、楼栋等展示字段一律以接口返回为准，不在此维护（库内值会变，硬编码必然过期）
+ * 因此断言写 CLASSROOMS.C101.id，不要写 name / building。
  */
 export const CLASSROOMS = {
-  A101: { id: 1, name: 'A101', building: 'A栋', type: 1, label: '普通教室' },
-  A102: { id: 2, name: 'A102', building: 'A栋', type: 1, label: '普通教室' },
-  A201: { id: 3, name: 'A201', building: 'A栋', type: 2, label: '实验室' },
-  A301: { id: 4, name: 'A301', building: 'A栋', type: 3, label: '机房' },
-  B101: { id: 5, name: 'B101', building: 'B栋', type: 2, label: '实验室' },
-  B102: { id: 6, name: 'B102', building: 'B栋', type: 2, label: '实验室' },
-  B201: { id: 7, name: 'B201', building: 'B栋', type: 3, label: '机房' },
-  B301: { id: 8, name: 'B301', building: 'B栋', type: 1, label: '普通教室' },
-  C101: { id: 9, name: 'C101', building: 'C栋', type: 1, label: '普通教室' },
-  C201: { id: 10, name: 'C201', building: 'C栋', type: 2, label: '实验室' },
-  C301: { id: 11, name: 'C301', building: 'C栋', type: 3, label: '机房' },
-  C401: { id: 12, name: 'C401', building: 'C栋', type: 1, label: '普通教室' }
+  A101: { id: 1, type: 1 },
+  A102: { id: 2, type: 1 },
+  A201: { id: 3, type: 2 },
+  A301: { id: 4, type: 3 },
+  B101: { id: 5, type: 2 },
+  B102: { id: 6, type: 2 },
+  B201: { id: 7, type: 3 },
+  B301: { id: 8, type: 1 },
+  C101: { id: 9, type: 1 },
+  C201: { id: 10, type: 2 },
+  C301: { id: 11, type: 3 },
+  C401: { id: 12, type: 1 }
 }
 
 /** 学生端页面可见的教室类型下拉选项（前端字典文案） */

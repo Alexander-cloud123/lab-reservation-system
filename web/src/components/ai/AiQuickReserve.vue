@@ -68,7 +68,7 @@
       <!-- 步骤二：按解析条件筛选可用教室 -->
       <div v-if="step === 2" v-loading="roomsLoading" class="step-body">
         <el-empty v-if="!roomsLoading && !rooms.length" description="未找到符合条件的教室，请返回修改描述" :image-size="80" />
-        <div v-for="r in rooms" :key="r.id" class="room-pick-item" @click="pickRoom(r)">
+        <div v-for="r in rooms" :key="r.id" class="room-pick-item" v-clickable @click="pickRoom(r)">
           <div class="room-pick-head">
             <span class="room-pick-name">{{ r.name }}</span>
             <el-tag size="small" type="info" effect="plain">{{ typeText(r.type) }}</el-tag>

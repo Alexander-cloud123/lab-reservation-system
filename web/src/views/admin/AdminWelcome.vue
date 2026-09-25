@@ -38,35 +38,35 @@
 
     <!-- 快捷功能入口 -->
     <div class="quick-grid">
-      <div class="quick-card" @click="go('/admin/users')">
+      <div class="quick-card" v-clickable @click="go('/admin/users')">
         <div class="quick-icon"><el-icon :size="22"><User /></el-icon></div>
         <div class="quick-info">
           <span class="quick-name">用户管理</span>
           <span class="quick-desc">查看与维护系统用户</span>
         </div>
       </div>
-      <div class="quick-card" @click="go('/admin/classrooms')">
+      <div class="quick-card" v-clickable @click="go('/admin/classrooms')">
         <div class="quick-icon"><el-icon :size="22"><School /></el-icon></div>
         <div class="quick-info">
           <span class="quick-name">教室资源管理</span>
           <span class="quick-desc">维护教室与资源信息</span>
         </div>
       </div>
-      <div class="quick-card" @click="go('/admin/audits')">
+      <div class="quick-card" v-clickable @click="go('/admin/audits')">
         <div class="quick-icon"><el-icon :size="22"><Checked /></el-icon></div>
         <div class="quick-info">
           <span class="quick-name">预约审核</span>
           <span class="quick-desc">处理待审核预约申请</span>
         </div>
       </div>
-      <div class="quick-card" @click="go('/admin/records')">
+      <div class="quick-card" v-clickable @click="go('/admin/records')">
         <div class="quick-icon"><el-icon :size="22"><Tickets /></el-icon></div>
         <div class="quick-info">
           <span class="quick-name">预约记录</span>
           <span class="quick-desc">查询全量预约与导出</span>
         </div>
       </div>
-      <div class="quick-card" @click="go('/admin/dashboard')">
+      <div class="quick-card" v-clickable @click="go('/admin/dashboard')">
         <div class="quick-icon"><el-icon :size="22"><DataAnalysis /></el-icon></div>
         <div class="quick-info">
           <span class="quick-name">数据看板</span>

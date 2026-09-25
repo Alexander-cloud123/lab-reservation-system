@@ -53,28 +53,28 @@
         <span class="section-title">快捷功能</span>
       </div>
       <div class="quick-grid">
-        <div class="quick-item" @click="goMyReservations">
+        <div class="quick-item" v-clickable @click="goMyReservations">
           <div class="quick-icon"><el-icon :size="20"><Tickets /></el-icon></div>
           <div class="quick-info">
             <div class="quick-name">我的预约</div>
             <div class="quick-desc">查看预约记录与审核状态</div>
           </div>
         </div>
-        <div class="quick-item" @click="goCalendar">
+        <div class="quick-item" v-clickable @click="goCalendar">
           <div class="quick-icon"><el-icon :size="20"><Calendar /></el-icon></div>
           <div class="quick-info">
             <div class="quick-name">预约日历</div>
             <div class="quick-desc">按日历总览与发起预约</div>
           </div>
         </div>
-        <div class="quick-item" @click="scrollToFav">
+        <div class="quick-item" v-clickable @click="scrollToFav">
           <div class="quick-icon"><el-icon :size="20"><School /></el-icon></div>
           <div class="quick-info">
             <div class="quick-name">常用教室</div>
             <div class="quick-desc">一键直达已收藏教室</div>
           </div>
         </div>
-        <div class="quick-item" @click="goClassroomList">
+        <div class="quick-item" v-clickable @click="goClassroomList">
           <div class="quick-icon"><el-icon :size="20"><OfficeBuilding /></el-icon></div>
           <div class="quick-info">
             <div class="quick-name">教室列表</div>
@@ -95,6 +95,7 @@
           v-for="fav in favorites"
           :key="fav.id"
           class="fav-item"
+          v-clickable
           @click="goDetail(fav.classroomId)"
         >
           <div class="fav-icon"><el-icon :size="18"><School /></el-icon></div>
@@ -129,6 +130,7 @@
           :key="msg.id"
           class="msg-item"
           :class="{ unread: !isRead(msg.id) }"
+          v-clickable
           @click="markRead(msg.id)"
         >
           <div class="msg-icon" :class="`msg-icon-${msg.type}`">
@@ -172,19 +174,19 @@
             <div class="settings-label">学号</div>
             <div class="settings-value muted">{{ studentNoText }}</div>
           </div>
-          <div class="settings-row clickable" @click="openEditDialog">
+          <div class="settings-row clickable" v-clickable @click="openEditDialog">
             <div class="settings-icon"><el-icon :size="17"><User /></el-icon></div>
             <div class="settings-label">姓名</div>
             <div class="settings-value">{{ displayName }}</div>
             <el-icon class="settings-chevron"><ArrowRight /></el-icon>
           </div>
-          <div class="settings-row clickable" @click="openEditDialog">
+          <div class="settings-row clickable" v-clickable @click="openEditDialog">
             <div class="settings-icon"><el-icon :size="17"><Message /></el-icon></div>
             <div class="settings-label">邮箱</div>
             <div class="settings-value" :class="{ muted: !emailText }">{{ emailText || '未填写' }}</div>
             <el-icon class="settings-chevron"><ArrowRight /></el-icon>
           </div>
-          <div class="settings-row clickable" @click="openEditDialog">
+          <div class="settings-row clickable" v-clickable @click="openEditDialog">
             <div class="settings-icon"><el-icon :size="17"><Iphone /></el-icon></div>
             <div class="settings-label">手机号</div>
             <div class="settings-value" :class="{ muted: !phoneText }">{{ phoneText || '未填写' }}</div>
@@ -197,7 +199,7 @@
       <div class="settings-group">
         <div class="settings-group-title">账号安全</div>
         <div class="settings-list">
-          <div class="settings-row clickable" @click="openPwdDialog">
+          <div class="settings-row clickable" v-clickable @click="openPwdDialog">
             <div class="settings-icon"><el-icon :size="17"><Lock /></el-icon></div>
             <div class="settings-label">修改密码</div>
             <div class="settings-value muted">定期修改密码，保护账号安全</div>

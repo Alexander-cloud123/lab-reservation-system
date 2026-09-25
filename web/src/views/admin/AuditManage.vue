@@ -109,6 +109,7 @@
                 type="info"
                 effect="plain"
                 class="ai-tag ai-tag-clickable"
+                v-clickable
                 @click="checkSingle(row)"
               >{{ isChecking(row) ? '校验中…' : 'AI 校验' }}</el-tag>
             </div>
@@ -166,6 +167,7 @@
               :key="reason"
               :type="rejectForm.auditRemark === reason ? 'primary' : 'info'"
               class="reason-tag"
+              v-clickable
               @click="rejectForm.auditRemark = reason"
             >
               {{ reason }}

@@ -16,6 +16,7 @@
         v-for="(item, index) in recommendations"
         :key="item.classroomId"
         class="recommend-item"
+        v-clickable
         @click="goDetail(item)"
       >
         <span class="rank">{{ index + 1 }}</span>

@@ -239,26 +239,32 @@ test.describe('个人中心', () => {
     await expect(pendingMsg.locator('.msg-dot')).toBeVisible()
 
     // 驳回消息：正文带审核备注
+    // 用本次唯一备注定位：驳回需管理员操作，历史遗留的同教室同时段「已驳回」记录会产生同名消息（严格模式多匹配）
     const rejectStamp = `${rejectSlot.date} ${rejectSlot.startTime}-${rejectSlot.endTime}`
-    const rejectMsg = page.locator('.msg-item').filter({ hasText: '审核驳回' }).filter({ hasText: rejectStamp })
+    const rejectMsg = page.locator('.msg-item').filter({ hasText: `被驳回：${remark}` })
     await expect(rejectMsg).toBeVisible()
-    await expect(rejectMsg.locator('.msg-content')).toContainText(`被驳回：${remark}`)
+    await expect(rejectMsg.locator('.msg-content')).toContainText(rejectStamp)
     await expect(rejectMsg.locator('.msg-dot')).toBeVisible()
 
     // 未读计数标签存在
     await expect(page.locator('.section-actions .el-tag')).toContainText('条未读')
 
-    // 单条标记已读：已读状态写入 localStorage（key 带用户维度），刷新后保持
-    // 已知缺陷（登记为阶段3前端修复项）：markRead 只写 localStorage、未触发响应式更新，
-    // 点击后当前页面不会立即重渲染未读标记，故此处断言「持久化效果」而非即时视觉
+    // 单条标记已读：立即生效（未读样式与圆点当场消失，无需刷新）
+    // 回归点：此前 markRead 只写 localStorage、不触发响应式更新，未读标记要刷新后才更新
     await pendingMsg.click()
+    await expect(pendingMsg).not.toHaveClass(/unread/)
+    await expect(pendingMsg.locator('.msg-dot')).toHaveCount(0)
+
+    // 持久化：已读状态写入 localStorage（key 带用户维度），刷新后保持
     await page.reload()
     const pendingRead = page.locator('.msg-item').filter({ hasText: '预约待审核' }).filter({ hasText: stamp }).first()
     await expect(pendingRead).not.toHaveClass(/unread/)
     await expect(pendingRead.locator('.msg-dot')).toHaveCount(0)
 
-    // 全部标为已读：落盘后刷新，未读标记与计数标签全部消失
+    // 全部标为已读：立即生效（未读标记与计数标签当场消失），刷新后仍保持
     await page.getByRole('button', { name: '全部标为已读' }).click()
+    await expect(page.locator('.msg-dot')).toHaveCount(0)
+    await expect(page.locator('.section-actions .el-tag')).toHaveCount(0)
     await page.reload()
     await expect(page.locator('.msg-dot')).toHaveCount(0)
     await expect(page.locator('.section-actions .el-tag')).toHaveCount(0)

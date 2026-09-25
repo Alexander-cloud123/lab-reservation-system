@@ -6,6 +6,7 @@
  *   2) 「AI 快速预约」弹窗：解析回填 → 候选教室 → 取消不写库
  *   3) 「AI 预约智能助手」悬浮球：默认收起 → 展开 → 对话 → AI 标注
  *   4) 管理端 AI 合规校验：显示校验结果（只提示），状态仍为待审核(0)
+ *   4.1) 管理端 AI 合规校验：首屏自动校验全部失败时入口仍可见且可点击重试（回归：入口曾会永久消失）
  *   5) AI 关闭态：入口数为 0、核心功能可用、连探测请求都不发
  *
  * 约束遵守：
@@ -235,6 +236,62 @@ test('管理端 AI 合规校验：显示校验结果，但审核状态仍为待�
   const found = manage.records.find((r) => r.purpose === purpose)
   expect(found, '待审核记录应存在于管理端列表').toBeTruthy()
   expect(found.status, 'AI 合规校验只提示，不应改变审核状态').toBe(0)
+
+  // 收尾：取消该待审核预约（未来日期，允许取消）
+  await tryCancel(page.request, student.token, id)
+})
+
+/* ------------------------------------------------------------------ */
+/* 4.1 管理端 AI 合规校验：自动校验失败时的入口可重试（回归）             */
+/* ------------------------------------------------------------------ */
+test('管理端 AI 合规校验：首屏自动校验全部失败时「AI 校验」入口仍可见且可点击重试', async ({ page }) => {
+  const purpose = e2ePurpose(`AI合规失败重试-${Date.now()}`)
+
+  // 前置：造一条待审核预约（学生 zhangsan，教室 C101(9)，未来日期，不审核）
+  const student = await apiLogin(page.request, 'student')
+  const id = expectOk(
+    await createReservation(page.request, student.token, {
+      classroomId: CLASSROOMS.C101.id,
+      reserveDate: futureDate(18),
+      startTime: SLOTS.afternoon[0],
+      endTime: SLOTS.afternoon[1],
+      purpose
+    }),
+    'AI合规失败重试-造待审核预约'
+  )
+
+  await mockAi(page)
+  // 覆盖合规校验：模拟超时/限流（网络层失败）→ 首屏限量自动校验必然全部失败
+  // 注：Playwright 后注册的路由优先匹配，故本路由覆盖 mockAi 的兜底实现
+  let complianceCalls = 0
+  await page.route(
+    (url) => url.pathname === AI_PATHS.compliance,
+    async (route) => {
+      complianceCalls += 1
+      await route.abort('failed')
+    }
+  )
+
+  await loginAs(page, { who: 'admin', path: '/admin/audits', aiEnabled: true })
+  await page.getByPlaceholder('用户账号 / 姓名 / 教室名称').fill('zhangsan')
+  await page.getByRole('button', { name: '查询' }).click()
+
+  const row = page.locator('.el-table__row').filter({ hasText: purpose })
+  await expect(row).toBeVisible()
+
+  // 自动校验确实发起过（并已失败）
+  await expect.poll(() => complianceCalls).toBeGreaterThan(0)
+
+  // 入口仍可见（回归点：aiEnabled 曾只能由「校验成功」置 true，全部失败后入口永久不渲染、无法重试）
+  const tag = row.locator('.ai-tag')
+  await expect(tag).toBeVisible()
+  await expect(tag).toHaveText('AI 校验')
+
+  // 可点击重试：点击后重新发起校验，失败后回到可重试态（不卡在「校验中…」）
+  const before = complianceCalls
+  await tag.click()
+  await expect.poll(() => complianceCalls).toBeGreaterThan(before)
+  await expect(tag).toHaveText('AI 校验')
 
   // 收尾：取消该待审核预约（未来日期，允许取消）
   await tryCancel(page.request, student.token, id)

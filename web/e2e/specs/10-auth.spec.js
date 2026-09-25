@@ -10,7 +10,7 @@
  *   6) 注册：两次密码不一致 → 校验提示
  *   7) 注册：账号唯一性（用 'admin' 触发）→ 被拒且有提示
  *   8) 注册成功 → 新账号可登录成功
- *   9) 登录后「当日即将开始的预约」温和提醒
+ *   9) 登录后「当日即将开始的预约」→ 顶部温和提醒（非阻塞）
  *
  * 约束遵守：
  *   - 不改种子账号（不登录失败超过 1 次；已存在账号的失败用例在末尾用一次成功登录复位失败计数）
@@ -191,7 +191,7 @@ test('注册页：新账号注册成功 → 可用该账号登录进入学生端
 /* ------------------------------------------------------------------ */
 /* 9. 登录后「当日即将开始的预约」提醒（未触发则如实标注）                */
 /* ------------------------------------------------------------------ */
-test('登录后：当日存在即将开始（24h 内）的已通过预约 → 弹出温和提醒', async ({ page }) => {
+test('登录后：当日存在即将开始（24h 内）的已通过预约 → 顶部温和提醒且不阻断跳转', async ({ page }) => {
   const now = dayjs()
   const start = now.add(90, 'minute')
   const end = start.add(60, 'minute')
@@ -220,7 +220,7 @@ test('登录后：当日存在即将开始（24h 内）的已通过预约 → �
   await fillLogin(page, ACCOUNTS.student)
   await page.getByRole('button', { name: LOGIN_BTN }).click()
 
-  const alert = page.getByText('预约即将开始提醒')
+  const alert = page.locator('.el-notification').filter({ hasText: '预约即将开始提醒' })
   const appeared = await alert
     .waitFor({ state: 'visible', timeout: 15000 })
     .then(() => true)
@@ -229,11 +229,13 @@ test('登录后：当日存在即将开始（24h 内）的已通过预约 → �
     // 提醒未出现时，先用最新 token 清理前置数据，再如实失败（不伪造断言）
     const fresh = await apiLogin(page.request, 'student')
     await tryCancel(page.request, fresh.token, id)
-    expect(appeared, '已造出「今日 90 分钟后」的已通过预约，但登录后未出现提醒弹窗').toBe(true)
+    expect(appeared, '已造出「今日 90 分钟后」的已通过预约，但登录后未出现提醒').toBe(true)
   }
 
-  await expect(page.getByRole('button', { name: '知道了' })).toBeVisible()
-  await page.getByRole('button', { name: '知道了' }).click()
+  // 顶部提醒带预约正文（需求 2.4：顶部温和提醒）
+  await expect(alert).toContainText('请准时到场')
+  // 非阻塞：不出现需点确认的模态框，登录跳转照常完成
+  await expect(page.locator('.el-message-box')).toHaveCount(0)
   await expect(page).toHaveURL(/\/student\/home/)
 
   // 收尾：UI 登录已顶掉旧 token，重新取一次再取消（开始前 90 分钟，允许取消）

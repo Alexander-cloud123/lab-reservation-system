@@ -52,7 +52,7 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElNotification } from 'element-plus'
 import { Lock, User, OfficeBuilding, CircleCheckFilled, Calendar, DataLine } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { useUserStore } from '@/stores/user'
@@ -80,7 +80,7 @@ const rules = {
 
 /**
  * 登录提醒（R4 体验细节）：登录后若存在「已通过且即将开始（24 小时内）」的预约，
- * 弹出温和提醒；仅学生端生效，提醒失败不阻断登录
+ * 顶部给出非阻塞的温和提醒；仅学生端生效，提醒失败不阻断登录
  */
 async function checkUpcomingReminder() {
   try {
@@ -91,11 +91,15 @@ async function checkUpcomingReminder() {
       return start.isAfter(now) && start.isBefore(now.add(24, 'hour'))
     })
     if (upcoming) {
-      await ElMessageBox.alert(
-        `您有一个「${upcoming.classroomName}」预约将于 ${upcoming.reserveDate} ${upcoming.startTime} 开始，请准时到场。`,
-        '预约即将开始提醒',
-        { confirmButtonText: '知道了', type: 'warning' }
-      )
+      // 需求 2.4「登录后若有当日即将开始的预约，顶部温和提醒」：用顶部非阻塞通知，
+      // 不用需点「知道了」才能继续的模态框（会打断登录跳转）
+      ElNotification({
+        title: '预约即将开始提醒',
+        message: `您有一个「${upcoming.classroomName}」预约将于 ${upcoming.reserveDate} ${upcoming.startTime} 开始，请准时到场。`,
+        type: 'warning',
+        duration: 8000,
+        showClose: true
+      })
     }
   } catch {
     // 提醒查询失败不影响登录流程（温和降级）

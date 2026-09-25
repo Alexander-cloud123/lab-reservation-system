@@ -198,6 +198,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import { pageManageReservations, auditReservation, batchAuditReservations } from '@/api/reservation'
 import { aiComplianceCheck } from '@/api/ai'
+import { useUserStore } from '@/stores/user'
 import { statusText, statusTagType } from '@/utils/dict'
 
 const loading = ref(false)
@@ -207,8 +208,15 @@ const selectedIds = ref([])
 const dateRange = ref(null)
 
 /* ===== AI 合规校验（R7：待审核记录「AI 校验」标签，违规红色高亮+悬浮原因，只提示不改状态）===== */
-/** AI 是否启用（compliance-check 返回 enabled=false 时隐藏 AI 校验标签） */
-const aiEnabled = ref(false)
+/**
+ * AI 是否启用（控制「AI 校验」标签显隐）
+ * R8 口径：登录接口已随 LoginVO 下发全局开关并落盘（store.aiEnabled）——false 表示后端明确关闭，
+ * 直接不渲染入口；true / null(未知) 时先渲染入口，由校验结果校正（接口返回 enabled=false 即隐藏）。
+ * 此前该值初值为 false、只能由「校验成功」置 true，而点击入口又要求它已为 true：
+ * 首屏限量自动校验一旦全部超时/限流，入口会永久不渲染，用户无法重试（已修复）。
+ */
+const userStore = useUserStore()
+const aiEnabled = ref(userStore.aiEnabled !== false)
 /** 校验结果缓存：key=预约 ID → { compliant, reason }（Map 保证按行读取，不写库） */
 const complianceMap = ref(new Map())
 /** 进行中校验的预约 ID 集合（M9：行级 loading，防重复点击重复请求） */

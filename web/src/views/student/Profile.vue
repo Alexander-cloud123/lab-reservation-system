@@ -380,7 +380,7 @@ function clearPwdValidate() {
   nextTick(() => pwdFormRef.value && pwdFormRef.value.clearValidate())
 }
 
-/** 消息已读状态（localStorage，key 带用户维度） */
+/** 消息已读状态（localStorage 持久化，key 带用户维度） */
 const READ_KEY = () => `reservation_msg_read_${userInfo.value ? userInfo.value.id : ''}`
 function getReadIds() {
   try {
@@ -392,8 +392,14 @@ function getReadIds() {
 function setReadIds(ids) {
   localStorage.setItem(READ_KEY(), JSON.stringify(ids))
 }
+/**
+ * 已读 ID 集合的响应式副本（视图唯一数据源）
+ * localStorage 不是响应式数据源：此前直接读它也只在渲染时取值，且渲染本身不会被触发，
+ * 导致点击后未读圆点与「N 条未读」当场不变（刷新后才更新）。改以 ref 为准、落盘为副作用。
+ */
+const readIds = ref(getReadIds())
 function isRead(id) {
-  return getReadIds().includes(id)
+  return readIds.value.includes(id)
 }
 const unreadCount = computed(() => notifications.value.filter((m) => !isRead(m.id)).length)
 
@@ -485,16 +491,16 @@ async function loadNotifications() {
 
 /** 单条标记已读 */
 function markRead(id) {
-  const ids = getReadIds()
-  if (!ids.includes(id)) {
-    ids.push(id)
-    setReadIds(ids)
+  if (!readIds.value.includes(id)) {
+    readIds.value = [...readIds.value, id]
+    setReadIds(readIds.value)
   }
 }
 
 /** 全部标记已读 */
 function markAllRead() {
-  setReadIds(notifications.value.map((m) => m.id))
+  readIds.value = notifications.value.map((m) => m.id)
+  setReadIds(readIds.value)
 }
 
 /** 保存个人信息（弹窗内提交，成功后同步最新用户信息） */

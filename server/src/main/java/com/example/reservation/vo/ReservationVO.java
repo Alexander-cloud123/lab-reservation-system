@@ -47,6 +47,9 @@ public class ReservationVO {
     /** 审核备注 */
     private String auditRemark;
 
+    /** 审核时间（待审核为 null） */
+    private LocalDateTime auditTime;
+
     /** 创建时间 */
     private LocalDateTime createTime;
 }

@@ -78,6 +78,7 @@ public class ReservationConverter {
         vo.setPurpose(r.getPurpose());
         vo.setStatus(r.getStatus());
         vo.setAuditRemark(r.getAuditRemark());
+        vo.setAuditTime(r.getAuditTime());
         vo.setCreateTime(r.getCreateTime());
         Classroom room = roomMap.get(r.getClassroomId());
         if (room != null) {

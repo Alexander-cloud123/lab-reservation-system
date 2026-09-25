@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """合并 API + UI E2E 执行结果到 qa-run.json executions"""
-import json, io, datetime
+import json, io, datetime, os
 
-PATH = r"C:\Users\72797\Course\reservation-system\qa-results\reservation-e2e\qa-run.json"
+# 路径按脚本自身位置解析（不依赖本机绝对路径）
+_DIR = os.path.dirname(os.path.abspath(__file__))
+PATH = os.path.join(_DIR, "qa-run.json")
 with io.open(PATH, encoding="utf-8") as f:
     run = json.load(f)
 
@@ -11,9 +13,9 @@ def load(p):
     with io.open(p, encoding="utf-8") as f:
         return json.load(f)
 
-r1 = load(r"C:\Users\72797\Course\reservation-system\qa-results\reservation-e2e\api-results.json")     # 第一批
-r2 = load(r"C:\Users\72797\Course\reservation-system\qa-results\reservation-e2e\api-results-fixed.json") # 修正批
-r3 = load(r"C:\Users\72797\Course\reservation-system\qa-results\reservation-e2e\api-results-final.json") # 最终批
+r1 = load(os.path.join(_DIR, "api-results.json"))       # 第一批
+r2 = load(os.path.join(_DIR, "api-results-fixed.json")) # 修正批
+r3 = load(os.path.join(_DIR, "api-results-final.json")) # 最终批
 
 now = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 execs = []

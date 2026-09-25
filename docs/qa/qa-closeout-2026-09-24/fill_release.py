@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """填写 release_decision / disclosures / coverage 完善"""
-import json, io
+import json, io, os
 
-PATH = r"C:\Users\72797\Course\reservation-system\qa-results\reservation-e2e\qa-run.json"
+# 路径按脚本自身位置解析（不依赖本机绝对路径）
+PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "qa-run.json")
 with io.open(PATH, encoding="utf-8") as f:
     run = json.load(f)
 

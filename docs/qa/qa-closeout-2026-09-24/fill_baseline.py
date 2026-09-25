@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """填充 QA canonical：input(输入基线) + requirements(需求) + risk_mechanisms(风险机制)"""
-import json, io
+import json, io, os
 
-PATH = r"C:\Users\72797\Course\reservation-system\qa-results\reservation-e2e\qa-run.json"
+# 路径按脚本自身位置解析（不依赖本机绝对路径）
+PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "qa-run.json")
 with io.open(PATH, "r", encoding="utf-8") as f:
     run = json.load(f)
 

@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 """最终补测 v2：先恢复 zhangsan 密码为 123456，再测 TC-RES-003 / TC-CAL-001；TC-RES-012 blocked"""
-import urllib.request, json, io, datetime
+import urllib.request, json, io, datetime, os
 
-BASE = "http://127.0.0.1:8080"
-OUT = r"C:\Users\72797\Course\reservation-system\qa-results\reservation-e2e\api-results-final.json"
+# 路径按脚本自身位置解析（不依赖本机绝对路径）；后端地址可用环境变量 QA_API_BASE 覆盖
+_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE = os.environ.get("QA_API_BASE", "http://127.0.0.1:8080")
+OUT = os.path.join(_DIR, "api-results-final.json")
 results = []
 
 def api(method, path, body=None, token=None, timeout=20):

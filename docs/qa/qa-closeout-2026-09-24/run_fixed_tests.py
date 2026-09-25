@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 """修正版重跑失败/未执行用例：TC-CLASS-006, FAV-004, RES-001/006/012, AUD-003/004/006, PROF-002, CAL-001, AI-001"""
-import urllib.request, urllib.parse, json, io, datetime
+import urllib.request, urllib.parse, json, io, datetime, os
 
-BASE = "http://127.0.0.1:8080"
-OUT = r"C:\Users\72797\Course\reservation-system\qa-results\reservation-e2e\api-results-fixed.json"
+# 路径按脚本自身位置解析（不依赖本机绝对路径）；后端地址可用环境变量 QA_API_BASE 覆盖
+_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE = os.environ.get("QA_API_BASE", "http://127.0.0.1:8080")
+OUT = os.path.join(_DIR, "api-results-fixed.json")
 results = []
 
 def api(method, path, body=None, token=None, timeout=20):

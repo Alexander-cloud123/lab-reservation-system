@@ -2,12 +2,14 @@
 """
 实验室/教室预约管理系统 - API 端到端测试执行器
 覆盖 doubao-product-qa 设计的 API 用例（TC-AUTH/PERM/CLASS/FAV/RES/AUD/ADMC/ADMU/STAT/REC/PROF/CAL/AI）
-输出结果 JSON：qa-results/reservation-e2e/api-results.json
+输出结果 JSON：脚本所在目录下的 api-results.json
 """
-import urllib.request, urllib.parse, json, io, datetime, sys, ssl, time
+import urllib.request, urllib.parse, json, io, datetime, sys, ssl, time, os
 
-BASE = "http://127.0.0.1:8080"
-OUT = r"C:\Users\72797\Course\reservation-system\qa-results\reservation-e2e\api-results.json"
+# 路径按脚本自身位置解析（不依赖本机绝对路径）；后端地址可用环境变量 QA_API_BASE 覆盖
+_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE = os.environ.get("QA_API_BASE", "http://127.0.0.1:8080")
+OUT = os.path.join(_DIR, "api-results.json")
 results = []
 created = {"users": [], "reservations": [], "classrooms": [], "favorites": []}
 
@@ -507,7 +509,7 @@ check("TC-REC-001", s == 200 and all(r.get("status") == 1 for r in recs),
 s, content = api("GET", "/api/reservation/export", token=ADM, raw=True)
 if s == 200 and content[:2] == b"PK":
     check("TC-REC-002", True, "导出 xlsx 字节=%d 魔数PK=%s" % (len(content), content[:4]))
-    with io.open(r"C:\Users\72797\Course\reservation-system\qa-results\reservation-e2e\evidence\export.xlsx", "wb") as f:
+    with io.open(os.path.join(_DIR, "evidence", "export.xlsx"), "wb") as f:
         f.write(content)
 else:
     check("TC-REC-002", False, "导出 http=%s head=%s" % (s, content[:60]))

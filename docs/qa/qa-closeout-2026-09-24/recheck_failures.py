@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """复查失败用例：区分产品缺陷 vs 测试脚本问题"""
-import urllib.request, urllib.parse, json, io, datetime
+import urllib.request, urllib.parse, json, io, datetime, os
 
-BASE = "http://127.0.0.1:8080"
+# 后端地址可用环境变量 QA_API_BASE 覆盖（本机端口非默认时）
+BASE = os.environ.get("QA_API_BASE", "http://127.0.0.1:8080")
 
 def api(method, path, body=None, token=None, timeout=20):
     url = BASE + path

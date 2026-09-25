@@ -2,13 +2,15 @@
 """生成 QA 收口报告 xlsx：实验室-教室预约管理系统-QA收口报告.xlsx
 体裁卡：incremental（本轮变更 → 受影响集合 → 增删改对账 → 重验结论 → 未受影响范围）+ 全量执行明细
 """
-import json, io, datetime
+import json, io, datetime, os
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-PATH = r"C:\Users\72797\Course\reservation-system\qa-results\reservation-e2e\qa-run.json"
-OUT = r"C:\Users\72797\Course\reservation-system\qa-results\reservation-e2e\实验室-教室预约管理系统-QA收口报告.xlsx"
+# 路径按脚本自身位置解析（不依赖本机绝对路径）
+_DIR = os.path.dirname(os.path.abspath(__file__))
+PATH = os.path.join(_DIR, "qa-run.json")
+OUT = os.path.join(_DIR, "实验室-教室预约管理系统-QA收口报告.xlsx")
 with io.open(PATH, encoding="utf-8") as f:
     run = json.load(f)
 

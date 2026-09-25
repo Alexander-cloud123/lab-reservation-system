@@ -74,20 +74,31 @@ mvn -B test（server）    : Tests run: 34, Failures: 0, Errors: 0, Skipped: 0 �
 
 ## 五、交付清单
 
+交付物按**仓库既有约定分两处存放**（与 R1–R7 各轮交付包结构一致）：代码与数据库快照在 `archive/`，交付文档在 `docs/iterations/`。**文档不在 `archive/` 包内**，请勿在代码快照目录下查找。
+
+**① 代码与数据库快照** —— `archive/R10-delivery-final-closeout/`（共 182 个文件）
+
 ```
-R10-delivery-final-closeout/
+archive/R10-delivery-final-closeout/
 ├── code/
-│   ├── reservation-server/   # 后端快照（= 项目根 server/，排除 target/ 与日志）
-│   └── reservation-web/      # 前端快照（= 项目根 web/，排除 node_modules/ dist/ e2e-report/ test-results/ 与日志）
-├── database/
-│   └── init_db.sql           # 数据库初始化脚本（与项目根 database/init_db.sql SHA256 一致）
-├── docs/
-│   ├── task-description.md   # 本文件
-│   ├── api-list.md           # 最终版接口清单（源码实地枚举，38 个端点）
-│   └── test-report.md        # 最终测试报告（测试用例/覆盖范围/通过情况/遗留问题）
-└── startup-guide.md          # 启动说明（环境/数据库/后端/前端/验证/AI 开关/常见故障）
+│   ├── reservation-server/   # 后端快照 112 文件（= 项目根 server/，排除 target/ 与日志）
+│   └── reservation-web/      # 前端快照 69 文件（= 项目根 web/，排除 node_modules/ dist/ e2e-report/ test-results/ 与日志）
+└── database/
+    └── init_db.sql           # 数据库初始化脚本（与项目根 database/init_db.sql SHA256 一致）
 ```
 
+**② 交付文档** —— `docs/iterations/R10-delivery-final-closeout/`（共 4 份）
+
+```
+docs/iterations/R10-delivery-final-closeout/
+├── startup-guide.md          # 启动说明（环境/数据库/后端/前端/验证/AI 开关/测试运行/常见故障）
+└── docs/
+    ├── task-description.md   # 本文件
+    ├── api-list.md           # 最终版接口清单（源码实地枚举，38 个端点）
+    └── test-report.md        # 最终测试报告（测试用例/覆盖范围/通过情况/遗留问题）
+```
+
+- **与 AGENTS.md 第 5 节字面形态的差异（如实声明）**：第 5 节描述的是「`代码/` + `文档/` + `启动说明.md` 同包」的中文命名单一交付包；本轮沿用仓库 R1–R9 既有约定，代码快照与文档分两处存放、文档用英文文件名。**内容齐备、无缺项**，仅为目录与命名形态差异。若需改为第 5 节字面形态，属交付规范调整，须经项目负责人确认后执行（AGENTS.md 1.1）。
 - 本轮为收尾打包轮：**未修改 `server/` 与 `web/src/` 下任何代码**，交付快照即为阶段5 完成后的代码状态（HEAD 11862a9）。
 - 快照不含构建产物与运行日志；前端 `node_modules/` 需按 `startup-guide.md` 执行 `npm install` 还原。
 

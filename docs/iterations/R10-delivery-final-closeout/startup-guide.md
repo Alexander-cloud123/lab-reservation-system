@@ -139,7 +139,7 @@ npm run test:e2e:report     # 查看 HTML 报告（e2e-report/html）
 
 - 默认后端端口 8080；若被占用：后端以 `--server.port=8081` 启动，并设 `$env:E2E_API_PORT='8081'` 后重跑。
 - 用例串行执行（共享同一 MySQL 库），前端 dev server 由 Playwright 自动拉起（`reuseExistingServer: true`）。
-- 实测基线（最终交付口径）：`npm run lint` 0 error / 0 warning；`npm run build` 成功（2101 modules）；E2E **98/98 通过**，耗时 1.9m；后端 `mvn test` **34/34 通过**（BUILD SUCCESS，1:48）；回归后数据库 预约 13 / 用户 5 / 教室 12 / E2E 临时教室残留 0。
+- 实测基线（最终交付口径）：`npm run lint` 0 error / 0 warning；`npm run build` 成功（2101 modules）；E2E **98/98 通过**，耗时 1.9m（本轮实测后端为 **8081**——8080 被占用，经 `E2E_API_PORT=8081` + `VITE_API_TARGET=http://localhost:8081` 覆盖；交付默认仍为 8080，按本节上文默认配置复跑即可）；后端 `mvn test` **34/34 通过**（BUILD SUCCESS，1:48）；回归后数据库 预约 13 / 用户 5 / 教室 12 / E2E 临时教室残留 0。
 
 ## 九、常见故障排查
 

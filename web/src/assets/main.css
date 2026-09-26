@@ -174,10 +174,13 @@ body,
   color: var(--text-primary);
 }
 
-/* 键盘焦点全局兜底（无边框/无阴影的交互元素） */
+/* 键盘焦点全局兜底（v-clickable 卡片/列表项等无描边的交互元素）
+   选择器限定为 role="button" + tabindex：Element Plus 表单控件的内层控件默认带 tabindex
+   （el-input 内层 input 即 tabindex="0"），自身已有品牌蓝描边聚焦态，若被此规则命中，
+   会在控件圆角描边内再套一圈突兀的直角蓝框 */
 a:focus-visible,
 button:focus-visible,
-[tabindex]:focus-visible {
+[role='button'][tabindex]:focus-visible {
   outline: 2px solid var(--brand-primary);
   outline-offset: 2px;
 }
@@ -283,7 +286,9 @@ button:focus-visible,
   padding: 9px 0;
 }
 
-/* 输入框 / 选择器：1px 描边 + 聚焦品牌蓝描边（非辉光） */
+/* 输入框 / 选择器：1px 描边 + 聚焦品牌蓝描边（非辉光，不用外发光）
+   聚焦态同时用 :focus-within 与组件自身类判定：前者不依赖组件内部状态类，
+   鼠标、键盘聚焦都能稳定显示同一圈品牌蓝描边（等错误态红色描边优先级更高） */
 .el-input__wrapper,
 .el-select__wrapper,
 .el-textarea__inner,
@@ -292,7 +297,9 @@ button:focus-visible,
   box-shadow: 0 0 0 1px var(--el-border-color) inset;
   transition: box-shadow 0.15s ease;
 }
+.el-input__wrapper:focus-within,
 .el-input__wrapper.is-focus,
+.el-select__wrapper:focus-within,
 .el-select__wrapper.is-focused,
 .el-textarea__inner:focus {
   box-shadow: 0 0 0 1px var(--brand-primary) inset;

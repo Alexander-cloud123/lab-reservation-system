@@ -19,6 +19,8 @@
 
 禁止降级安装任何环境；禁止启动无关的旧项目容器。
 
+容器启动（本机）：交付包根目录（`archive/R10-delivery-final-closeout/`）已附带 `docker-compose.yml`，在该目录执行 `docker compose up -d` 一键启动 `reservation-mysql` 与 `reservation-redis`（`docker compose ps` 查看状态、`docker compose stop` 停止）；容器名与端口（3307 / 6380）与本文档其余章节一致。该文件**只编排数据库依赖**，后端与前端仍按第三、四节在宿主机运行。
+
 ## 二、数据库初始化
 
 - `database/init_db.sql` 为**自包含**脚本（`DROP` + `CREATE` + `INSERT`），可直接初始化空库。

@@ -1,0 +1,58 @@
+# 本项目数据库依赖的 Compose 编组（纯部署辅助，不改动任何需求文档记载的业务规则）
+#
+# 需求依据：《需求设计文档.md》2.2 第 135 行（reservation-mysql）、第 145 行（reservation-redis）
+# 说明：
+#   1. 容器名、镜像版本、端口映射与迁移前完全一致（3307/6380 是本机避开其他课程项目占用的选择），
+#      因此 docs 下的启动说明、单测与 E2E 脚本中出现的容器名与端口均无需改动。
+#   2. MySQL 数据复用既有外部数据卷 reservation-mysql-data，迁移不丢数据。
+#   3. 后端以 mvn spring-boot:run 跑在宿主机，不在本编组内，仍通过 localhost:3307/6380 连接，
+#      故 application.yml 的 MYSQL_URL / REDIS_PORT 环境变量覆盖规则不变。
+#
+# 常用命令（在项目根目录执行）：
+#   docker compose up -d      # 启动两个容器
+#   docker compose ps         # 查看状态与健康检查
+#   docker compose stop       # 停止（保留容器）
+#   docker compose down       # 停止并删除容器（数据卷为外部卷，不受影响）
+
+name: reservation-system
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: reservation-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      TZ: Asia/Shanghai
+    ports:
+      # 本机开发映射 3307，避开 student-manage-mysql 占用的 3306
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - reservation-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:7.0
+    container_name: reservation-redis
+    restart: unless-stopped
+    ports:
+      # 本机开发映射 6380，避开 student-manage-redis 占用的 6379
+      - "127.0.0.1:6380:6379"
+    volumes:
+      - reservation-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  # 既有数据卷，外部托管：compose down 不会删除，保证 MySQL 基线数据与已导入数据安全
+  reservation-mysql-data:
+    external: true
+  reservation-redis-data:

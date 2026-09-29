@@ -159,7 +159,7 @@ INSERT INTO user_favorite (id, user_id, classroom_id, create_time) VALUES
 -- AI 配置（合规关键词库 / Prompt 模板，避免硬编码，可动态调整）
 INSERT INTO ai_config (id, config_key, config_value, description, create_time, update_time) VALUES
 (1, 'ai_enable',            'false',                                                                                        'AI 总开关（与 application.yml 中 ai.enable 保持一致）', NOW(), NOW()),
-(2, 'ai_model',             'agnes-2.0-flash',                                                                              'AI 默认模型', NOW(), NOW()),
+(2, 'ai_model',             'agnes-3.0-flash',                                                                              'AI 默认模型', NOW(), NOW()),
 (3, 'compliance_keywords',  '商业推销,广告宣传,产品宣讲,娱乐聚会,非法集会,赌博活动,传销,违法讲座',                           '预约用途合规校验本地违规关键词库', NOW(), NOW()),
 (4, 'prompt_parse',         '你是教室预约解析器，只输出JSON：{"date":"YYYY-MM-DD","startTime":"HH:mm","endTime":"HH:mm","capacity":int,"roomType":"普通教室|实验室|机房|null","purpose":"string"}', '自然语言预约解析 Prompt 模板', NOW(), NOW()),
 (5, 'prompt_compliance',    '判断预约用途是否合规（是否与教学/实验/自习/竞赛等正当用途相关），输出{"compliant":true|false,"reason":"string"}', '预约合规校验 Prompt 模板', NOW(), NOW());

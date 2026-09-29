@@ -10,7 +10,7 @@
 | 后端 | Spring Boot 3.2.10 · MyBatis-Plus 3.5.7 · Knife4j 4.4.0 · EasyExcel 3.3.4 · Hutool 5.8.32 · JDK 21（统一 `jakarta.*`） |
 | 前端 | Vue 3.4.38 · Vite 5 · Element Plus 2.7.8 · Pinia 2.1.7 · Vue Router 4.4.3 · ECharts 5.5.1 · FullCalendar 6.1.15 · day.js 1.11.13 |
 | 数据库 | MySQL 8.0（Docker 容器 reservation-mysql，库名 reservation，utf8mb4） |
-| AI 服务 | Agnes AI（国内节点 https://api.agnes-ai.cn/v1，模型 agnes-2.0-flash，密钥仅环境变量注入，可一键启停，超时 60 秒自动降级） |
+| AI 服务 | Agnes AI（国内节点 https://api.agnes-ai.cn/v1，模型 agnes-3.0-flash，密钥仅环境变量注入，可一键启停，超时 60 秒自动降级） |
 
 ## 目录结构
 
@@ -59,7 +59,7 @@ npm run dev    # 浏览器访问 http://localhost:5173
 
 - 总开关：`server/src/main/resources/application.yml` 中 `ai.enable`（默认 `false`，关闭不影响核心系统）；
   数据库开关：`ai_config` 表中 `ai_enable`。两者均为 `true` 时 AI 功能可用。
-- 接入：国内节点 `https://api.agnes-ai.cn/v1`，模型 `agnes-2.0-flash`，密钥通过环境变量
+- 接入：国内节点 `https://api.agnes-ai.cn/v1`，模型 `agnes-3.0-flash`，密钥通过环境变量
   `AGNES_API_KEY` 注入（前端零接触）；读取超时 60s（连接超时固定 10s），超时/报错/限流（RPM≈20）
   自动降级为本地规则模拟，不阻断业务。
 - 只读不写：AI 仅查询数据、解析需求、给出建议，所有业务操作必须用户手动确认；生成内容前端标注「AI 生成，仅供参考」。

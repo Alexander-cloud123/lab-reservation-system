@@ -2,7 +2,7 @@
 
 > **使用方式**：本规格书是 Agents 开发执行时的直接技术依据，与《需求设计文档.md》（业务依据）、《AGENTS.md》（协作章程）配套使用。开发前先读本文件，按规格执行；规格与需求文档冲突时，以需求文档为准并向架构师上报。
 >
-> **项目基线**：JDK 21 LTS · Spring Boot 3.2.10 · MyBatis-Plus 3.5.7 · MySQL 8.0 · Node 22 · Vue 3.4 + Vite 5 · Element Plus 2.7 · Agnes AI（agnes-2.0-flash）
+> **项目基线**：JDK 21 LTS · Spring Boot 3.2.10 · MyBatis-Plus 3.5.7 · MySQL 8.0 · Node 22 · Vue 3.4 + Vite 5 · Element Plus 2.7 · Agnes AI（agnes-3.0-flash）
 
 ---
 
@@ -93,7 +93,7 @@ ai:
   enable: false              # 总开关，默认关闭，不影响核心系统
   base-url: https://api.agnes-ai.cn/v1
   api-key: ${AGNES_API_KEY:}  # 密钥从环境变量读取，禁止硬编码
-  model: agnes-2.0-flash
+  model: agnes-3.0-flash
   timeout-seconds: 60          # 读取超时（实测模型响应可达数十秒，3s 过短会频繁降级）
   max-tokens: 1024             # 单次输出上限（防止长输出超时/乱码）
   rpm-limit: 20
@@ -250,7 +250,7 @@ USE reservation;
 - 接口兼容 OpenAI v1：`POST {base-url}/chat/completions`
 - 请求头：`Authorization: Bearer {API_KEY}`，`Content-Type: application/json`
 - 请求体标准字段：`model`、`messages`、`temperature`、`response_format`（结构化输出用 `{"type":"json_object"}`）、`max_tokens`（默认 1024）
-- 国内节点：`https://api.agnes-ai.cn/v1`；模型：`agnes-2.0-flash`（默认）、`agnes-2.5-pro-beta`（复杂语义可选）
+- 国内节点：`https://api.agnes-ai.cn/v1`；模型：`agnes-3.0-flash`（默认）、`agnes-2.5-pro-beta`（复杂语义可选）
 - 限流：RPM≈20 次/分钟，必须实现调用计数与限流保护，触发时返回友好提示并降级
 
 ### 6.2 四个 AI 能力的 Prompt 规格

@@ -22,7 +22,7 @@
 | 数据库 | 库名 `reservation`，utf8mb4 | 由 R1 建库建表 |
 | 后端框架 | Spring Boot 3.2.10 + MyBatis-Plus 3.5.7 + Knife4j 4.4.0 + EasyExcel 3.3.4 + Hutool 5.8.32 | 后端统一 `jakarta.*` 包 |
 | 前端框架 | Vue 3.4 + Vite 5 + Element Plus 2.7 + Pinia + Vue Router 4 + ECharts 5.5 + FullCalendar 6.1 + day.js + sass | 禁止 node-sass |
-| AI 服务 | Agnes AI，国内节点 `https://api.agnes-ai.cn/v1`，模型 agnes-2.0-flash | 密钥须由负责人提供，仅存环境变量/配置 |
+| AI 服务 | Agnes AI，国内节点 `https://api.agnes-ai.cn/v1`，模型 agnes-3.0-flash | 密钥须由负责人提供，仅存环境变量/配置 |
 
 ---
 
@@ -45,7 +45,7 @@
 JDK 21 LTS · IDEA 内置 Maven 3.9.x · Node.js 22.x · Docker 运行 MySQL 8.0
 （reservation-mysql，映射 localhost:3306，库名 reservation，utf8mb4）·
 Spring Boot 3.2.10 · MyBatis-Plus 3.5.7 · Vue 3.4 + Vite 5 · Element Plus 2.7 ·
-Agnes AI（国内节点 https://api.agnes-ai.cn/v1，模型 agnes-2.0-flash）。
+Agnes AI（国内节点 https://api.agnes-ai.cn/v1，模型 agnes-3.0-flash）。
 禁止要求降级安装任何环境；禁止启动旧项目 Docker 容器；后端统一 jakarta.* 包；
 禁止引入 spec.md 之外的依赖。
 
@@ -107,7 +107,7 @@ Agnes AI（国内节点 https://api.agnes-ai.cn/v1，模型 agnes-2.0-flash）�
 JDK 21 LTS · IDEA 内置 Maven 3.9.x · Node.js 22.x · Docker 运行 MySQL 8.0
 （reservation-mysql，映射 localhost:3306，库名 reservation，utf8mb4，root 密码 root）·
 Spring Boot 3.2.10 · MyBatis-Plus 3.5.7 · Vue 3.4 + Vite 5 · Element Plus 2.7 ·
-Agnes AI（国内节点 https://api.agnes-ai.cn/v1，模型 agnes-2.0-flash）。
+Agnes AI（国内节点 https://api.agnes-ai.cn/v1，模型 agnes-3.0-flash）。
 禁止要求降级安装任何环境；禁止启动旧项目 Docker 容器（ssm-mysql/student-manage-mysql）；
 后端统一 jakarta.* 包；禁止引入 spec.md 之外的依赖。
 

@@ -81,7 +81,7 @@
 | UI 组件 | Element Plus 2.7.x |
 | 状态/路由 | Pinia 2.x + Vue Router 4.x |
 | 亮点插件 | ECharts 5.5 + FullCalendar 6.1 + day.js 1.11 |
-| AI 服务 | Agnes AI（agnes-2.0-flash，国内节点 https://api.agnes-ai.cn/v1） |
+| AI 服务 | Agnes AI（agnes-3.0-flash，国内节点 https://api.agnes-ai.cn/v1） |
 
 ### 4.3 代码架构规范
 1. **后端分层**：严格 `controller → service → mapper → entity` 四层结构，禁止跨层调用，业务逻辑禁止写在 controller 层。

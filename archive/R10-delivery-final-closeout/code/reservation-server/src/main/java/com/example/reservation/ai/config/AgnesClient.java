@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -25,9 +24,9 @@ import org.springframework.web.client.RestClientException;
  *  - 超时控制：读 AiProperties.timeoutSeconds（默认 60s，连接超时固定 10s），超时/报错自动降级
  *  - 限流保护：RateLimiter 双层固定窗口（N2 修复：用户维度 rpm-limit/min + 全站维度 global-rpm-limit/min），
  *    限流时直接返回降级，不触发对外调用
- *  - 429 退避重试（R10 修复）：免费档文本模型有效 RPM 仅约 10/min，瞬时连发会撞限，
- *    按 Agnes 官方错误码指引「降低并发、等待限制窗口恢复」重试（优先 Retry-After，缺省退避 2s → 4s，最多 2 次），
- *    而非立刻降级出本地规则话术；重试仍失败或超出耗时预算才降级
+ *  - 429 不做请求内重试（R10 修正）：实测该账号硬上限为 10 次/分钟，官方处置建议是「等待 1 分钟限制窗口恢复」，
+ *    2~4s 级退避无法跨越 60s 窗口，重试只会把 1 次用户操作放大成 3 次上游调用、更快耗尽额度；
+ *    改由本地限流器把上游调用速率压在账号额度之内，429 直接降级，不放大额度消耗
  *  - 密钥缺失：apiKey 为空直接降级，前端零接触密钥
  *
  * @author reservation-team
@@ -38,15 +37,6 @@ public class AgnesClient {
 
     /** HTTP 429：上游限流（Agnes 官方错误码表：超过 RPM 或订阅配额） */
     private static final int HTTP_TOO_MANY_REQUESTS = 429;
-
-    /** 429 退避序列（毫秒）：长度即最大重试次数（2 次 → 最多 3 次尝试），官方指引「等待限制窗口恢复」 */
-    private static final long[] RETRY_BACKOFF_MS = {2_000L, 4_000L};
-
-    /** 单次重试等待上限（毫秒）：上游若给出过长的 Retry-After，按此截断 */
-    private static final long MAX_RETRY_WAIT_MS = 5_000L;
-
-    /** 重试总耗时预算（毫秒）：含重试的总耗时超过此值即直接降级，保证落在前端 AI 接口 60s 超时内 */
-    private static final long RETRY_BUDGET_MS = 15_000L;
 
     @Resource
     private AiProperties aiProperties;
@@ -81,46 +71,31 @@ public class AgnesClient {
         }
 
         try {
-            // 3. 真实调用（超时/连接异常/服务异常统一捕获 → 降级，不阻断业务）
+            // 3. 真实调用（超时/连接异常/服务异常统一捕获 → 降级，不阻断业务；429 不重试，避免放大额度消耗）
             RestClient client = buildClient();
             ObjectNode body = buildRequestBody(system, user, jsonMode);
-            long startAt = System.currentTimeMillis();
-            // 3.1 429 专项：同上限流窗口被占满时按官方指引等待后重发，attempt 即「已重试次数」
-            for (int attempt = 0; ; attempt++) {
-                try {
-                    String responseBody = client.post()
-                            .uri("/chat/completions")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .body(body)
-                            .retrieve()
-                            .body(String.class);
-                    String content = extractContent(responseBody);
-                    if (StrUtil.isBlank(content)) {
-                        log.warn("Agnes 返回内容为空，切换降级");
-                        return AgnesResponse.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
-                    }
-                    return AgnesResponse.ok(content);
-                } catch (HttpClientErrorException e) {
-                    // 4xx：429 为上游限流，其余（401/402/404 等）重试无意义，直接降级
-                    if (!canRetryOn429(e, attempt, startAt)) {
-                        log.warn("Agnes 调用服务异常：{}", e.getMessage());
-                        // 429 用限流话术，便于前端区分「撞限」与「服务故障」
-                        return AgnesResponse.degraded(e.getStatusCode().value() == HTTP_TOO_MANY_REQUESTS
-                                ? AiConstants.AI_RATE_LIMITED_MESSAGE
-                                : AiConstants.AI_SERVICE_ERROR_MESSAGE);
-                    }
-                    long waitMs = retryWaitMs(e, attempt);
-                    log.warn("Agnes 触发 429（第 {} 次重试，等待 {}ms 后重发）：{}", attempt + 1, waitMs, e.getMessage());
-                    if (!sleepQuietly(waitMs)) {
-                        // 线程被中断（应用停止/请求取消）：不再重试，按服务异常降级
-                        return AgnesResponse.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
-                    }
-                } catch (ResourceAccessException e) {
-                    // 连接超时/读取超时/网络不可达：重试会加倍耗时，直接降级
-                    log.warn("Agnes 调用超时或网络异常：{}", e.getMessage());
-                    return AgnesResponse.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
-                }
+            String responseBody = client.post()
+                    .uri("/chat/completions")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(String.class);
+            String content = extractContent(responseBody);
+            if (StrUtil.isBlank(content)) {
+                log.warn("Agnes 返回内容为空，切换降级");
+                return AgnesResponse.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
             }
+            return AgnesResponse.ok(content);
+        } catch (HttpClientErrorException e) {
+            // 4xx：429 为上游限流，其余（401/402/404 等）重试同样无意义，统一直接降级
+            log.warn("Agnes 调用服务异常：{}", e.getMessage());
+            // 429 用限流话术，便于前端区分「撞限」与「服务故障」
+            return AgnesResponse.degraded(e.getStatusCode().value() == HTTP_TOO_MANY_REQUESTS
+                    ? AiConstants.AI_RATE_LIMITED_MESSAGE
+                    : AiConstants.AI_SERVICE_ERROR_MESSAGE);
+        } catch (ResourceAccessException e) {
+            log.warn("Agnes 调用超时或网络异常：{}", e.getMessage());
+            return AgnesResponse.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
         } catch (RestClientException e) {
             // 非 429 的 4xx / 5xx / 其他 HTTP 异常
             log.warn("Agnes 调用服务异常：{}", e.getMessage());
@@ -128,53 +103,6 @@ public class AgnesClient {
         } catch (Exception e) {
             log.error("Agnes 调用未知异常：", e);
             return AgnesResponse.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
-        }
-    }
-
-    /**
-     * 是否对本次失败再重试：仅限 429，且未超重试次数上限、总耗时仍在预算内
-     * （预算用于保证「等待 + 重试 + 模型响应」总时长不超出前端 AI 接口 60s 超时）
-     *
-     * @param e       4xx 异常（携带上游状态码与响应头）
-     * @param attempt 已重试次数（首次失败为 0）
-     * @param startAt 本轮首次尝试的起始时刻
-     */
-    private boolean canRetryOn429(HttpClientErrorException e, int attempt, long startAt) {
-        return e.getStatusCode().value() == HTTP_TOO_MANY_REQUESTS
-                && attempt < RETRY_BACKOFF_MS.length
-                && System.currentTimeMillis() - startAt < RETRY_BUDGET_MS;
-    }
-
-    /**
-     * 计算本次重试等待时长：优先上游 Retry-After（秒），缺省按退避序列 2s → 4s，统一截断到上限
-     */
-    private long retryWaitMs(HttpClientErrorException e, int attempt) {
-        long waitMs = RETRY_BACKOFF_MS[attempt];
-        HttpHeaders headers = e.getResponseHeaders();
-        String retryAfter = headers == null ? null : headers.getFirst(HttpHeaders.RETRY_AFTER);
-        if (StrUtil.isNotBlank(retryAfter)) {
-            try {
-                waitMs = Long.parseLong(retryAfter.trim()) * 1000L;
-            } catch (NumberFormatException ignored) {
-                // Retry-After 也可能是 HTTP 日期格式：无法解析时沿用退避序列
-                log.warn("Retry-After 无法解析，改用退避值 {}ms：{}", waitMs, retryAfter);
-            }
-        }
-        return Math.max(0, Math.min(waitMs, MAX_RETRY_WAIT_MS));
-    }
-
-    /**
-     * 等待重试间隔
-     *
-     * @return true=已等待完毕；false=等待期间被中断（已恢复中断标记，调用方应停止重试）
-     */
-    private boolean sleepQuietly(long waitMs) {
-        try {
-            Thread.sleep(waitMs);
-            return true;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return false;
         }
     }
 

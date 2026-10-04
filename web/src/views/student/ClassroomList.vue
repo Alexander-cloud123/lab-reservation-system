@@ -11,6 +11,7 @@
       :ai-enabled="aiEnabled"
       :loading="aiLoading"
       :recommendations="recommendations"
+      :message="aiNotice"
     />
 
     <!-- 搜索栏：关键词 / 楼栋 / 类型 / 日期筛选 -->
@@ -153,6 +154,8 @@ const buildingOptions = ref([])
 const aiEnabled = ref(false)
 const aiLoading = ref(false)
 const recommendations = ref([])
+/** 推荐降级提示（后端 message，非空 = 当前为本地规则结果） */
+const aiNotice = ref('')
 
 /**
  * 加载智能推荐 Top3（AI 只读；失败静默降级为隐藏，不阻断页面）。
@@ -166,9 +169,12 @@ async function loadRecommend() {
     aiEnabled.value = !!(res && res.enabled === true)
     if (aiEnabled.value) {
       recommendations.value = (res && res.recommendations) || []
+      // 降级提示透传到推荐卡（probe 已按 userId 缓存，此处仅取值）
+      aiNotice.value = (res && res.message) || ''
     }
   } catch {
     aiEnabled.value = false
+    aiNotice.value = ''
   } finally {
     aiLoading.value = false
   }

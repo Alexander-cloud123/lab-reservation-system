@@ -26,12 +26,15 @@ const probeCache = new Map()
 
 /** 未启用时的统一返回值（不含推荐内容） */
 function disabledResult() {
-  return { enabled: false, recommendations: [] }
+  return { enabled: false, recommendations: [], message: '' }
 }
 
 /**
- * 探测 AI 可用性（含推荐内容）。返回 Promise<{ enabled: boolean, recommendations: Array }>；
+ * 探测 AI 可用性（含推荐内容）。返回 Promise<{ enabled: boolean, recommendations: Array, message: string }>；
  * 未登录 / 后端开关关闭 / 探测失败一律返回 enabled=false（组件据此隐藏 AI 入口，不阻断页面）。
+ *
+ * message：后端降级提示（限流/密钥缺失/服务异常/输出格式异常时非空），
+ * 由调用方透出到界面，使用户能区分「真实模型结果」与「本地规则降级结果」。
  *
  * @param {{ force?: boolean }} options force=true 绕过缓存强制发起新调用
  */
@@ -58,7 +61,12 @@ export function probeAiRecommend({ force = false } = {}) {
       // L13 口径：不发送 { userId }，后端只认 UserContext
       const res = await aiRecommend({})
       const data = res.data || {}
-      result = { enabled: data.enabled === true, recommendations: data.recommendations || [] }
+      result = {
+        enabled: data.enabled === true,
+        recommendations: data.recommendations || [],
+        // 降级提示透传（AI 关闭时 message 为「AI 服务未启用…」，调用方按 enabled 区分处理）
+        message: data.enabled === true ? data.message || '' : ''
+      }
     } catch {
       // 失败也缓存结果（enabled=false），避免重复打接口
       result = disabledResult()

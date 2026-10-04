@@ -35,7 +35,7 @@
         <el-alert
           v-if="parsed && !parseError"
           type="warning"
-          title="AI 生成，仅供参考，可手动修改"
+          :title="parseNotice || 'AI 生成，仅供参考，可手动修改'"
           show-icon
           :closable="false"
           class="tip"
@@ -169,6 +169,8 @@ const rawText = ref('')
 const parsing = ref(false)
 const parsed = ref(false)
 const parseError = ref('')
+/** 解析降级提示（后端 message，非空 = 当前为本地正则规则解析结果，标注「AI 生成」不准确） */
+const parseNotice = ref('')
 const parseForm = reactive({ date: '', startTime: '', endTime: '', capacity: null, roomType: '', purpose: '' })
 
 function openDialog() {
@@ -178,6 +180,7 @@ function openDialog() {
 function resetParse() {
   parsed.value = false
   parseError.value = ''
+  parseNotice.value = ''
   rawText.value = ''
   Object.assign(parseForm, { date: '', startTime: '', endTime: '', capacity: null, roomType: '', purpose: '' })
 }
@@ -189,6 +192,7 @@ async function handleParse() {
   }
   parsing.value = true
   parseError.value = ''
+  parseNotice.value = ''
   try {
     const res = await aiParseReservation({ text: rawText.value.trim() })
     if (res.data && res.data.enabled === false) {
@@ -200,8 +204,9 @@ async function handleParse() {
       parseError.value = '无法识别您的需求，请尝试更具体的描述，例如：明天下午2点到4点 40人 机房 做课程设计'
       return
     }
-    // 解析成功 → 预填结构化参数（可编辑）
+    // 解析成功 → 预填结构化参数（可编辑）；降级提示透出到顶部标注
     parsed.value = true
+    parseNotice.value = res.data.message || ''
     Object.assign(parseForm, {
       date: res.data.date || '',
       startTime: res.data.startTime || '',

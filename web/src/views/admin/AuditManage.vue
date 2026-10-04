@@ -92,7 +92,7 @@
         <el-table-column label="用途" min-width="200">
           <template #default="{ row }">
             <div class="purpose-cell">
-              <el-tooltip v-if="complianceInfo(row)" :content="complianceInfo(row).reason" placement="top">
+              <el-tooltip v-if="complianceInfo(row)" :content="complianceTip(row)" placement="top">
                 <span :class="{ 'purpose-violation': isViolation(row) }">{{ row.purpose }}</span>
               </el-tooltip>
               <span v-else>{{ row.purpose }}</span>
@@ -102,7 +102,7 @@
                 size="small"
                 effect="plain"
                 class="ai-tag"
-              >AI 校验{{ isViolation(row) ? '：违规' : '：通过' }}</el-tag>
+              >{{ complianceSourceText(row) }}{{ isViolation(row) ? '：违规' : '：通过' }}</el-tag>
               <el-tag
                 v-else-if="row.status === 0 && aiEnabled && !complianceInfo(row)"
                 size="small"
@@ -245,6 +245,23 @@ function isViolation(row) {
 }
 
 /**
+ * 校验来源标签：降级时判定来自本地关键词规则，标注「AI 校验」不准确（AGENTS 4.4 标注口径）
+ */
+function complianceSourceText(row) {
+  const info = complianceInfo(row)
+  return info && info.degraded ? '规则校验' : 'AI 校验'
+}
+
+/** 悬浮文案：降级时补充原因，使管理员能看到「模型判定」与「关键词规则判定」的区别 */
+function complianceTip(row) {
+  const info = complianceInfo(row)
+  if (!info) {
+    return ''
+  }
+  return info.degraded ? `${info.reason}（${info.notice}）` : info.reason
+}
+
+/**
  * 单行按需 AI 合规校验（M9：点击行内「AI 校验」标签触发；结果缓存，已校验/校验中的行不重复请求；
  * 失败静默，标签保持可点击重试，不阻断列表加载与人工审核）
  */
@@ -262,7 +279,10 @@ async function checkSingle(row) {
     aiEnabled.value = true
     complianceMap.value.set(row.id, {
       compliant: res.data.compliant,
-      reason: res.data.reason || '合规校验完成'
+      reason: res.data.reason || '合规校验完成',
+      // 降级提示（非空 = 判定来自本地关键词规则而非模型），用于区分校验来源
+      degraded: !!res.data.message,
+      notice: res.data.message || ''
     })
   } catch {
     // 校验失败静默，标签保持「AI 校验」可点击重试

@@ -27,7 +27,11 @@
           />
           <el-button type="primary" :loading="sending" @click="send">发送</el-button>
         </div>
-        <div class="chat-tip">AI 生成，仅供参考 · 仅解答预约相关问题</div>
+        <div class="chat-tip">
+          <!-- 降级时透出后端原因：此时回答来自本地 FAQ 规则，标注「AI 生成」不准确（AGENTS 4.4 标注口径） -->
+          <el-text v-if="degradeNotice" type="warning" size="small">{{ degradeNotice }}</el-text>
+          <el-text v-else type="info" size="small">AI 生成，仅供参考 · 仅解答预约相关问题</el-text>
+        </div>
       </div>
     </el-drawer>
   </div>
@@ -49,6 +53,8 @@ const drawerVisible = ref(false)
 const inputText = ref('')
 const sending = ref(false)
 const chatBodyRef = ref(null)
+/** 最近一次回答的降级提示（后端 message，非空 = 当前为本地 FAQ 规则回答） */
+const degradeNotice = ref('')
 const messages = ref([
   { role: 'ai', content: '你好，我是 AI 预约助手。可以问我如何预约教室、如何取消预约、审核流程、我的预约记录等问题。' }
 ])
@@ -75,9 +81,11 @@ async function send() {
   try {
     const res = await aiChat({ question })
     const answer = res.data && res.data.answer ? res.data.answer : '抱歉，暂时无法回答，请稍后再试'
+    degradeNotice.value = (res.data && res.data.message) || ''
     messages.value.push({ role: 'ai', content: answer })
   } catch {
     // 统一错误提示已由 request.js 处理
+    degradeNotice.value = ''
     messages.value.push({ role: 'ai', content: '抱歉，服务暂时不可用，请稍后再试' })
   } finally {
     sending.value = false

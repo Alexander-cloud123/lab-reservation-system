@@ -5,7 +5,10 @@
       <div class="ai-recommend-head">
         <span class="ai-icon"><el-icon :size="16"><MagicStick /></el-icon></span>
         <span class="ai-title">AI 为你推荐</span>
-        <el-tag size="small" type="warning" effect="plain" round>AI 生成，仅供参考</el-tag>
+        <!-- 来源标注随降级状态切换：降级时结果来自本地规则，标注「AI 生成」不准确（AGENTS 4.4 标注口径） -->
+        <el-tag size="small" type="warning" effect="plain" round>
+          {{ message ? '本地规则结果' : 'AI 生成，仅供参考' }}
+        </el-tag>
       </div>
     </template>
 
@@ -33,7 +36,9 @@
     </div>
 
     <div class="ai-recommend-foot">
-      <el-text type="info" size="small">基于您的历史预约习惯与实时空闲状态生成，点击卡片直达详情</el-text>
+      <!-- 降级时透出后端原因（限流/密钥缺失/服务异常/输出格式异常），使用户能区分真实模型与本地规则结果 -->
+      <el-text v-if="message" type="warning" size="small">{{ message }}</el-text>
+      <el-text v-else type="info" size="small">基于您的历史预约习惯与实时空闲状态生成，点击卡片直达详情</el-text>
     </div>
   </el-card>
 </template>
@@ -54,7 +59,9 @@ defineProps({
   /** 推荐加载中 */
   loading: { type: Boolean, default: false },
   /** 推荐 Top3（含推荐理由） */
-  recommendations: { type: Array, default: () => [] }
+  recommendations: { type: Array, default: () => [] },
+  /** 后端降级提示（非空 = 当前为本地规则结果，由父页面从推荐接口透传） */
+  message: { type: String, default: '' }
 })
 
 const router = useRouter()

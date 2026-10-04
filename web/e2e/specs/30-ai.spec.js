@@ -8,11 +8,14 @@
  *   4) 管理端 AI 合规校验：显示校验结果（只提示），状态仍为待审核(0)
  *   4.1) 管理端 AI 合规校验：首屏自动校验全部失败时入口仍可见且可点击重试（回归：入口曾会永久消失）
  *   5) AI 关闭态：入口数为 0、核心功能可用、连探测请求都不发
+ *   6) AI 降级提示渲染：4 个消费面（推荐卡 / 快速预约 / 助手 / 管理端合规标签）
+ *      在 message 非空时切换来源标注并透出降级原因，使用户能区分真实模型与本地规则结果
  *
  * 约束遵守：
  *   - 真实模型零调用：全程用 mockAi 在浏览器层拦截 /api/ai/*（请求不出浏览器）
  *   - 造预约只用教室 C101(9)；AI 推荐的唯一可点击项也是 C101(9)
  *   - 不断言共享库的绝对数量；「入口数=0」属允许的「不存在」断言
+ *   - 造数一律带 e2ePurpose 前缀（便于统一清理），并在用例内 tryCancel 收尾
  */
 import { test, expect } from '@playwright/test'
 import { apiLogin, loginAs } from '../helpers/auth'
@@ -319,4 +322,129 @@ test('AI 关闭态：AI 入口数为 0，核心预约功能可用且不发探测
 
   // 关闭态下连 /api/ai/recommend 探测都不发
   expect(calls[AI_PATHS.recommend] || 0).toBe(0)
+})
+
+/* ------------------------------------------------------------------ */
+/* 6. AI 降级提示渲染（message 透出，覆盖 4 个消费面）                    */
+/* ------------------------------------------------------------------ */
+/**
+ * 降级提示文案：与后端 AiConstants.AI_RATE_LIMITED_MESSAGE 同义。
+ * 前端一律直接渲染后端 message（不另造文案），故这里只断言「透出」而非「拼写」。
+ */
+const DEGRADE_MSG = 'AI 请求过于频繁，已自动切换为本地规则模式'
+
+test('AI 降级提示 · 推荐卡：来源标注切换为「本地规则结果」并透出降级原因', async ({ page }) => {
+  await mockAi(page, {
+    [AI_PATHS.recommend]: { ...recommendPayload(), message: DEGRADE_MSG }
+  })
+  await loginAs(page, { who: 'student', path: '/student/home', aiEnabled: true })
+
+  const card = page.locator('.ai-recommend-card')
+  await expect(card).toBeVisible()
+
+  // 来源标注：降级时结果来自本地规则，不应再标注「AI 生成」
+  await expect(card.getByText('本地规则结果', { exact: true })).toBeVisible()
+  await expect(card.getByText('AI 生成，仅供参考', { exact: true })).toHaveCount(0)
+
+  // 页脚：降级原因替换常规说明文案
+  const foot = card.locator('.ai-recommend-foot')
+  await expect(foot).toContainText(DEGRADE_MSG)
+  await expect(foot).not.toContainText('基于您的历史预约习惯')
+})
+
+test('AI 降级提示 · 快速预约：顶部标注改为降级原因', async ({ page }) => {
+  await mockAi(page, {
+    [AI_PATHS.parse]: {
+      enabled: true,
+      message: DEGRADE_MSG,
+      date: futureDate(15),
+      startTime: SLOTS.afternoon[0],
+      endTime: SLOTS.afternoon[1],
+      capacity: 40,
+      roomType: '普通教室',
+      purpose: '课程设计',
+      error: null
+    }
+  })
+  await loginAs(page, { who: 'student', path: '/student/home', aiEnabled: true })
+
+  await page.getByRole('button', { name: 'AI 快速预约' }).click()
+  const dialog = page.locator('.el-dialog').filter({ hasText: 'AI 快速预约' })
+  await dialog
+    .getByPlaceholder('用自然语言描述预约需求，例如：明天下午2点到4点 40人 机房 做课程设计')
+    .fill('E2E 自动化：降级态解析')
+  await dialog.getByRole('button', { name: '智能解析' }).click()
+
+  // 顶部标注：降级原因替换「AI 生成，仅供参考，可手动修改」（本用例不提交，不写库）
+  await expect(dialog.getByText(DEGRADE_MSG)).toBeVisible()
+  await expect(dialog.getByText('AI 生成，仅供参考，可手动修改')).toHaveCount(0)
+})
+
+test('AI 降级提示 · 助手：底栏提示替换为降级原因', async ({ page }) => {
+  await mockAi(page, {
+    [AI_PATHS.chat]: { enabled: true, message: DEGRADE_MSG, answer: '【E2E-MOCK】降级态回答' }
+  })
+  await loginAs(page, { who: 'student', path: '/student/home', aiEnabled: true })
+
+  const tip = page.locator('.chat-tip')
+  await page.getByRole('button', { name: '打开 AI 预约助手' }).click()
+  // 未提问时仍是常规 AI 标注
+  await expect(tip).toContainText('AI 生成，仅供参考 · 仅解答预约相关问题')
+
+  await page.getByPlaceholder('问我：怎么预约 / 怎么取消 / 审核要多久…').fill('E2E：怎么取消预约？')
+  await page.getByRole('button', { name: '发送' }).click()
+  await expect(page.getByText('【E2E-MOCK】降级态回答')).toBeVisible()
+
+  // 回答降级后底栏切换为降级原因（此时回答来自本地 FAQ 规则）
+  await expect(tip).toContainText(DEGRADE_MSG)
+  await expect(tip).not.toContainText('AI 生成，仅供参考')
+})
+
+test('AI 降级提示 · 管理端合规校验：标签显示「规则校验：…」且悬浮含降级原因', async ({ page }) => {
+  const purpose = e2ePurpose(`AI合规降级-${Date.now()}`)
+  const reason = '规则理由占位：建议补充具体课程或实验内容'
+
+  // 前置：造一条待审核预约（学生 zhangsan，教室 C101(9)，未来日期，不审核）
+  const student = await apiLogin(page.request, 'student')
+  const id = expectOk(
+    await createReservation(page.request, student.token, {
+      classroomId: CLASSROOMS.C101.id,
+      reserveDate: futureDate(19),
+      startTime: SLOTS.afternoon[0],
+      endTime: SLOTS.afternoon[1],
+      purpose
+    }),
+    'AI合规降级-造待审核预约'
+  )
+
+  await mockAi(page, {
+    [AI_PATHS.compliance]: { enabled: true, message: DEGRADE_MSG, compliant: true, reason }
+  })
+  await loginAs(page, { who: 'admin', path: '/admin/audits', aiEnabled: true })
+
+  await page.getByPlaceholder('用户账号 / 姓名 / 教室名称').fill('zhangsan')
+  await page.getByRole('button', { name: '查询' }).click()
+
+  const row = page.locator('.el-table__row').filter({ hasText: purpose })
+  await expect(row).toBeVisible()
+
+  const tag = row.locator('.ai-tag')
+  await expect(tag).toBeVisible()
+  // 首屏限量自动校验（5 条）未覆盖到该行时，手动点击触发
+  if ((await tag.innerText()).trim() === 'AI 校验') {
+    await tag.click()
+  }
+
+  // 降级时判定来自关键词规则，标注不应是「AI 校验」
+  await expect(tag).toHaveText(/^规则校验：(通过|违规)$/)
+  await expect(row.getByText('AI 校验：通过')).toHaveCount(0)
+
+  // 悬浮文案 = 规则判定原因 + 降级原因
+  await row.locator('.purpose-cell > span').first().hover()
+  const popper = page.locator('.el-popper').filter({ hasText: reason })
+  await expect(popper).toBeVisible()
+  await expect(popper).toContainText(DEGRADE_MSG)
+
+  // 收尾：取消该待审核预约（未来日期，允许取消）
+  await tryCancel(page.request, student.token, id)
 })

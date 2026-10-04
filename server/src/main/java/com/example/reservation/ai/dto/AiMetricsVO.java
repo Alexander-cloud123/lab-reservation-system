@@ -27,6 +27,18 @@ public class AiMetricsVO {
     /** 上游模型调用最大耗时（毫秒） */
     private long modelMaxMs;
 
+    /** 输入 token 累计（上游未返回 usage 时保持为 0，表示不可得） */
+    private long totalPromptTokens;
+
+    /** 输出 token 累计（上游未返回 usage 时保持为 0） */
+    private long totalCompletionTokens;
+
+    /** 合计 token 累计（上游未返回 usage 时保持为 0） */
+    private long totalTokens;
+
+    /** 结束原因分桶（key=stop/length/content_filter/unknown，value=次数；仅统计拿到 HTTP 200 的调用） */
+    private Map<String, Long> finishReasonByReason;
+
     /** 降级总次数（各分桶之和） */
     private long degradeTotal;
 
@@ -38,4 +50,10 @@ public class AiMetricsVO {
 
     /** 上游 429 次数（RATE_LIMITED 桶的子集） */
     private long upstream429;
+
+    /** 结果缓存命中次数（命中即未产生上游调用） */
+    private long cacheHitCount;
+
+    /** 结果缓存未命中次数 */
+    private long cacheMissCount;
 }

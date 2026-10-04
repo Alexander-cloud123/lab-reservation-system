@@ -2,6 +2,8 @@ package com.example.reservation.ai.support;
 
 import com.example.reservation.ai.config.AgnesClient;
 import com.example.reservation.ai.config.AiConstants;
+import com.example.reservation.ai.config.AiPrompts;
+import com.fasterxml.jackson.core.type.TypeReference;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -9,7 +11,7 @@ import org.springframework.stereotype.Component;
 import java.util.function.Function;
 
 /**
- * AI 调用模板（收敛 4 个 AI 接口重复的「调用 → 解析 → 降级」样板）
+ * AI 调用模板（收敛 4 个 AI 接口重复的「缓存 → 调用 → 解析 → 降级」样板）
  *
  * 4 个接口（推荐/解析/问答/合规）此前各自维护一份结构完全相同的降级块：
  * 调用 AgnesClient → resp.ok() 时解析模型输出 → 解析失败记录 OUTPUT_INVALID 并降级 →
@@ -21,7 +23,9 @@ import java.util.function.Function;
  *
  * 说明：
  *  - 4 个接口均要求 JSON 结构化输出（response_format={"type":"json_object"}），故 jsonMode 固定传 true；
- *  - OUTPUT_INVALID 桶（模型有返回但结构不合法）在此统一计数，与 AgnesClient 记录的失败类桶（限流/无密钥/服务异常）互不重复。
+ *  - OUTPUT_INVALID 桶（模型有返回但结构不合法）在此统一计数，与 AgnesClient 记录的失败类桶（限流/无密钥/服务异常）互不重复；
+ *  - 结果缓存由本模板统一编排：命中即直接返回（不产生上游调用），**仅成功分支写入缓存**，
+ *    降级分支永不写——从模板层杜绝「把本地规则结果固化成模型结果」。
  *
  * @author reservation-team
  */
@@ -32,12 +36,28 @@ public class AiInvoker {
     @Resource
     private AgnesClient agnesClient;
 
-    /** 运行指标收集（本类只负责 OUTPUT_INVALID 桶，失败类桶由 AgnesClient 负责） */
+    /** 运行指标收集（本类负责 OUTPUT_INVALID 桶与缓存命中计数，失败类桶由 AgnesClient 负责） */
     @Resource
     private AiMetrics aiMetrics;
 
+    /** AI 结果缓存（复用既有 RedisCache） */
+    @Resource
+    private AiResultCache aiResultCache;
+
     /**
-     * 执行一次「AI 调用 + 解析 + 降级」
+     * 执行一次「AI 调用 + 解析 + 降级」（不启用结果缓存，供输入唯一、无复用价值的接口使用）
+     *
+     * @see #invoke(String, Long, String, String, Function, Function, Function, AiCacheSpec)
+     */
+    public <R, V> V invoke(String label, Long userId, String system, String user,
+                           Function<String, R> parser,
+                           Function<R, V> onSuccess,
+                           Function<String, V> onDegrade) {
+        return invoke(label, userId, system, user, parser, onSuccess, onDegrade, null);
+    }
+
+    /**
+     * 执行一次「缓存 → AI 调用 → 解析 → 降级」
      *
      * @param label     接口中文名（仅用于日志定位）
      * @param userId    当前登录用户 ID（限流按用户维度隔离）
@@ -46,26 +66,55 @@ public class AiInvoker {
      * @param parser    模型内容 → 解析结果（失败返回 null）
      * @param onSuccess 解析结果 → 成功返回体
      * @param onDegrade 降级原因 → 降级返回体（本地规则兜底 + message 填充）
+     * @param cacheSpec 结果缓存规格；传 null 表示不启用缓存
      * @param <R>       解析结果类型
      * @param <V>       返回体类型
-     * @return 成功返回体或降级返回体
+     * @return 缓存命中结果、成功返回体或降级返回体
      */
     public <R, V> V invoke(String label, Long userId, String system, String user,
                            Function<String, R> parser,
                            Function<R, V> onSuccess,
-                           Function<String, V> onDegrade) {
-        // 调用结果 ok=false 时 reason 为失败类降级原因（限流/密钥缺失/服务异常）
+                           Function<String, V> onDegrade,
+                           AiCacheSpec<V> cacheSpec) {
+        // 1. 缓存查询：命中即返回，不产生上游调用（故 modelCallCount 不增长）
+        if (cacheSpec != null) {
+            V cached = aiResultCache.get(cacheSpec.key(), cacheSpec.type());
+            if (cached != null) {
+                aiMetrics.recordCacheHit();
+                return cached;
+            }
+            aiMetrics.recordCacheMiss();
+        }
+
+        // 2. 调用模型；ok=false 时 reason 为失败类降级原因（限流/密钥缺失/服务异常）
         AgnesClient.AgnesResponse resp = agnesClient.chat(userId, system, user, true);
         if (resp.ok()) {
             R parsed = parser.apply(resp.content());
             if (parsed != null) {
-                return onSuccess.apply(parsed);
+                V vo = onSuccess.apply(parsed);
+                // 3. 仅成功分支写入缓存：降级结果永不入缓存
+                if (cacheSpec != null) {
+                    aiResultCache.put(cacheSpec.key(), vo, cacheSpec.ttlSeconds());
+                }
+                return vo;
             }
-            log.warn("{}模型输出不合法，切换降级：{}", label, resp.content());
+            // 日志附 Prompt 版本号，便于按版本归因「改 Prompt 导致的质量波动」
+            log.warn("[{}|v{}]模型输出不合法，切换降级：{}", label, AiPrompts.versionOf(system), resp.content());
             // 模型有返回但结构不合法：与「服务不可用」区分（resp.ok()=true 时 reason 为空，须显式给话术，否则降级不可观测）
             aiMetrics.recordDegrade(AiDegradeReason.OUTPUT_INVALID);
             return onDegrade.apply(AiConstants.AI_OUTPUT_INVALID_MESSAGE);
         }
         return onDegrade.apply(resp.reason());
+    }
+
+    /**
+     * 结果缓存规格
+     *
+     * @param key        缓存 Key（由 {@link AiResultCache#buildKey} 组装）
+     * @param ttlSeconds TTL（秒）
+     * @param type       反序列化类型（供 RedisCache 以 TypeReference 还原泛型）
+     * @param <V>        返回体类型
+     */
+    public record AiCacheSpec<V>(String key, long ttlSeconds, TypeReference<V> type) {
     }
 }

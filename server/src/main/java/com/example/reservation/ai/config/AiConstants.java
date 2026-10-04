@@ -28,6 +28,35 @@ public final class AiConstants {
      *  取 5s 的取舍——既压掉同一请求内的重复查询，又保证「改 ai_config 免重启即生效」最多延迟一个 TTL */
     public static final long CONFIG_CACHE_TTL_MS = 5_000L;
 
+    /* ===== 模型结束原因分桶（finish_reason，本次改动：截断/内容拦截可观测）=====
+     * 口径：仅统计「拿到 HTTP 200 响应」的调用（限流/无密钥/服务异常未走到解析链路，不计入）；
+     * 只保留以下 4 个桶，上游返回其他取值统一归入 unknown，保证快照结构稳定。 */
+    /** 正常结束 */
+    public static final String FINISH_REASON_STOP = "stop";
+    /** 触达 max_tokens 被截断（输出结构不合法降级的一类根因） */
+    public static final String FINISH_REASON_LENGTH = "length";
+    /** 内容策略拦截 */
+    public static final String FINISH_REASON_CONTENT_FILTER = "content_filter";
+    /** 未知/缺失 */
+    public static final String FINISH_REASON_UNKNOWN = "unknown";
+
+    /* ===== AI 结果缓存（本次改动：复用既有 RedisCache，命中即免上游调用）=====
+     * TTL 属策略常量而非环境差异项，故不进 application.yml；
+     * Key 形态 cache:ai:{ns}:{version}:{fingerprint}，version 含 Prompt 版本 + 生效模型（+合规关键词库），
+     * 配置一变 Key 即变、天然失效，无需代次失效。 */
+    /** 合规校验缓存命名空间（purpose → 结果为纯函数，Key 不含用户，管理员间可共享） */
+    public static final String AI_CACHE_NS_COMPLIANCE = "compliance";
+    /** 智能推荐缓存命名空间 */
+    public static final String AI_CACHE_NS_RECOMMEND = "recommend";
+    /** 智能问答缓存命名空间 */
+    public static final String AI_CACHE_NS_CHAT = "chat";
+    /** 合规校验缓存 TTL（秒）：结论变化慢，可放宽 */
+    public static final long AI_CACHE_TTL_COMPLIANCE_SECONDS = 300L;
+    /** 推荐缓存 TTL（秒）：对齐既有教室列表 60s 口径 */
+    public static final long AI_CACHE_TTL_RECOMMEND_SECONDS = 60L;
+    /** 问答缓存 TTL（秒）：答案依赖个人预约上下文，取更短 TTL */
+    public static final long AI_CACHE_TTL_CHAT_SECONDS = 30L;
+
     /* ===== AI 开关消息 ===== */
     /** AI 关闭提示（双开关任一为 false 时返回，前端据此隐藏/禁用 AI 入口） */
     public static final String AI_DISABLED_MESSAGE = "AI 服务未启用，当前为纯预约系统模式";

@@ -1,5 +1,7 @@
 package com.example.reservation.ai.config;
 
+import com.example.reservation.ai.support.AiHash;
+
 /**
  * AI Prompt 内置模板注册表（Prompt 归属统一的单一来源）
  *
@@ -67,4 +69,18 @@ public final class AiPrompts {
             + "只能从候选教室的 classroomId 中选择。"
             + "只输出一个 JSON 对象，不要输出数组、不要输出解释文字、不要使用 markdown 代码块，格式严格为："
             + "{\"recommendations\":[{\"classroomId\":数字,\"reason\":\"一句话理由\"}]}";
+
+    /**
+     * Prompt 内容哈希版本号（8 位十六进制）
+     *
+     * 用途：Prompt 无论是取自 ai_config 还是内置兜底，都按「实际生效文本」生成版本号，
+     * 写入降级日志并作为结果缓存 Key 的版本段——Prompt 一改版本即变，便于归因「改 Prompt 导致的质量波动」，
+     * 同时让旧版本的缓存自动失效。
+     *
+     * @param prompt 实际生效的 Prompt 文本
+     * @return 8 位短哈希；空白返回 none
+     */
+    public static String versionOf(String prompt) {
+        return AiHash.sha256Prefix8(prompt);
+    }
 }

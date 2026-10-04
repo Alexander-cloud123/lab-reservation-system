@@ -2,13 +2,16 @@ package com.example.reservation.ai.service.impl;
 
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.example.reservation.ai.config.AiConstants;
 import com.example.reservation.ai.config.AiPrompts;
 import com.example.reservation.ai.dto.AiChatVO;
 import com.example.reservation.ai.service.AiChatService;
 import com.example.reservation.ai.service.AiConfigService;
 import com.example.reservation.ai.support.AiChatFallback;
+import com.example.reservation.ai.support.AiHash;
 import com.example.reservation.ai.support.AiInvoker;
 import com.example.reservation.ai.support.AiJsonSupport;
+import com.example.reservation.ai.support.AiResultCache;
 import com.example.reservation.common.BusinessException;
 import com.example.reservation.common.Constants;
 import com.example.reservation.common.TimeUtil;
@@ -17,6 +20,7 @@ import com.example.reservation.entity.Classroom;
 import com.example.reservation.entity.Reservation;
 import com.example.reservation.mapper.ClassroomMapper;
 import com.example.reservation.mapper.ReservationMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -57,6 +61,10 @@ public class AiChatServiceImpl implements AiChatService {
     @Resource
     private AiJsonSupport aiJsonSupport;
 
+    /** AI 结果缓存（复用既有 RedisCache；命中即免上游调用） */
+    @Resource
+    private AiResultCache aiResultCache;
+
     /** 提问文本最大长度（M11 修复：防超长输入放大 token 消耗与超时概率） */
     private static final int QUESTION_MAX_LENGTH = 200;
 
@@ -76,6 +84,11 @@ public class AiChatServiceImpl implements AiChatService {
 
         // 1. 尝试大模型问答（检索增强注入个人预约上下文）；失败/非法输出统一由 AiInvoker 降级
         String userMessage = buildContext() + "\n【用户问题】" + question;
+        // 结果缓存：Key 含 userId + 问题（答案注入了个人预约上下文，故不跨用户复用）；TTL 取 30s（上下文会变）
+        String cacheKey = aiResultCache.buildKey(
+                AiConstants.AI_CACHE_NS_CHAT,
+                AiPrompts.versionOf(AiPrompts.CHAT) + "-" + aiConfigService.getEffectiveModel(),
+                AiHash.sha256Prefix8(UserContext.getUserId() + ":" + question));
         // M7 修复：传入当前用户 ID，限流按用户维度隔离
         return aiInvoker.invoke("问答", UserContext.getUserId(), AiPrompts.CHAT, userMessage,
                 this::parseModelOutput,
@@ -90,7 +103,11 @@ public class AiChatServiceImpl implements AiChatService {
                     vo.setMessage(reason);
                     vo.setAnswer(chatFallback.chatFallback(question));
                     return vo;
-                });
+                },
+                // 3. 结果缓存规格（仅成功分支入缓存，降级结果不缓存）
+                new AiInvoker.AiCacheSpec<>(cacheKey, AiConstants.AI_CACHE_TTL_CHAT_SECONDS,
+                        new TypeReference<AiChatVO>() {
+                        }));
     }
 
     /**

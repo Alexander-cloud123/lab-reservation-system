@@ -4,7 +4,8 @@ import cn.hutool.core.util.StrUtil;
 import com.example.reservation.ai.service.AiConfigService;
 import com.example.reservation.ai.support.AiDegradeReason;
 import com.example.reservation.ai.support.AiMetrics;
-import com.fasterxml.jackson.databind.JsonNode;
+import com.example.reservation.ai.support.AiResponseParser;
+import com.example.reservation.ai.support.AiUsage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -57,6 +58,10 @@ public class AgnesClient {
     @Resource
     private AiMetrics aiMetrics;
 
+    /** 模型响应体解析（一次 readTree 同时取内容、usage 与 finish_reason，供 token 用量与截断观测） */
+    @Resource
+    private AiResponseParser aiResponseParser;
+
     /** 限流器（N2：懒初始化，参数来自 AiProperties；无 Spring 依赖，纯 JDK） */
     private volatile RateLimiter rateLimiter;
 
@@ -96,13 +101,18 @@ public class AgnesClient {
                     .body(body)
                     .retrieve()
                     .body(String.class);
-            String content = extractContent(responseBody);
+            // 一次 readTree 取全：内容 + usage（token 用量）+ finish_reason（结束原因）
+            AiResponseParser.ParsedResponse parsed = aiResponseParser.parse(responseBody);
+            // 拿到 HTTP 200 即记录用量与结束原因——内容为空/被 max_tokens 截断/被内容策略拦截，同样需要可观测
+            aiMetrics.recordUsage(parsed.usage());
+            aiMetrics.recordFinishReason(parsed.usage().finishReason());
+            String content = parsed.content();
             if (StrUtil.isBlank(content)) {
                 log.warn("Agnes 返回内容为空，切换降级");
                 aiMetrics.recordDegrade(AiDegradeReason.SERVICE_ERROR);
                 return AgnesResponse.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
             }
-            return AgnesResponse.ok(content);
+            return AgnesResponse.ok(content, parsed.usage());
         } catch (HttpClientErrorException e) {
             // 4xx：429 为上游限流，其余（401/402/404 等）重试同样无意义，统一直接降级
             log.warn("Agnes 调用服务异常：{}", e.getMessage());
@@ -160,26 +170,6 @@ public class AgnesClient {
     }
 
     /**
-     * 解析响应：choices[0].message.content
-     */
-    private String extractContent(String responseBody) {
-        try {
-            JsonNode root = objectMapper.readTree(responseBody);
-            JsonNode choices = root.path("choices");
-            if (choices.isArray() && !choices.isEmpty()) {
-                JsonNode content = choices.get(0).path("message").path("content");
-                if (content.isTextual()) {
-                    return content.asText();
-                }
-            }
-            return null;
-        } catch (Exception e) {
-            log.warn("Agnes 响应解析失败：{}", e.getMessage());
-            return null;
-        }
-    }
-
-    /**
      * 构建 RestClient（连接超时固定 10s；读取超时 = timeoutSeconds，默认 60s）
      * 每次调用构建成本可忽略；保持超时参数来自配置，便于演示时调整
      */
@@ -220,17 +210,22 @@ public class AgnesClient {
 
     /**
      * Agnes 调用结果载体：ok=true 表示拿到模型内容；ok=false 表示已降级（携带降级原因）
+     *
+     * @param ok      是否拿到模型内容
+     * @param content 模型输出内容（降级时为 null）
+     * @param reason  降级原因话术（成功时为 null）
+     * @param usage   本次调用的 token 用量与结束原因（未走到解析链路时为 {@link AiUsage#EMPTY}）
      */
-    public record AgnesResponse(boolean ok, String content, String reason) {
+    public record AgnesResponse(boolean ok, String content, String reason, AiUsage usage) {
 
-        /** 成功结果 */
-        public static AgnesResponse ok(String content) {
-            return new AgnesResponse(true, content, null);
+        /** 成功结果（携带上游返回的用量与结束原因） */
+        public static AgnesResponse ok(String content, AiUsage usage) {
+            return new AgnesResponse(true, content, null, usage == null ? AiUsage.EMPTY : usage);
         }
 
-        /** 降级结果 */
+        /** 降级结果（未产生用量信息） */
         public static AgnesResponse degraded(String reason) {
-            return new AgnesResponse(false, null, reason);
+            return new AgnesResponse(false, null, reason, AiUsage.EMPTY);
         }
     }
 }

@@ -7,9 +7,11 @@ import com.example.reservation.ai.dto.AiRecommendItemVO;
 import com.example.reservation.ai.dto.AiRecommendVO;
 import com.example.reservation.ai.service.AiConfigService;
 import com.example.reservation.ai.service.AiRecommendService;
+import com.example.reservation.ai.support.AiHash;
 import com.example.reservation.ai.support.AiInvoker;
 import com.example.reservation.ai.support.AiJsonSupport;
 import com.example.reservation.ai.support.AiRecommendFallback;
+import com.example.reservation.ai.support.AiResultCache;
 import com.example.reservation.common.BusinessException;
 import com.example.reservation.common.Constants;
 import com.example.reservation.entity.Classroom;
@@ -18,6 +20,7 @@ import com.example.reservation.entity.SysUser;
 import com.example.reservation.mapper.ClassroomMapper;
 import com.example.reservation.mapper.ReservationMapper;
 import com.example.reservation.mapper.SysUserMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -69,6 +72,10 @@ public class AiRecommendServiceImpl implements AiRecommendService {
     @Resource
     private AiJsonSupport aiJsonSupport;
 
+    /** AI 结果缓存（复用既有 RedisCache；命中即免上游调用） */
+    @Resource
+    private AiResultCache aiResultCache;
+
     @Override
     public AiRecommendVO recommend(Long userId) {
         if (userId == null) {
@@ -104,6 +111,12 @@ public class AiRecommendServiceImpl implements AiRecommendService {
         // 4. 尝试大模型排序（候选 + 偏好作为上下文，输出 Top3 及理由）；
         //    失败/非法输出统一由 AiInvoker 降级，并把降级原因写入 message 供前端提示
         String userMessage = buildModelContext(targetDate, pref, candidates);
+        // 结果缓存：Key 含 userId + 推荐基准日期，不同用户/不同日期的推荐不可复用；
+        // 版本段并入推荐 Prompt 版本 + 生效模型，配置一变即换 Key
+        String cacheKey = aiResultCache.buildKey(
+                AiConstants.AI_CACHE_NS_RECOMMEND,
+                AiPrompts.versionOf(AiPrompts.RECOMMEND) + "-" + aiConfigService.getEffectiveModel(),
+                AiHash.sha256Prefix8(userId + ":" + targetDate));
         // M7 修复：传入当前用户 ID，限流按用户维度隔离
         return aiInvoker.invoke("推荐", userId, AiPrompts.RECOMMEND, userMessage,
                 content -> parseModelTop(content, candidates),
@@ -114,7 +127,11 @@ public class AiRecommendServiceImpl implements AiRecommendService {
                             recommendFallback.rankAndTop(candidates, pref, AiConstants.RECOMMEND_TOP_COUNT));
                     vo.setMessage(reason);
                     return vo;
-                });
+                },
+                // 6. 结果缓存规格（仅成功分支入缓存，降级结果不缓存）
+                new AiInvoker.AiCacheSpec<>(cacheKey, AiConstants.AI_CACHE_TTL_RECOMMEND_SECONDS,
+                        new TypeReference<AiRecommendVO>() {
+                        }));
     }
 
     /**

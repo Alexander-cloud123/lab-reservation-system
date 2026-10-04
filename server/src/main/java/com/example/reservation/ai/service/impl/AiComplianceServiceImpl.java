@@ -1,15 +1,19 @@
 package com.example.reservation.ai.service.impl;
 
 import cn.hutool.core.util.StrUtil;
+import com.example.reservation.ai.config.AiConstants;
 import com.example.reservation.ai.config.AiPrompts;
 import com.example.reservation.ai.dto.AiComplianceVO;
 import com.example.reservation.ai.service.AiConfigService;
 import com.example.reservation.ai.service.AiComplianceService;
 import com.example.reservation.ai.support.AiComplianceFallback;
+import com.example.reservation.ai.support.AiHash;
 import com.example.reservation.ai.support.AiInvoker;
 import com.example.reservation.ai.support.AiJsonSupport;
+import com.example.reservation.ai.support.AiResultCache;
 import com.example.reservation.common.BusinessException;
 import com.example.reservation.common.UserContext;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +44,10 @@ public class AiComplianceServiceImpl implements AiComplianceService {
     @Resource
     private AiJsonSupport aiJsonSupport;
 
+    /** AI 结果缓存（复用既有 RedisCache；命中即免上游调用） */
+    @Resource
+    private AiResultCache aiResultCache;
+
     /** 用途文本最大长度（M11 修复：与 reservation.purpose 表字段 VARCHAR(255) 口径一致） */
     private static final int PURPOSE_MAX_LENGTH = 255;
 
@@ -62,6 +70,13 @@ public class AiComplianceServiceImpl implements AiComplianceService {
         if (StrUtil.isBlank(system)) {
             system = AiPrompts.COMPLIANCE;
         }
+        // 结果缓存：purpose → 结论为纯函数，Key 不含用户（管理员间可共享同一结论）；
+        // 版本段并入 Prompt 版本 + 违规关键词库 + 生效模型，任一配置变化即换 Key，旧缓存自动失效
+        String cacheVersion = AiPrompts.versionOf(system)
+                + "-" + AiHash.sha256Prefix8(String.join(",", aiConfigService.getComplianceKeywordList()))
+                + "-" + aiConfigService.getEffectiveModel();
+        String cacheKey = aiResultCache.buildKey(
+                AiConstants.AI_CACHE_NS_COMPLIANCE, cacheVersion, AiHash.sha256Prefix8(purpose));
         // M7 修复：传入当前用户 ID，限流按用户维度隔离；失败/非法输出统一由 AiInvoker 降级
         return aiInvoker.invoke("合规", UserContext.getUserId(), system, purpose,
                 this::parseModelOutput,
@@ -75,7 +90,11 @@ public class AiComplianceServiceImpl implements AiComplianceService {
                             purpose, aiConfigService.getComplianceKeywordList());
                     vo.setMessage(reason);
                     return vo;
-                });
+                },
+                // 3. 结果缓存规格（仅成功分支入缓存，降级结果不缓存）
+                new AiInvoker.AiCacheSpec<>(cacheKey, AiConstants.AI_CACHE_TTL_COMPLIANCE_SECONDS,
+                        new TypeReference<AiComplianceVO>() {
+                        }));
     }
 
     /**

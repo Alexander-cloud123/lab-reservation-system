@@ -1,40 +1,29 @@
-package com.example.reservation.ai.service;
+package com.example.reservation.ai.support;
 
 import cn.hutool.core.util.StrUtil;
 import com.example.reservation.ai.config.AiConstants;
-import com.example.reservation.ai.dto.AiComplianceVO;
-import com.example.reservation.ai.dto.AiRecommendItemVO;
 import com.example.reservation.ai.dto.AiParseVO;
 import com.example.reservation.common.Constants;
-import com.example.reservation.entity.Classroom;
 import org.springframework.stereotype.Component;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.time.format.TextStyle;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * AI 降级规则引擎（R7，spec.md 6.3 降级兜底必实现）
- * 大模型调用超时/报错/限流/密钥缺失时，自动切换本地规则模拟模式，不阻断业务：
- *  - 解析：正则 + 关键词模板（覆盖「明天下午2点 40人 机房」等常用句式）
- *  - 推荐：按用户历史偏好 + 明日空闲状态规则打分排序 Top3
- *  - 问答：关键词匹配 FAQ 库
- *  - 合规：ai_config.compliance_keywords 本地违规关键词库匹配
+ * 自然语言预约解析——本地规则降级（spec.md 6.3 降级兜底必实现）
+ * 大模型超时/报错/限流/密钥缺失或输出非法时，用正则 + 关键词模板识别日期/时段/人数/类型/用途，
+ * 识别失败返回 error=「无法解析」的 VO（不抛异常），保证降级链在任何外部输入下都不 500。
+ *
+ * 说明：本类由原 AiFallbackEngine 拆分而来（按接口职责一分为四，降低单类复杂度）。
  *
  * @author reservation-team
  */
 @Component
-public class AiFallbackEngine {
-
-    /* ===== 自然语言解析（正则 + 关键词模板）===== */
+public class AiParseFallback {
 
     /** HH:mm 形式时间（14:00 / 14：00） */
     private static final Pattern P_TIME_DIGIT = Pattern.compile("(\\d{1,2})[:：](\\d{2})");
@@ -56,9 +45,6 @@ public class AiFallbackEngine {
     private static final int DEFAULT_SPAN_MINUTES = 120;
     /** 每日可预约最晚结束分钟数（N4：由 Constants.DAILY_SLOT_END 派生，单一来源） */
     private static final int MAX_END_MINUTES = Constants.DAILY_SLOT_END.getHour() * 60;
-
-    /* ===== 场景限定问答 FAQ 库 ===== */
-    private static final Map<String, String> FAQ_RULES = buildFaqRules();
 
     /**
      * 解析降级：正则 + 关键词模板识别日期/时段/人数/类型/用途
@@ -242,133 +228,5 @@ public class AiFallbackEngine {
 
     private String formatMinute(int minute) {
         return String.format("%02d:%02d", minute / 60, minute % 60);
-    }
-
-    /* ===== 智能推荐降级（规则打分排序，spec.md 6.3）===== */
-
-    /** 用户历史偏好（由推荐 Service 从预约记录 + 教室维度统计） */
-    public record UserPreference(String preferredBuilding, Integer preferredType, String preferredTimeSlot, int avgCapacity) {
-    }
-
-    /** 推荐候选（教室 + 明日空闲特征） */
-    public record RecommendCandidate(Classroom classroom, boolean fullyFree, int occupiedCount) {
-    }
-
-    /**
-     * 规则打分排序：空闲度(10) > 楼栋偏好(5) > 类型偏好(4) > 容量匹配(3) > 历史活跃(1)
-     * 返回按分数降序的 Top N（附一句话推荐理由）
-     */
-    public List<AiRecommendItemVO> rankAndTop(List<RecommendCandidate> candidates, UserPreference pref, int topCount) {
-        // 注意：stream().toList() 返回不可变列表，必须先收集为可变列表再排序
-        List<Scored> scored = candidates.stream().map(c -> score(c, pref)).collect(java.util.stream.Collectors.toList());
-        scored.sort(Comparator.comparingInt(Scored::score).reversed()
-                .thenComparing(c -> c.candidate().classroom().getId()));
-        return scored.stream().limit(Math.max(topCount, 0)).map(s -> {
-            AiRecommendItemVO item = new AiRecommendItemVO();
-            Classroom c = s.candidate().classroom();
-            item.setClassroomId(c.getId());
-            item.setName(c.getName());
-            item.setBuilding(c.getBuilding());
-            item.setRoomNo(c.getRoomNo());
-            item.setType(c.getType());
-            item.setCapacity(c.getCapacity());
-            item.setReason(buildReason(s, pref));
-            return item;
-        }).toList();
-    }
-
-    /** 单候选打分（空闲度 10 / 楼栋 5 / 类型 4 / 容量 3 / 活跃 1） */
-    private Scored score(RecommendCandidate candidate, UserPreference pref) {
-        Classroom c = candidate.classroom();
-        int score = 0;
-        // 空闲度：明日完全空闲优先（推荐核心维度）
-        score += candidate.fullyFree() ? 10 : 5;
-        // 楼栋偏好
-        if (pref.preferredBuilding() != null && pref.preferredBuilding().equals(c.getBuilding())) {
-            score += 5;
-        }
-        // 类型偏好
-        if (pref.preferredType() != null && pref.preferredType().equals(c.getType())) {
-            score += 4;
-        }
-        // 容量匹配：历史平均容量的 0.8~1.5 倍区间内
-        if (pref.avgCapacity() > 0) {
-            double lo = pref.avgCapacity() * 0.8;
-            double hi = pref.avgCapacity() * 1.5;
-            if (c.getCapacity() >= lo && c.getCapacity() <= hi) {
-                score += 3;
-            }
-        }
-        // 历史活跃：被约次数越多越优先（趋同偏好）
-        score += Math.min(candidate.occupiedCount(), 5);
-        return new Scored(candidate, score);
-    }
-
-    /** 生成一句话推荐理由（降级模式，按命中维度组合） */
-    private String buildReason(Scored s, UserPreference pref) {
-        Classroom c = s.candidate().classroom();
-        List<String> parts = new ArrayList<>();
-        parts.add(s.candidate().fullyFree() ? "明日全天空闲" : "明日仍有空闲时段");
-        if (pref.preferredBuilding() != null && pref.preferredBuilding().equals(c.getBuilding())) {
-            parts.add("您常约的" + c.getBuilding());
-        }
-        if (pref.preferredType() != null && pref.preferredType().equals(c.getType())) {
-            parts.add("符合您常约的类型");
-        }
-        if (pref.avgCapacity() > 0 && c.getCapacity() >= pref.avgCapacity() * 0.8 && c.getCapacity() <= pref.avgCapacity() * 1.5) {
-            parts.add("容量接近您的常用规模");
-        }
-        return String.join("，", parts);
-    }
-
-    /** 打分中间载体 */
-    private record Scored(RecommendCandidate candidate, int score) {
-    }
-
-    /* ===== 场景限定问答降级（关键词 FAQ 库，spec.md 6.3）===== */
-
-    private static Map<String, String> buildFaqRules() {
-        Map<String, String> rules = new LinkedHashMap<>();
-        rules.put("取消", "取消预约规则：待审核或已通过的预约可在预约开始前 1 小时自由取消（在我的预约页点击取消，需二次确认）；开始前不足 1 小时不可取消，如有特殊情况请联系管理员处理。");
-        rules.put("冲突", "预约冲突规则：同一教室同一日期下，新预约时段与已通过预约时段存在重叠即判定冲突（前后端双重校验）。选择时段时系统会实时提示，冲突时无法提交。");
-        rules.put("审核", "审核流程：学生提交预约后状态为待审核，管理员在预约审核页通过或驳回（驳回会填写审核备注）；审核结果可在我的预约页查看，消息通知中心也会同步提示。");
-        rules.put("状态", "预约状态：待审核（提交后）、已通过（管理员通过）、已驳回（管理员驳回，不可修改）、已取消（用户取消）。");
-        rules.put("怎么预约", "预约步骤：教室列表 → 点击教室卡片进入详情 → 选择日期与时段 → 填写用途 → 提交预约（系统实时做冲突校验）。也可在教室列表页使用「AI 快速预约」直接描述需求。");
-        rules.put("如何预约", "预约步骤：教室列表 → 点击教室卡片进入详情 → 选择日期与时段 → 填写用途 → 提交预约（系统实时做冲突校验）。也可在教室列表页使用「AI 快速预约」直接描述需求。");
-        rules.put("我的", "个人预约记录：在我的预约页可按状态（待审核/已通过/已驳回/已取消）查看全部记录，今日预约自动置顶；个人中心可查看累计预约次数、本月预约数与通过率。");
-        rules.put("教室", "教室信息：教室列表支持按关键词/楼栋/类型/日期筛选，卡片展示实时状态（当前空闲/使用中/已结束）与容量、设备；进入详情可查看当日时段占用情况并直接预约。");
-        rules.put("时间", "可预约时段：每日 " + Constants.DAILY_AVAILABLE_START + "-" + Constants.DAILY_AVAILABLE_END
-                + "（" + Constants.DAILY_AVAILABLE_HOURS + " 小时），结束时间不能晚于 " + Constants.DAILY_AVAILABLE_END + "。");
-        return rules;
-    }
-
-    /** 问答降级：关键词命中 FAQ 库，未命中返回场景外预设话术 */
-    public String chatFallback(String question) {
-        for (Map.Entry<String, String> rule : FAQ_RULES.entrySet()) {
-            if (question.contains(rule.getKey())) {
-                return rule.getValue();
-            }
-        }
-        return AiConstants.CHAT_OUT_OF_SCOPE;
-    }
-
-    /* ===== 合规校验降级（ai_config.compliance_keywords 关键词规则，spec.md 6.3）===== */
-
-    /**
-     * 合规降级：遍历本地违规关键词，命中 → 不合规（附命中关键词）；未命中 → 合规
-     */
-    public AiComplianceVO complianceFallback(String purpose, List<String> keywords) {
-        AiComplianceVO vo = new AiComplianceVO();
-        vo.setEnabled(true);
-        for (String kw : keywords) {
-            if (purpose.contains(kw)) {
-                vo.setCompliant(false);
-                vo.setReason(AiConstants.COMPLIANCE_HIT_PREFIX + kw);
-                return vo;
-            }
-        }
-        vo.setCompliant(true);
-        vo.setReason(AiConstants.COMPLIANCE_OK_REASON);
-        return vo;
     }
 }

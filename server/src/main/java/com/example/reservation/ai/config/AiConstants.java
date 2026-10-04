@@ -23,6 +23,11 @@ public final class AiConstants {
     /** 配置键：预约合规校验 Prompt 模板 */
     public static final String CONFIG_KEY_PROMPT_COMPLIANCE = "prompt_compliance";
 
+    /* ===== 配置读取缓存（本次改动：降低 ai_config 重复查库）===== */
+    /** ai_config 配置值缓存有效期（毫秒）：TTL 内命中缓存，到期重新查库；
+     *  取 5s 的取舍——既压掉同一请求内的重复查询，又保证「改 ai_config 免重启即生效」最多延迟一个 TTL */
+    public static final long CONFIG_CACHE_TTL_MS = 5_000L;
+
     /* ===== AI 开关消息 ===== */
     /** AI 关闭提示（双开关任一为 false 时返回，前端据此隐藏/禁用 AI 入口） */
     public static final String AI_DISABLED_MESSAGE = "AI 服务未启用，当前为纯预约系统模式";
@@ -32,6 +37,8 @@ public final class AiConstants {
     public static final String AI_NO_KEY_MESSAGE = "AI 服务未配置密钥，已自动切换为本地规则模式";
     /** 服务异常降级提示 */
     public static final String AI_SERVICE_ERROR_MESSAGE = "AI 服务暂时不可用，已自动切换为本地规则模式";
+    /** 模型输出格式异常降级提示（模型已返回内容但结构不合法，与「服务不可用」区分，便于前端可观测） */
+    public static final String AI_OUTPUT_INVALID_MESSAGE = "AI 返回内容格式异常，已自动切换为本地规则模式";
 
     /* ===== 限流窗口（RPM 保护，spec.md 6.1：RPM≈20 次/分钟）===== */
     /** 限流统计窗口长度（毫秒）：固定窗口 1 分钟 */

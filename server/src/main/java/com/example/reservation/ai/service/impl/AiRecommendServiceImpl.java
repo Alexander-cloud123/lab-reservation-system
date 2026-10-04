@@ -1,14 +1,15 @@
 package com.example.reservation.ai.service.impl;
 
-import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.example.reservation.ai.config.AgnesClient;
 import com.example.reservation.ai.config.AiConstants;
+import com.example.reservation.ai.config.AiPrompts;
 import com.example.reservation.ai.dto.AiRecommendItemVO;
 import com.example.reservation.ai.dto.AiRecommendVO;
 import com.example.reservation.ai.service.AiConfigService;
-import com.example.reservation.ai.service.AiFallbackEngine;
 import com.example.reservation.ai.service.AiRecommendService;
+import com.example.reservation.ai.support.AiInvoker;
+import com.example.reservation.ai.support.AiJsonSupport;
+import com.example.reservation.ai.support.AiRecommendFallback;
 import com.example.reservation.common.BusinessException;
 import com.example.reservation.common.Constants;
 import com.example.reservation.entity.Classroom;
@@ -18,7 +19,6 @@ import com.example.reservation.mapper.ClassroomMapper;
 import com.example.reservation.mapper.ReservationMapper;
 import com.example.reservation.mapper.SysUserMapper;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -46,20 +46,15 @@ import java.util.stream.Collectors;
 @Service
 public class AiRecommendServiceImpl implements AiRecommendService {
 
-    /** 推荐 System Prompt（限定场景与结构化 JSON 输出） */
-    private static final String SYSTEM_PROMPT = "你是高校教室预约管理系统的智能推荐助手。"
-            + "根据用户的历史预约偏好与候选教室的明日空闲情况，从候选教室中选择最合适的 3 间，"
-            + "按匹配度从高到低排序，并为每间生成一句话中文推荐理由。"
-            + "只能从候选教室的 classroomId 中选择，输出JSON数组：[{\"classroomId\":数字,\"reason\":\"一句话理由\"}]";
-
     @Resource
     private AiConfigService aiConfigService;
 
+    /** AI 调用模板（统一「调用 → 解析 → 降级」骨架） */
     @Resource
-    private AgnesClient agnesClient;
+    private AiInvoker aiInvoker;
 
     @Resource
-    private AiFallbackEngine fallbackEngine;
+    private AiRecommendFallback recommendFallback;
 
     @Resource
     private SysUserMapper sysUserMapper;
@@ -70,9 +65,9 @@ public class AiRecommendServiceImpl implements AiRecommendService {
     @Resource
     private ClassroomMapper classroomMapper;
 
-    /** 主 ObjectMapper（Spring 统一配置实例，避免各组件自行 new 造成配置分叉） */
+    /** 模型 JSON 输出容错解析（统一解析入口，见 AiJsonSupport） */
     @Resource
-    private ObjectMapper objectMapper;
+    private AiJsonSupport aiJsonSupport;
 
     @Override
     public AiRecommendVO recommend(Long userId) {
@@ -94,10 +89,10 @@ public class AiRecommendServiceImpl implements AiRecommendService {
         // 2. 用户历史偏好（时段/楼栋/类型/人数）
         List<Reservation> history = reservationMapper.selectList(
                 new LambdaQueryWrapper<Reservation>().eq(Reservation::getUserId, userId));
-        AiFallbackEngine.UserPreference pref = buildPreference(history);
+        AiRecommendFallback.UserPreference pref = buildPreference(history);
 
         // 3. 候选教室 + 明日空闲特征（实时空闲状态）
-        List<AiFallbackEngine.RecommendCandidate> candidates = buildCandidates(targetDate);
+        List<AiRecommendFallback.RecommendCandidate> candidates = buildCandidates(targetDate);
         if (candidates.isEmpty()) {
             AiRecommendVO vo = new AiRecommendVO();
             vo.setEnabled(true);
@@ -106,31 +101,28 @@ public class AiRecommendServiceImpl implements AiRecommendService {
             return vo;
         }
 
-        // 4. 尝试大模型排序（候选 + 偏好作为上下文，输出 Top3 及理由）
+        // 4. 尝试大模型排序（候选 + 偏好作为上下文，输出 Top3 及理由）；
+        //    失败/非法输出统一由 AiInvoker 降级，并把降级原因写入 message 供前端提示
         String userMessage = buildModelContext(targetDate, pref, candidates);
         // M7 修复：传入当前用户 ID，限流按用户维度隔离
-        AgnesClient.AgnesResponse resp = agnesClient.chat(userId, SYSTEM_PROMPT, userMessage, true);
-        if (resp.ok()) {
-            List<AiRecommendItemVO> llmTop = parseModelTop(resp.content(), candidates);
-            if (llmTop != null) {
-                return buildVO(targetDate, llmTop);
-            }
-            log.warn("推荐模型输出不合法，切换降级：{}", resp.content());
-        }
-        // 5. 降级：规则打分排序 Top3；降级原因透出到 message（限流/密钥缺失/服务异常可观测）
-        List<AiRecommendItemVO> top = fallbackEngine.rankAndTop(
-                candidates, pref, AiConstants.RECOMMEND_TOP_COUNT);
-        AiRecommendVO vo = buildVO(targetDate, top);
-        vo.setMessage(resp.reason());
-        return vo;
+        return aiInvoker.invoke("推荐", userId, AiPrompts.RECOMMEND, userMessage,
+                content -> parseModelTop(content, candidates),
+                llmTop -> buildVO(targetDate, llmTop),
+                // 5. 降级：规则打分排序 Top3
+                reason -> {
+                    AiRecommendVO vo = buildVO(targetDate,
+                            recommendFallback.rankAndTop(candidates, pref, AiConstants.RECOMMEND_TOP_COUNT));
+                    vo.setMessage(reason);
+                    return vo;
+                });
     }
 
     /**
      * 统计用户历史偏好：楼栋/类型/时段（上午/下午/晚上）众数 + 平均教室容量
      */
-    private AiFallbackEngine.UserPreference buildPreference(List<Reservation> history) {
+    private AiRecommendFallback.UserPreference buildPreference(List<Reservation> history) {
         if (history.isEmpty()) {
-            return new AiFallbackEngine.UserPreference(null, null, null, 0);
+            return new AiRecommendFallback.UserPreference(null, null, null, 0);
         }
         List<Long> roomIds = history.stream().map(Reservation::getClassroomId).distinct().toList();
         Map<Long, Classroom> roomMap = roomIds.isEmpty() ? Map.of()
@@ -157,7 +149,7 @@ public class AiRecommendServiceImpl implements AiRecommendService {
                 capacityCount++;
             }
         }
-        return new AiFallbackEngine.UserPreference(
+        return new AiRecommendFallback.UserPreference(
                 maxKey(buildingFreq),
                 maxKey(typeFreq),
                 maxKey(slotFreq),
@@ -188,7 +180,7 @@ public class AiRecommendServiceImpl implements AiRecommendService {
      * L11 修复：候选数量受 RECOMMEND_CANDIDATE_LIMIT 上限约束，防止 Prompt 随教室数量线性膨胀
      * （此前把所有启用教室逐行拼进 Prompt，token 与耗时随教室增长线性上升）
      */
-    private List<AiFallbackEngine.RecommendCandidate> buildCandidates(LocalDate targetDate) {
+    private List<AiRecommendFallback.RecommendCandidate> buildCandidates(LocalDate targetDate) {
         List<Classroom> rooms = classroomMapper.selectList(
                 new LambdaQueryWrapper<Classroom>()
                         .eq(Classroom::getStatus, Constants.CLASSROOM_STATUS_ENABLED)
@@ -209,7 +201,7 @@ public class AiRecommendServiceImpl implements AiRecommendService {
         Map<Long, Long> occupiedCount = dayApproved.stream()
                 .collect(Collectors.groupingBy(Reservation::getClassroomId, Collectors.counting()));
         return rooms.stream()
-                .map(c -> new AiFallbackEngine.RecommendCandidate(
+                .map(c -> new AiRecommendFallback.RecommendCandidate(
                         c,
                         !occupiedCount.containsKey(c.getId()),
                         occupiedCount.getOrDefault(c.getId(), 0L).intValue()))
@@ -219,8 +211,8 @@ public class AiRecommendServiceImpl implements AiRecommendService {
     /**
      * 构建大模型上下文：用户偏好摘要 + 候选教室列表（含明日空闲）
      */
-    private String buildModelContext(LocalDate targetDate, AiFallbackEngine.UserPreference pref,
-                                     List<AiFallbackEngine.RecommendCandidate> candidates) {
+    private String buildModelContext(LocalDate targetDate, AiRecommendFallback.UserPreference pref,
+                                     List<AiRecommendFallback.RecommendCandidate> candidates) {
         StringBuilder sb = new StringBuilder();
         sb.append("【推荐基准日期】").append(targetDate).append("\n");
         sb.append("【用户历史偏好】");
@@ -243,7 +235,7 @@ public class AiRecommendServiceImpl implements AiRecommendService {
             sb.append(String.join("；", parts));
         }
         sb.append("\n【候选教室（含明日空闲）】\n");
-        for (AiFallbackEngine.RecommendCandidate c : candidates) {
+        for (AiRecommendFallback.RecommendCandidate c : candidates) {
             sb.append("id=").append(c.classroom().getId())
                     .append(" ").append(c.classroom().getName())
                     .append("（").append(c.classroom().getBuilding())
@@ -252,20 +244,23 @@ public class AiRecommendServiceImpl implements AiRecommendService {
                     .append("，明日").append(c.fullyFree() ? "全天空闲" : "部分占用")
                     .append("）\n");
         }
-        sb.append("请输出排序后的 3 间教室 JSON 数组。");
+        sb.append("请按约定的 JSON 对象格式（recommendations 数组，恰好 3 项）输出排序后的 3 间教室。");
         return sb.toString();
     }
 
     /**
-     * 解析大模型 Top3 输出（JSON 数组 [{"classroomId":N,"reason":"..."}]）
+     * 解析大模型 Top3 输出
+     * 兼容 3 类真实形态（免费档模型遵从度有限，必须容错）：
+     *   ① 顶层对象 {"recommendations":[{...}]} —— 与 response_format=json_object 一致，首选形态
+     *   ② 顶层数组 [{...}]
+     *   ③ 单个推荐对象 {"classroomId":N,"reason":"..."}
+     * 另兼容 ```json 代码块包裹与前后夹带说明文字。
      * 校验：classroomId 必须来自候选集合、最多 3 间、去重；非法返回 null（触发降级）
      */
-    private List<AiRecommendItemVO> parseModelTop(String content, List<AiFallbackEngine.RecommendCandidate> candidates) {
+    private List<AiRecommendItemVO> parseModelTop(String content, List<AiRecommendFallback.RecommendCandidate> candidates) {
         try {
-            JsonNode root = objectMapper.readTree(content);
-            // 兼容根节点为数组或 {"recommendations":[...]}
-            JsonNode arr = root.isArray() ? root : root.path("recommendations");
-            if (!arr.isArray() || arr.isEmpty()) {
+            JsonNode arr = aiJsonSupport.extractArray(content);
+            if (arr == null || arr.isEmpty()) {
                 return null;
             }
             Set<Long> candidateIds = candidates.stream()

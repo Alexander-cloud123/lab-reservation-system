@@ -1,6 +1,9 @@
 package com.example.reservation.ai.config;
 
 import cn.hutool.core.util.StrUtil;
+import com.example.reservation.ai.service.AiConfigService;
+import com.example.reservation.ai.support.AiDegradeReason;
+import com.example.reservation.ai.support.AiMetrics;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -19,7 +22,8 @@ import org.springframework.web.client.RestClientException;
  * Agnes AI 客户端封装（R7，ai 包内低耦合，spec.md 6.1 接入规格）
  * 调用兼容 OpenAI v1 规范的 POST {base-url}/chat/completions：
  *  - 请求头：Authorization: Bearer {API_KEY}、Content-Type: application/json
- *  - 请求体：model、messages（system/user）、temperature、response_format={"type":"json_object"}（结构化输出）
+ *  - 请求体：model（取 ai_config.ai_model，缺省回退 application.yml ai.model）、messages（system/user）、
+ *    temperature、response_format={"type":"json_object"}（结构化输出）
  * 调用保护（AGENTS 4.4 / spec.md 6.1）：
  *  - 超时控制：读 AiProperties.timeoutSeconds（默认 60s，连接超时固定 10s），超时/报错自动降级
  *  - 限流保护：RateLimiter 双层固定窗口（N2 修复：用户维度 rpm-limit/min + 全站维度 global-rpm-limit/min），
@@ -41,9 +45,17 @@ public class AgnesClient {
     @Resource
     private AiProperties aiProperties;
 
+    /** AI 配置读取（生效模型取 ai_config.ai_model 优先，与 application.yml ai.model 构成「DB 可覆盖」口径） */
+    @Resource
+    private AiConfigService aiConfigService;
+
     /** 主 ObjectMapper（Spring 统一配置实例，避免各组件自行 new 造成配置分叉） */
     @Resource
     private ObjectMapper objectMapper;
+
+    /** 运行指标收集（本次改动：把失败类降级按原因分桶，供 /api/stats/ai/metrics 观测） */
+    @Resource
+    private AiMetrics aiMetrics;
 
     /** 限流器（N2：懒初始化，参数来自 AiProperties；无 Spring 依赖，纯 JDK） */
     private volatile RateLimiter rateLimiter;
@@ -62,14 +74,18 @@ public class AgnesClient {
         if (!limiter().tryAcquire(userId)) {
             log.warn("Agnes 调用触发限流（rpm-limit={}，global-rpm-limit={}，userId={}），切换降级",
                     aiProperties.getRpmLimit(), aiProperties.getGlobalRpmLimit(), userId);
+            aiMetrics.recordRateLimitRejected();
             return AgnesResponse.degraded(AiConstants.AI_RATE_LIMITED_MESSAGE);
         }
         // 2. 密钥缺失保护（环境变量 AGNES_API_KEY 未配置）
         if (StrUtil.isBlank(aiProperties.getApiKey())) {
             log.warn("AGNES_API_KEY 未配置，切换降级");
+            aiMetrics.recordDegrade(AiDegradeReason.NO_KEY);
             return AgnesResponse.degraded(AiConstants.AI_NO_KEY_MESSAGE);
         }
 
+        // 耗时统计起点：仅统计真实发往上游的调用（限流/密钥缺失在此时已返回，不计入）
+        long startNs = System.nanoTime();
         try {
             // 3. 真实调用（超时/连接异常/服务异常统一捕获 → 降级，不阻断业务；429 不重试，避免放大额度消耗）
             RestClient client = buildClient();
@@ -83,26 +99,36 @@ public class AgnesClient {
             String content = extractContent(responseBody);
             if (StrUtil.isBlank(content)) {
                 log.warn("Agnes 返回内容为空，切换降级");
+                aiMetrics.recordDegrade(AiDegradeReason.SERVICE_ERROR);
                 return AgnesResponse.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
             }
             return AgnesResponse.ok(content);
         } catch (HttpClientErrorException e) {
             // 4xx：429 为上游限流，其余（401/402/404 等）重试同样无意义，统一直接降级
             log.warn("Agnes 调用服务异常：{}", e.getMessage());
-            // 429 用限流话术，便于前端区分「撞限」与「服务故障」
-            return AgnesResponse.degraded(e.getStatusCode().value() == HTTP_TOO_MANY_REQUESTS
-                    ? AiConstants.AI_RATE_LIMITED_MESSAGE
-                    : AiConstants.AI_SERVICE_ERROR_MESSAGE);
+            if (e.getStatusCode().value() == HTTP_TOO_MANY_REQUESTS) {
+                // 429 单独计数（同时计入 RATE_LIMITED 桶），便于区分「撞上游限」与「服务故障」
+                aiMetrics.recordUpstream429();
+                return AgnesResponse.degraded(AiConstants.AI_RATE_LIMITED_MESSAGE);
+            }
+            aiMetrics.recordDegrade(AiDegradeReason.SERVICE_ERROR);
+            return AgnesResponse.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
         } catch (ResourceAccessException e) {
             log.warn("Agnes 调用超时或网络异常：{}", e.getMessage());
+            aiMetrics.recordDegrade(AiDegradeReason.SERVICE_ERROR);
             return AgnesResponse.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
         } catch (RestClientException e) {
             // 非 429 的 4xx / 5xx / 其他 HTTP 异常
             log.warn("Agnes 调用服务异常：{}", e.getMessage());
+            aiMetrics.recordDegrade(AiDegradeReason.SERVICE_ERROR);
             return AgnesResponse.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
         } catch (Exception e) {
             log.error("Agnes 调用未知异常：", e);
+            aiMetrics.recordDegrade(AiDegradeReason.SERVICE_ERROR);
             return AgnesResponse.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
+        } finally {
+            // 无论成功/失败，真实发起的上游调用都要计入次数与耗时
+            aiMetrics.recordModelCall((System.nanoTime() - startNs) / 1_000_000);
         }
     }
 
@@ -111,7 +137,7 @@ public class AgnesClient {
      */
     private ObjectNode buildRequestBody(String system, String user, boolean jsonMode) {
         ObjectNode root = objectMapper.createObjectNode();
-        root.put("model", aiProperties.getModel());
+        root.put("model", aiConfigService.getEffectiveModel());
         ArrayNode messages = root.putArray("messages");
         if (StrUtil.isNotBlank(system)) {
             ObjectNode sys = messages.addObject();

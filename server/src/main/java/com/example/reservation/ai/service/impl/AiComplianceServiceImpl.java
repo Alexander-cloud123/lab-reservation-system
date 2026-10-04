@@ -1,15 +1,16 @@
 package com.example.reservation.ai.service.impl;
 
 import cn.hutool.core.util.StrUtil;
-import com.example.reservation.ai.config.AgnesClient;
+import com.example.reservation.ai.config.AiPrompts;
 import com.example.reservation.ai.dto.AiComplianceVO;
 import com.example.reservation.ai.service.AiConfigService;
 import com.example.reservation.ai.service.AiComplianceService;
-import com.example.reservation.ai.service.AiFallbackEngine;
+import com.example.reservation.ai.support.AiComplianceFallback;
+import com.example.reservation.ai.support.AiInvoker;
+import com.example.reservation.ai.support.AiJsonSupport;
 import com.example.reservation.common.BusinessException;
 import com.example.reservation.common.UserContext;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,15 +29,16 @@ public class AiComplianceServiceImpl implements AiComplianceService {
     @Resource
     private AiConfigService aiConfigService;
 
+    /** AI 调用模板（统一「调用 → 解析 → 降级」骨架） */
     @Resource
-    private AgnesClient agnesClient;
+    private AiInvoker aiInvoker;
 
     @Resource
-    private AiFallbackEngine fallbackEngine;
+    private AiComplianceFallback complianceFallback;
 
-    /** 主 ObjectMapper（Spring 统一配置实例，避免各组件自行 new 造成配置分叉） */
+    /** 模型 JSON 输出容错解析（统一解析入口，见 AiJsonSupport） */
     @Resource
-    private ObjectMapper objectMapper;
+    private AiJsonSupport aiJsonSupport;
 
     /** 用途文本最大长度（M11 修复：与 reservation.purpose 表字段 VARCHAR(255) 口径一致） */
     private static final int PURPOSE_MAX_LENGTH = 255;
@@ -58,22 +60,22 @@ public class AiComplianceServiceImpl implements AiComplianceService {
         // 1. 尝试大模型合规校验（Prompt 限定输出 {"compliant":true|false,"reason":"string"}）
         String system = aiConfigService.getPromptCompliance();
         if (StrUtil.isBlank(system)) {
-            system = "判断预约用途是否合规（是否与教学/实验/自习/竞赛等正当用途相关），输出{\"compliant\":true|false,\"reason\":\"string\"}";
+            system = AiPrompts.COMPLIANCE;
         }
-        // M7 修复：传入当前用户 ID，限流按用户维度隔离
-        AgnesClient.AgnesResponse resp = agnesClient.chat(UserContext.getUserId(), system, purpose, true);
-        if (resp.ok()) {
-            AiComplianceVO vo = parseModelOutput(resp.content());
-            if (vo != null) {
-                vo.setEnabled(true);
-                return vo;
-            }
-            log.warn("合规模型输出不合法，切换降级：{}", resp.content());
-        }
-        // 2. 降级：ai_config.compliance_keywords 关键词规则判定；降级原因透出到 message
-        AiComplianceVO vo = fallbackEngine.complianceFallback(purpose, aiConfigService.getComplianceKeywordList());
-        vo.setMessage(resp.reason());
-        return vo;
+        // M7 修复：传入当前用户 ID，限流按用户维度隔离；失败/非法输出统一由 AiInvoker 降级
+        return aiInvoker.invoke("合规", UserContext.getUserId(), system, purpose,
+                this::parseModelOutput,
+                vo -> {
+                    vo.setEnabled(true);
+                    return vo;
+                },
+                // 2. 降级：ai_config.compliance_keywords 关键词规则判定（降级原因由 AiInvoker 注入 message）
+                reason -> {
+                    AiComplianceVO vo = complianceFallback.complianceFallback(
+                            purpose, aiConfigService.getComplianceKeywordList());
+                    vo.setMessage(reason);
+                    return vo;
+                });
     }
 
     /**
@@ -81,7 +83,10 @@ public class AiComplianceServiceImpl implements AiComplianceService {
      */
     private AiComplianceVO parseModelOutput(String content) {
         try {
-            JsonNode root = objectMapper.readTree(content);
+            JsonNode root = aiJsonSupport.readObject(content);
+            if (root == null) {
+                return null;
+            }
             if (!root.has("compliant") || !root.get("compliant").isBoolean()) {
                 return null;
             }

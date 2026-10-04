@@ -1,17 +1,18 @@
 package com.example.reservation.ai.service.impl;
 
 import cn.hutool.core.util.StrUtil;
-import com.example.reservation.ai.config.AgnesClient;
 import com.example.reservation.ai.config.AiConstants;
+import com.example.reservation.ai.config.AiPrompts;
 import com.example.reservation.ai.dto.AiParseVO;
 import com.example.reservation.ai.service.AiConfigService;
-import com.example.reservation.ai.service.AiFallbackEngine;
 import com.example.reservation.ai.service.AiParseService;
+import com.example.reservation.ai.support.AiInvoker;
+import com.example.reservation.ai.support.AiJsonSupport;
+import com.example.reservation.ai.support.AiParseFallback;
 import com.example.reservation.common.BusinessException;
 import com.example.reservation.common.TimeUtil;
 import com.example.reservation.common.UserContext;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,15 +33,16 @@ public class AiParseServiceImpl implements AiParseService {
     @Resource
     private AiConfigService aiConfigService;
 
+    /** AI 调用模板（统一「调用 → 解析 → 降级」骨架） */
     @Resource
-    private AgnesClient agnesClient;
+    private AiInvoker aiInvoker;
 
     @Resource
-    private AiFallbackEngine fallbackEngine;
+    private AiParseFallback parseFallback;
 
-    /** 主 ObjectMapper（Spring 统一配置实例，避免各组件自行 new 造成配置分叉） */
+    /** 模型 JSON 输出容错解析（统一解析入口，见 AiJsonSupport） */
     @Resource
-    private ObjectMapper objectMapper;
+    private AiJsonSupport aiJsonSupport;
 
     /** 解析请求文本最大长度（M11 修复：防超长输入放大 token 消耗与超时概率） */
     private static final int PARSE_TEXT_MAX_LENGTH = 200;
@@ -64,22 +66,21 @@ public class AiParseServiceImpl implements AiParseService {
         // 实测 2026-09-13 曾返回 2024-04-04 —— 2026-09-13 AI 演示准备轮修复）
         String template = aiConfigService.getPromptParse();
         String system = StrUtil.isBlank(template)
-                ? "你是教室预约解析器，只输出JSON：{\"date\":\"YYYY-MM-DD\",\"startTime\":\"HH:mm\",\"endTime\":\"HH:mm\",\"capacity\":int,\"roomType\":\"普通教室|实验室|机房|null\",\"purpose\":\"string\"}"
+                ? AiPrompts.PARSE
                 : template + "（今天是" + LocalDate.now() + "，用户说“今天/明天/后天/周X”时按此日期推算）";
-        // M7 修复：传入当前用户 ID，限流按用户维度隔离
-        AgnesClient.AgnesResponse resp = agnesClient.chat(UserContext.getUserId(), system, text, true);
-        if (resp.ok()) {
-            AiParseVO vo = parseModelOutput(resp.content());
-            if (vo != null) {
-                vo.setEnabled(true);
-                return vo;
-            }
-            log.warn("解析模型输出不合法，切换降级：{}", resp.content());
-        }
-        // 2. 降级：正则 + 关键词模板；降级原因透出到 message（限流/密钥缺失/服务异常可观测）
-        AiParseVO vo = fallbackEngine.parseFallback(text);
-        vo.setMessage(resp.reason());
-        return vo;
+        // M7 修复：传入当前用户 ID，限流按用户维度隔离；失败/非法输出统一由 AiInvoker 降级
+        return aiInvoker.invoke("解析", UserContext.getUserId(), system, text,
+                this::parseModelOutput,
+                vo -> {
+                    vo.setEnabled(true);
+                    return vo;
+                },
+                // 2. 降级：正则 + 关键词模板（降级原因由 AiInvoker 注入 message）
+                reason -> {
+                    AiParseVO vo = parseFallback.parseFallback(text);
+                    vo.setMessage(reason);
+                    return vo;
+                });
     }
 
     /**
@@ -87,7 +88,10 @@ public class AiParseServiceImpl implements AiParseService {
      */
     private AiParseVO parseModelOutput(String content) {
         try {
-            JsonNode root = objectMapper.readTree(content);
+            JsonNode root = aiJsonSupport.readObject(content);
+            if (root == null) {
+                return null;
+            }
             // 识别失败约定：{"error":"无法解析"}
             if (root.hasNonNull("error")) {
                 AiParseVO vo = new AiParseVO();

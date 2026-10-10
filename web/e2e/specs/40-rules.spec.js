@@ -543,6 +543,44 @@ test.describe('审核冲突复查与批量审核', () => {
     )
     expect(updated).toBe(1)
   })
+
+  test('批量审核批内互斥：同批两条重叠待审核整批拒绝（H1 的 E2E 覆盖）', async ({ request }) => {
+    const adminToken = await login(request, 'admin')
+    const studentToken = await login(request, 'student')
+    const room = CLASSROOMS.C301
+    const date = futureDate(16)
+
+    // 两条互相重叠的待审核（提交阶段只与「已通过」比对，故均可提交成功）
+    const idA = expectOk(
+      await createReservation(request, studentToken, {
+        classroomId: room.id,
+        reserveDate: date,
+        startTime: '10:00',
+        endTime: '12:00',
+        purpose: e2ePurpose('批内互斥-A')
+      }),
+      '提交批内互斥 A'
+    )
+    const idB = expectOk(
+      await createReservation(request, studentToken, {
+        classroomId: room.id,
+        reserveDate: date,
+        startTime: '11:00',
+        endTime: '13:00',
+        purpose: e2ePurpose('批内互斥-B')
+      }),
+      '提交批内互斥 B'
+    )
+
+    // 整批通过 → 批内重叠被整批拒绝，错误点名冲突双方
+    const fail = expectBizFail(await batchAudit(request, adminToken, [idA, idB], 1), 400, '批量通过批内重叠')
+    expect(fail.message).toContain('时段重叠')
+    expect(fail.message).toContain(String(idB))
+
+    // 收尾：两条仍为待审核，由本人取消
+    expectOk(await cancelReservation(request, studentToken, idA), '收尾取消 A')
+    expectOk(await cancelReservation(request, studentToken, idB), '收尾取消 B')
+  })
 })
 
 /* ==================== 5. 取消时限 ==================== */

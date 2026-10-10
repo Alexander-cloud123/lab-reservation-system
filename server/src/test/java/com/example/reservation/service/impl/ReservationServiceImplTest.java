@@ -16,6 +16,7 @@ import com.example.reservation.mapper.ClassroomMapper;
 import com.example.reservation.mapper.ReservationMapper;
 import com.example.reservation.mapper.SysUserMapper;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -178,6 +179,63 @@ class ReservationServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> reservationService.cancelReservation(1L));
         assertTrue(ex.getMessage().contains("状态已变更"));
+    }
+
+    /* ===== 补充边界：过去日期 / 今天已过时刻 / 取消时限临界（R12 边界补全） ===== */
+
+    @Test
+    @DisplayName("边界：预约过去日期被拒绝（早于今天）")
+    void createReservation_rejectsPastDate() {
+        stubEnabledRoom();
+        // 昨天：与当前时刻无关，恒为过去日期
+        ReservationDTO dto = dto(LocalDate.now().minusDays(1).toString(), "10:00", "12:00");
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> reservationService.createReservation(dto));
+        assertTrue(ex.getMessage().contains("不能早于今天"));
+    }
+
+    @Test
+    @DisplayName("边界：预约今天已过去的时刻被拒绝（M12）")
+    void createReservation_rejectsTodayPastTime() {
+        // 「开始时间需 ≥ 08:00（窗口内）且 ≤ 当前时刻」，仅当当前时刻晚于 08:00 时可构造
+        LocalTime now = LocalTime.now();
+        Assumptions.assumeTrue(now.isAfter(LocalTime.of(8, 0)),
+                "当前时刻未晚于 08:00，无法构造「今天已过时刻」");
+        stubEnabledRoom();
+        ReservationDTO dto = dto(LocalDate.now().toString(), "08:00", "09:00");
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> reservationService.createReservation(dto));
+        assertTrue(ex.getMessage().contains("必须晚于当前时间"));
+    }
+
+    @Test
+    @DisplayName("边界：取消时限——开始前 59 分钟禁止取消")
+    void cancelReservation_rejectsWithinOneHour() {
+        LocalTime start = LocalTime.now().plusMinutes(59);
+        Assumptions.assumeTrue(start.isBefore(LocalTime.of(23, 0)), "接近午夜，跳过以免跨天");
+        Reservation r = reservation(1L, start, start.plusMinutes(60));
+        r.setReserveDate(LocalDate.now());
+        when(reservationMapper.selectById(1L)).thenReturn(r);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> reservationService.cancelReservation(1L));
+        assertTrue(ex.getMessage().contains("禁止取消"));
+    }
+
+    @Test
+    @DisplayName("边界：取消时限——开始前 61 分钟（刚过 1 小时）可取消")
+    void cancelReservation_allowsJustOverOneHour() {
+        LocalTime start = LocalTime.now().plusMinutes(61);
+        Assumptions.assumeTrue(start.isBefore(LocalTime.of(23, 0)), "接近午夜，跳过以免跨天");
+        Reservation r = reservation(1L, start, start.plusMinutes(60));
+        r.setReserveDate(LocalDate.now());
+        when(reservationMapper.selectById(1L)).thenReturn(r);
+        when(reservationMapper.update(any(), any())).thenReturn(1);
+
+        reservationService.cancelReservation(1L);
+
+        // 通过时限校验后执行条件更新 → 取消成功
+        verify(reservationMapper).update(any(), any());
     }
 
     /* ===== 测试数据构造 ===== */

@@ -12,10 +12,12 @@
       @click="drawerVisible = true"
     />
 
-    <el-drawer v-model="drawerVisible" title="AI 预约助手" size="380px" class="assistant-drawer">
+    <el-drawer v-model="drawerVisible" title="AI 预约助手" size="380px" class="assistant-drawer" @close="handleClose">
       <div class="chat-body" ref="chatBodyRef">
         <div v-for="(msg, index) in messages" :key="index" :class="['chat-msg', msg.role]">
-          <div class="chat-bubble">{{ msg.content }}</div>
+          <div class="chat-bubble">
+            {{ msg.content }}<span v-if="msg.typing" class="typing-cursor" aria-hidden="true"></span>
+          </div>
         </div>
       </div>
       <div class="chat-footer">
@@ -30,6 +32,8 @@
         <div class="chat-tip">
           <!-- 降级时透出后端原因：此时回答来自本地 FAQ 规则，标注「AI 生成」不准确（AGENTS 4.4 标注口径） -->
           <el-text v-if="degradeNotice" type="warning" size="small">{{ degradeNotice }}</el-text>
+          <!-- AI 双开关关闭：不是降级，不适用「AI 生成」标注，单独以 info 文案区分 -->
+          <el-text v-else-if="aiOffNotice" type="info" size="small">{{ aiOffNotice }}</el-text>
           <el-text v-else type="info" size="small">AI 生成，仅供参考 · 仅解答预约相关问题</el-text>
         </div>
       </div>
@@ -38,9 +42,9 @@
 </template>
 
 <script setup>
-import { onMounted, ref, nextTick } from 'vue'
+import { onMounted, ref, nextTick, onBeforeUnmount } from 'vue'
 import { ChatDotRound } from '@element-plus/icons-vue'
-import { aiChat } from '@/api/ai'
+import { aiChatStream } from '@/api/ai'
 import { probeAiRecommend } from '@/utils/aiProbe'
 
 /**
@@ -55,9 +59,14 @@ const sending = ref(false)
 const chatBodyRef = ref(null)
 /** 最近一次回答的降级提示（后端 message，非空 = 当前为本地 FAQ 规则回答） */
 const degradeNotice = ref('')
+/** 最近一次回答时 AI 总开关处于关闭态（meta.enabled=false，与限流降级区分，不套 warning 样式） */
+const aiOffNotice = ref('')
 const messages = ref([
   { role: 'ai', content: '你好，我是 AI 预约助手。可以问我如何预约教室、如何取消预约、审核流程、我的预约记录等问题。' }
 ])
+
+/** 当前流式请求的中断器（发送中关闭抽屉/卸载组件时中断，避免向已销毁界面写数据） */
+let activeController = null
 
 /**
  * 探测 AI 可用性（推荐接口返回 enabled=false 时隐藏悬浮球）。
@@ -76,22 +85,97 @@ async function send() {
   }
   messages.value.push({ role: 'user', content: question })
   inputText.value = ''
+  // 先推入空 AI 气泡：meta/delta 到达前即有占位，delta 直接追加（打字机）
+  messages.value.push({ role: 'ai', content: '', typing: true })
+  const bubbleIndex = messages.value.length - 1
   scrollToBottom()
+
   sending.value = true
+  const ctrl = new AbortController()
+  activeController = ctrl
+  let degradedMessage = ''
+  let disabledMessage = ''
+  // 保存气泡对象引用：主动中断空气泡被 splice 后，按下标写入会误伤其他消息
+  const bubble = messages.value[bubbleIndex]
+
+  /** 向当前 AI 气泡追加片段并跟随滚动 */
+  const appendDelta = (text) => {
+    bubble.content += text
+    scrollToBottom()
+  }
+
   try {
-    const res = await aiChat({ question })
-    const answer = res.data && res.data.answer ? res.data.answer : '抱歉，暂时无法回答，请稍后再试'
-    degradeNotice.value = (res.data && res.data.message) || ''
-    messages.value.push({ role: 'ai', content: answer })
+    await aiChatStream(
+      { question },
+      {
+        onMeta: (meta) => {
+          if (!meta) {
+            return
+          }
+          if (meta.enabled === false) {
+            // AI 双开关关闭：meta 之后只有 done 没有 delta，气泡直接展示关闭文案，
+            // 与「服务异常/限流降级」区分，也避免落入「暂时无法回答」兜底
+            disabledMessage = meta.message || 'AI 服务未启用，当前为纯预约系统模式'
+            bubble.content = disabledMessage
+            return
+          }
+          // 降级时底栏切换为后端原因文案（与非流式时代 message 口径完全一致）
+          if (meta.degraded && meta.message) {
+            degradedMessage = meta.message
+          }
+        },
+        onDelta: appendDelta,
+        onDone: (info) => {
+          // 双保险：异常时序下 meta 未带出关闭态时，按 finishReason=disabled 补关闭文案
+          if (info && info.finishReason === 'disabled' && !bubble.content) {
+            disabledMessage = 'AI 服务未启用，当前为纯预约系统模式'
+            bubble.content = disabledMessage
+          }
+        },
+        onError: (msg) => {
+          bubble.content = msg || '抱歉，服务暂时不可用，请稍后再试'
+        }
+      },
+      ctrl.signal
+    )
+    if (!bubble.content) {
+      if (ctrl.signal.aborted) {
+        // 用户主动中断且尚未收到任何内容：移除空 AI 气泡，仅保留用户提问
+        messages.value.splice(bubbleIndex, 1)
+      } else {
+        // 流正常结束但没有任何文本（异常形态）：沿用旧兜底文案，避免空气泡
+        bubble.content = '抱歉，暂时无法回答，请稍后再试'
+      }
+    }
+    degradeNotice.value = degradedMessage
+    aiOffNotice.value = disabledMessage
   } catch {
-    // 统一错误提示已由 request.js 处理
-    degradeNotice.value = ''
-    messages.value.push({ role: 'ai', content: '抱歉，服务暂时不可用，请稍后再试' })
+    // aiChatStream 内部已处理错误与中断；此处仅在非主动中断时兜底
+    if (!ctrl.signal.aborted && !bubble.content) {
+      bubble.content = '抱歉，服务暂时不可用，请稍后再试'
+    }
   } finally {
+    bubble.typing = false
     sending.value = false
+    activeController = null
     scrollToBottom()
   }
 }
+
+/** 关闭抽屉：中断进行中的流式接收（已收到的片段保留在会话中） */
+function handleClose() {
+  if (activeController) {
+    activeController.abort()
+    activeController = null
+  }
+}
+
+onBeforeUnmount(() => {
+  if (activeController) {
+    activeController.abort()
+    activeController = null
+  }
+})
 
 function scrollToBottom() {
   nextTick(() => {
@@ -185,5 +269,27 @@ function scrollToBottom() {
   font-size: 12px;
   color: var(--text-placeholder);
   text-align: center;
+}
+
+.typing-cursor {
+  display: inline-block;
+  width: 6px;
+  height: 1em;
+  margin-left: 2px;
+  background: currentColor;
+  vertical-align: text-bottom;
+  animation: ai-caret-blink 0.9s steps(1) infinite;
+}
+
+@keyframes ai-caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .typing-cursor {
+    animation: none;
+  }
 }
 </style>

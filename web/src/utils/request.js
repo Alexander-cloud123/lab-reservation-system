@@ -100,8 +100,8 @@ function readBlobMessage(blob) {
   })
 }
 
-/** 401 统一跳转登录页（携带回跳地址） */
-function redirectToLogin() {
+/** 401 统一跳转登录页（携带回跳地址）；axios 拦截器与 fetch 流式共用同一份逻辑 */
+export function redirectToLogin() {
   ElMessage.warning('登录已过期，请重新登录')
   const current = window.location.pathname + window.location.search
   if (!window.location.pathname.startsWith('/login')) {

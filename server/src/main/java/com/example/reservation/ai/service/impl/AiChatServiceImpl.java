@@ -2,6 +2,7 @@ package com.example.reservation.ai.service.impl;
 
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.example.reservation.ai.config.AgnesClient;
 import com.example.reservation.ai.config.AiConstants;
 import com.example.reservation.ai.config.AiPrompts;
 import com.example.reservation.ai.dto.AiChatVO;
@@ -11,7 +12,10 @@ import com.example.reservation.ai.support.AiChatFallback;
 import com.example.reservation.ai.support.AiHash;
 import com.example.reservation.ai.support.AiInvoker;
 import com.example.reservation.ai.support.AiJsonSupport;
+import com.example.reservation.ai.support.AiMetrics;
 import com.example.reservation.ai.support.AiResultCache;
+import com.example.reservation.ai.support.AiStreamText;
+import com.example.reservation.ai.support.ChatStreamSink;
 import com.example.reservation.common.BusinessException;
 import com.example.reservation.common.Constants;
 import com.example.reservation.common.TimeUtil;
@@ -26,8 +30,11 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -51,6 +58,14 @@ public class AiChatServiceImpl implements AiChatService {
     @Resource
     private AiChatFallback chatFallback;
 
+    /** Agnes 上游客户端（流式问答直连，非流式仍走 AiInvoker 模板） */
+    @Resource
+    private AgnesClient agnesClient;
+
+    /** AI 指标（流式缓存命中/未命中沿用与非流式一致的计数口径） */
+    @Resource
+    private AiMetrics aiMetrics;
+
     @Resource
     private ReservationMapper reservationMapper;
 
@@ -70,20 +85,15 @@ public class AiChatServiceImpl implements AiChatService {
 
     @Override
     public AiChatVO chat(String question) {
-        if (StrUtil.isBlank(question)) {
-            throw new BusinessException("请输入您的问题");
-        }
-        // M11 修复：AI 入参长度上限
-        if (question.length() > QUESTION_MAX_LENGTH) {
-            throw new BusinessException("问题过长（不超过 " + QUESTION_MAX_LENGTH + " 字）");
-        }
+        // M11 修复：AI 入参长度上限（流式/非流式共用 validateQuestion，口径保持一致）
+        validateQuestion(question);
         // 双开关关闭：返回友好提示，不报 500（前端隐藏悬浮助手）
         if (!aiConfigService.isAiEnabled()) {
             return AiChatVO.disabled();
         }
 
         // 1. 尝试大模型问答（检索增强注入个人预约上下文）；失败/非法输出统一由 AiInvoker 降级
-        String userMessage = buildContext() + "\n【用户问题】" + question;
+        String userMessage = buildContext(UserContext.getUserId()) + "\n【用户问题】" + question;
         // 结果缓存：Key 含 userId + 问题（答案注入了个人预约上下文，故不跨用户复用）；TTL 取 30s（上下文会变）
         String cacheKey = aiResultCache.buildKey(
                 AiConstants.AI_CACHE_NS_CHAT,
@@ -110,11 +120,140 @@ public class AiChatServiceImpl implements AiChatService {
                         }));
     }
 
+    @Override
+    public void validateQuestion(String question) {
+        if (StrUtil.isBlank(question)) {
+            throw new BusinessException("请输入您的问题");
+        }
+        if (question.length() > QUESTION_MAX_LENGTH) {
+            throw new BusinessException("问题过长（不超过 " + QUESTION_MAX_LENGTH + " 字）");
+        }
+    }
+
+    @Override
+    public void streamChat(Long userId, String question, ChatStreamSink sink) {
+        // 1. AI 双开关关闭：meta 告知后直接 done（不查缓存、不调上游）
+        if (!aiConfigService.isAiEnabled()) {
+            try {
+                sink.meta(false, true, AiConstants.AI_DISABLED_MESSAGE);
+                sink.done(AiConstants.FINISH_REASON_DISABLED);
+            } catch (IOException e) {
+                log.debug("流式问答客户端已断开（AI 关闭分支）：{}", e.getMessage());
+            }
+            return;
+        }
+
+        // 2. 缓存值类型与非流式同为 AiChatVO；但版本段取 CHAT_STREAM（纯文本 Prompt），
+        // 与非流式 CHAT(JSON) 的版本哈希不同，两路缓存各自独立、不共享
+        String cacheKey = aiResultCache.buildKey(
+                AiConstants.AI_CACHE_NS_CHAT,
+                AiPrompts.versionOf(AiPrompts.CHAT_STREAM) + "-" + aiConfigService.getEffectiveModel(),
+                AiHash.sha256Prefix8(userId + ":" + question));
+        AiChatVO cached = aiResultCache.get(cacheKey, new TypeReference<AiChatVO>() {
+        });
+        if (cached != null && StrUtil.isNotBlank(cached.getAnswer())) {
+            aiMetrics.recordCacheHit();
+            try {
+                sink.meta(true, false, null);
+                emitChunks(sink, cached.getAnswer());
+                sink.done(AiConstants.FINISH_REASON_STOP);
+            } catch (IOException e) {
+                log.debug("流式问答客户端已断开（缓存重放分支）：{}", e.getMessage());
+            }
+            return;
+        }
+        aiMetrics.recordCacheMiss();
+
+        // 3. 调上游：onReady 于收到 200 响应头时发出全流唯一 meta；建链后再降级（空内容/读体中断）不重发 meta；
+        // delta 即收即发（规格 §3.2：meta 每流仅 1 个，且先于一切 delta）
+        String userMessage = buildContext(userId) + "\n【用户问题】" + question;
+        // 客户端断开后无需再回调：closed 标志阻止 Consumer 向已关闭连接写数据
+        final boolean[] closed = {false};
+        // onReady 是否成功发出过 meta：决定降级收尾能否再发 degraded meta
+        final boolean[] readyCalled = {false};
+        // 成功分支累积全文（仅用于写缓存；前端显示的是已实时发出的 delta，不受围栏剥离影响）
+        final StringBuilder fullText = new StringBuilder();
+        Runnable onReady = () -> {
+            try {
+                sink.meta(true, false, null);
+                // meta 发送成功后才置位：meta 抛 IOException 的 closed 路径保持 readyCalled=false 不变
+                readyCalled[0] = true;
+            } catch (IOException e) {
+                // 中断契约：包装为 UncheckedIOException 快速中止上游读取，AgnesClient 据此返回 aborted 句柄
+                closed[0] = true;
+                throw new UncheckedIOException(e);
+            }
+        };
+        Consumer<String> onDelta = piece -> {
+            if (closed[0]) {
+                return;
+            }
+            fullText.append(piece);
+            try {
+                sink.delta(piece);
+            } catch (IOException e) {
+                // 中断契约：包装为 UncheckedIOException 快速中止上游读取，AgnesClient 据此返回 aborted 句柄
+                closed[0] = true;
+                throw new UncheckedIOException(e);
+            }
+        };
+        AgnesClient.StreamChatHandle handle =
+                agnesClient.chatStream(userId, AiPrompts.CHAT_STREAM, userMessage, onReady, onDelta);
+        if (closed[0]) {
+            // aborted 句柄静默结束：不发降级 meta、不推 FAQ、不写缓存、不发 done/error
+            log.debug("流式问答客户端已断开（上游读取分支）");
+            return;
+        }
+
+        if (handle.ok()) {
+            // 4. 成功：已实时发出的 delta 不可回收，围栏剥离只作用于「写缓存的值」，不改写已显示文本
+            String answer = AiStreamText.stripCodeFence(fullText.toString());
+            AiChatVO vo = new AiChatVO();
+            vo.setEnabled(true);
+            vo.setAnswer(answer);
+            aiResultCache.put(cacheKey, vo, AiConstants.AI_CACHE_TTL_CHAT_SECONDS);
+            try {
+                sink.done(StrUtil.blankToDefault(handle.finishReason(), AiConstants.FINISH_REASON_UNKNOWN));
+            } catch (IOException e) {
+                log.debug("流式问答 done 发送失败：{}", e.getMessage());
+            }
+            return;
+        }
+
+        // 5. 降级收尾：按 onReady 是否已发过唯一 meta 分流（规格 §3.2：meta 每流仅 1 个，先于一切 delta）
+        try {
+            if (!readyCalled[0]) {
+                // 5a. 建链前降级（无 key/限流/非 200/建链异常）：尚未发过 meta，原因随 degraded meta 透出；
+                // 本地 FAQ 全文按固定步长打字机推送
+                sink.meta(true, true, handle.reason());
+                emitChunks(sink, chatFallback.chatFallback(question));
+                sink.done(AiConstants.FINISH_REASON_FALLBACK);
+            } else if (fullText.length() == 0) {
+                // 5b. 200 建链后空内容/全脏帧：唯一 meta 已在 onReady 发出，不能重发；
+                // 降级原因无法再通过 meta 透出（meta 契约每流仅 1 个），finishReason=fallback 如实反映兜底内容
+                emitChunks(sink, chatFallback.chatFallback(question));
+                sink.done(AiConstants.FINISH_REASON_FALLBACK);
+            } else {
+                // 5c. 200 建链后读体中断、已有半截 delta 实时发出：不重发 meta、不拼 FAQ
+                // （规格 §3.2 meta 唯一性；半截真实文本优于拼接 FAQ），done 如实标注结束原因
+                sink.done(StrUtil.blankToDefault(handle.finishReason(), AiConstants.FINISH_REASON_UNKNOWN));
+            }
+        } catch (IOException e) {
+            log.debug("流式问答收尾失败：{}", e.getMessage());
+        }
+    }
+
+    /** 分段推送整段文本（缓存重放 / 降级 FAQ 共用） */
+    private void emitChunks(ChatStreamSink sink, String text) throws IOException {
+        for (String chunk : AiStreamText.chunks(text, AiConstants.AI_STREAM_CHUNK_SIZE)) {
+            sink.delta(chunk);
+        }
+    }
+
     /**
      * 构建个人上下文（检索增强：最近 5 条预约 + 预约总数），供模型回答个人记录类问题
      */
-    private String buildContext() {
-        Long userId = UserContext.getUserId();
+    private String buildContext(Long userId) {
         if (userId == null) {
             return "【用户信息】未获取到当前登录用户";
         }

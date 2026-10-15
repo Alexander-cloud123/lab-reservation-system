@@ -87,6 +87,14 @@ public final class AiConstants {
     /** 无关问题预设话术 */
     public static final String CHAT_OUT_OF_SCOPE = "抱歉，我只能解答高校教室预约系统的相关问题（如何预约/取消、教室信息、我的预约记录、审核状态等）。";
 
+    /* ===== 流式问答（R12：SSE 打字机）===== */
+    /** 降级 FAQ / 缓存命中答案重放时，每个 delta 事件的固定字符数（纯展示分段，不做人为延迟） */
+    public static final int AI_STREAM_CHUNK_SIZE = 20;
+    /** 流式结束原因：本地规则降级（FAQ 兜底） */
+    public static final String FINISH_REASON_FALLBACK = "fallback";
+    /** 流式结束原因：AI 总开关关闭（短路应答） */
+    public static final String FINISH_REASON_DISABLED = "disabled";
+
     /* ===== 智能推荐（spec.md 6.2 推荐口径）===== */
     /** 推荐目标日期偏移（天）：默认推荐明天（当日时段过半后意义降低，固定偏移保证可复跑） */
     public static final int RECOMMEND_DATE_OFFSET_DAYS = 1;

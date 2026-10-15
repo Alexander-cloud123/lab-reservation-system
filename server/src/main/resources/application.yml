@@ -63,6 +63,12 @@ ai:
   max-tokens: 1024             # 单次输出上限（防止推荐等场景输出打满 4096 出现乱码/超时）
   rpm-limit: 8                 # 每用户限流（次/分钟）：2026-09-29 实测该账号硬上限 10 次/分钟（3s 间隔连续 10 次 200、第 11 次 429）
   global-rpm-limit: 8          # 全站聚合上限：额度按账号计（不按 Key 叠加），取 8 留 20% 余量，防本地固定窗口与上游窗口错位时超发
+  # SSE 流式问答（R12）专用异步线程池：仅承载 chat?stream=true；队列打满走 AbortPolicy，controller 回 error 事件
+  stream:
+    executor:
+      core-pool-size: 2
+      max-pool-size: 8
+      queue-capacity: 100
 
 # ===== Redis 加分项自定义配置（需求设计文档 2.2 第 145 行；一键启停 + 缓存 TTL）=====
 redis:

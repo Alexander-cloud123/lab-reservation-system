@@ -16,6 +16,40 @@ export const AI_PATHS = {
   compliance: '/api/ai/compliance-check'
 }
 
+/**
+ * 构造一个 SSE 事件帧（event + JSON data，以空行结尾）。
+ * 线格式与真实生产者 Spring SseEmitter 完全一致：冒号后【无空格】
+ * （SseEmitter 的 data 常量即 "data:"；event 为 "event:"）。
+ * 勿擅自加空格——mock 与真实线格式漂移会让前端解析缺陷在 E2E 中漏检。
+ */
+export function sseFrame(event, data) {
+  return `event:${event}\ndata:${JSON.stringify(data)}\n\n`
+}
+
+/**
+ * 把问答 VO（{enabled,message,answer}）转换为流式 SSE 响应体：
+ * meta（degraded 取 message 是否非空）→ answer 按 8 字切多个 delta → done。
+ * Playwright route.fulfill 一次性返回整段响应体（无法按时间推块），
+ * 「逐帧按序拼接」由前端解析器保证，由最终文本断言覆盖。
+ */
+export function chatStreamBody(payload) {
+  const disabled = payload.enabled === false
+  const degraded = !!payload.message
+  let body = sseFrame('meta', {
+    enabled: !disabled,
+    // 与真实后端 AiChatServiceImpl 关闭分支一致：meta(false,true,message) → done('disabled')，中间无 delta
+    degraded,
+    message: payload.message ?? null
+  })
+  const answer = payload.answer || ''
+  for (let i = 0; i < answer.length; i += 8) {
+    body += sseFrame('delta', { text: answer.slice(i, i + 8) })
+  }
+  const finishReason = disabled ? 'disabled' : degraded ? 'fallback' : 'stop'
+  body += sseFrame('done', { finishReason })
+  return body
+}
+
 /** 默认假数据（结构对齐后端 VO；字段名不一致会在前端表现为"解析成功但表单未回填"） */
 export function defaultAiPayloads() {
   const date = futureDate(1)
@@ -80,7 +114,7 @@ export function defaultAiPayloads() {
 }
 
 /** AI 关闭时的返回（enabled=false，前端据此隐藏全部 AI 入口） */
-export function aiDisabledPayload(path) {
+export function aiDisabledPayload() {
   return { enabled: false, message: 'AI 功能已关闭' }
 }
 
@@ -99,11 +133,21 @@ export async function mockAi(page, overrides = {}) {
   await page.route(
     (url) => Object.values(AI_PATHS).includes(url.pathname),
     async (route) => {
-      const path = new URL(route.request().url()).pathname
+      const reqUrl = new URL(route.request().url())
+      const path = reqUrl.pathname
       calls[path] = (calls[path] || 0) + 1
-      const payload = payloads[path] ?? aiDisabledPayload(path)
+      const payload = payloads[path] ?? aiDisabledPayload()
       // 模拟真实模型的"有延迟才出结果"，避免用例把 loading 态当成最终态断言
       await new Promise((r) => setTimeout(r, 120))
+      // 问答流式：前端请求 ?stream=true，改回 text/event-stream（pathname 仍为 /api/ai/chat，计数口径不变）
+      if (path === AI_PATHS.chat && reqUrl.searchParams.get('stream') === 'true') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'text/event-stream;charset=UTF-8',
+          body: chatStreamBody(payload)
+        })
+        return
+      }
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

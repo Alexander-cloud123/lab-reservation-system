@@ -181,11 +181,16 @@ test('AI 预约助手：默认收起 → 展开侧边对话窗 → 发送问题�
   await expect(page.getByRole('heading', { name: 'AI 预约助手' })).toBeVisible()
   await expect(chatInput).toBeVisible()
 
-  // 发送问题 → 渲染回答
+  // 发送问题 → SSE 流式渲染回答
   await chatInput.fill('E2E：怎么预约教室？')
   await page.getByRole('button', { name: '发送' }).click()
   await expect(page.getByText('E2E：怎么预约教室？')).toBeVisible()
+  // 接收期（mock 有 120ms 延迟）：最终答案尚未出现，先处于接收态
+  await expect(page.locator('.typing-cursor')).toBeVisible()
+  await expect(page.getByText(answer)).toBeHidden()
+  // 多帧按序拼接后得到完整答案（若 SSE 解析/拼接错误，文本不会等于 answer）
   await expect(page.getByText(answer)).toBeVisible()
+  await expect(page.locator('.typing-cursor')).toHaveCount(0)
 
   // 回答区 AI 标注
   await expect(page.getByText('AI 生成，仅供参考 · 仅解答预约相关问题')).toBeVisible()
@@ -447,4 +452,62 @@ test('AI 降级提示 · 管理端合规校验：标签显示「规则校验：�
 
   // 收尾：取消该待审核预约（未来日期，允许取消）
   await tryCancel(page.request, student.token, id)
+})
+
+/* ------------------------------------------------------------------ */
+/* 7. AI 助手流式问答（SSE：meta/delta/done）                            */
+/* ------------------------------------------------------------------ */
+test('AI 助手流式：请求带 stream=true，多帧拼接为完整答案', async ({ page }) => {
+  const answer = '【E2E-STREAM】待审核或已通过的预约可在开始前1小时自由取消。'
+  const calls = await mockAi(page, {
+    [AI_PATHS.chat]: { enabled: true, message: null, answer }
+  })
+  await loginAs(page, { who: 'student', path: '/student/home', aiEnabled: true })
+
+  await page.getByRole('button', { name: '打开 AI 预约助手' }).click()
+  await page.getByPlaceholder('问我：怎么预约 / 怎么取消 / 审核要多久…').fill('E2E-流式：怎么取消？')
+  await page.getByRole('button', { name: '发送' }).click()
+
+  // SSE 多帧按序拼接，最终文本完整
+  await expect(page.getByText(answer)).toBeVisible()
+  await expect(page.locator('.chat-tip')).toContainText('AI 生成，仅供参考 · 仅解答预约相关问题')
+  // 确实走的是流式 URL（pathname 计数仍归 /api/ai/chat）
+  expect(calls[AI_PATHS.chat] || 0).toBe(1)
+})
+
+test('AI 助手流式降级：meta.degraded=true 时底栏切换为降级原因，FAQ 文本完整渲染', async ({ page }) => {
+  const fallbackAnswer = '【E2E-STREAM】降级分段回答ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  await mockAi(page, {
+    [AI_PATHS.chat]: { enabled: true, message: DEGRADE_MSG, answer: fallbackAnswer }
+  })
+  await loginAs(page, { who: 'student', path: '/student/home', aiEnabled: true })
+
+  const tip = page.locator('.chat-tip')
+  await page.getByRole('button', { name: '打开 AI 预约助手' }).click()
+  await page.getByPlaceholder('问我：怎么预约 / 怎么取消 / 审核要多久…').fill('E2E-流式降级：审核？')
+  await page.getByRole('button', { name: '发送' }).click()
+
+  await expect(page.getByText(fallbackAnswer)).toBeVisible()
+  await expect(tip).toContainText(DEGRADE_MSG)
+  await expect(tip).not.toContainText('AI 生成，仅供参考')
+})
+
+test('AI 助手流式关闭态：meta.enabled=false 时气泡展示关闭文案，与降级/AI生成标注区分', async ({ page }) => {
+  const disabledMsg = 'AI 服务未启用，当前为纯预约系统模式'
+  await mockAi(page, {
+    [AI_PATHS.chat]: { enabled: false, message: disabledMsg }
+  })
+  await loginAs(page, { who: 'student', path: '/student/home', aiEnabled: true })
+
+  const tip = page.locator('.chat-tip')
+  await page.getByRole('button', { name: '打开 AI 预约助手' }).click()
+  await page.getByPlaceholder('问我：怎么预约 / 怎么取消 / 审核要多久…').fill('E2E-流式关闭态：在吗？')
+  await page.getByRole('button', { name: '发送' }).click()
+
+  // 关闭态：气泡直接展示后端关闭文案（不落入「暂时无法回答」兜底），光标消失
+  await expect(page.locator('.chat-bubble').filter({ hasText: disabledMsg })).toBeVisible()
+  await expect(page.locator('.typing-cursor')).toHaveCount(0)
+  // 底栏透出关闭文案（info），既不是降级 warning，也不出现「AI 生成」标注
+  await expect(tip).toContainText(disabledMsg)
+  await expect(tip).not.toContainText('AI 生成，仅供参考')
 })

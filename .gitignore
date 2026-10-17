@@ -28,3 +28,10 @@ docs/e2e/*.log
 # 系统
 .DS_Store
 Thumbs.db
+
+# Agent / 工具本地目录（不入库）
+.trae/
+docs/superpowers/
+
+# 数据库设计图（本地生成产物，不入库）
+database/diagram/

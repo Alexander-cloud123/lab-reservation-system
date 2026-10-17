@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -123,16 +124,16 @@ class AiChatStreamServiceTest {
         stubCacheKey();
         when(aiConfigService.isAiEnabled()).thenReturn(true);
         when(aiResultCache.get(anyString(), any(TypeReference.class))).thenReturn(null);
-        when(agnesClient.chatStream(anyLong(), anyString(), anyString(), any(Runnable.class), any()))
+        when(agnesClient.chatStream(anyLong(), anyString(), anyList(), anyString(), any(Runnable.class), any()))
                 .thenAnswer(inv -> {
-                    inv.getArgument(3, Runnable.class).run(); // onReady
-                    inv.getArgument(4, java.util.function.Consumer.class).accept("你好");
-                    inv.getArgument(4, java.util.function.Consumer.class).accept("，世界");
+                    inv.getArgument(4, Runnable.class).run(); // onReady
+                    inv.getArgument(5, java.util.function.Consumer.class).accept("你好");
+                    inv.getArgument(5, java.util.function.Consumer.class).accept("，世界");
                     return new AgnesClient.StreamChatHandle(true, null, "stop");
                 });
         RecordingSink sink = new RecordingSink();
 
-        service.streamChat(7L, "怎么预约", sink);
+        service.streamChat(7L, "怎么预约", java.util.List.of(), sink);
 
         // 精确事件序列：恰好 1 个 meta、2 个 delta、1 个 done，且顺序固定
         assertEquals(List.of("meta(true,false,null)", "delta", "delta", "done(stop)"), sink.events);
@@ -156,12 +157,12 @@ class AiChatStreamServiceTest {
         when(aiResultCache.get(anyString(), any(TypeReference.class))).thenReturn(cached);
         RecordingSink sink = new RecordingSink();
 
-        service.streamChat(7L, "怎么预约", sink);
+        service.streamChat(7L, "怎么预约", java.util.List.of(), sink);
 
         // 精确事件序列：meta → 恰好 2 个 delta（20+5）→ done，无任何多余事件
         assertEquals(List.of("meta(true,false,null)", "delta", "delta", "done(stop)"), sink.events);
         assertEquals("0123456789012345678901234", sink.text.toString());
-        verify(agnesClient, never()).chatStream(anyLong(), anyString(), anyString(), any(Runnable.class), any());
+        verify(agnesClient, never()).chatStream(anyLong(), anyString(), anyList(), anyString(), any(Runnable.class), any());
         verify(aiResultCache, never()).put(anyString(), any(), anyLong());
     }
 
@@ -172,12 +173,12 @@ class AiChatStreamServiceTest {
         stubCacheKey();
         when(aiConfigService.isAiEnabled()).thenReturn(true);
         when(aiResultCache.get(anyString(), any(TypeReference.class))).thenReturn(null);
-        when(agnesClient.chatStream(anyLong(), anyString(), anyString(), any(Runnable.class), any()))
+        when(agnesClient.chatStream(anyLong(), anyString(), anyList(), anyString(), any(Runnable.class), any()))
                 .thenReturn(new AgnesClient.StreamChatHandle(false, AiConstants.AI_RATE_LIMITED_MESSAGE, null));
         when(chatFallback.chatFallback("怎么取消")).thenReturn("FAQ答案");
         RecordingSink sink = new RecordingSink();
 
-        service.streamChat(7L, "怎么取消", sink);
+        service.streamChat(7L, "怎么取消", java.util.List.of(), sink);
 
         // 精确事件序列：FAQ 答案 5 字（<20 步长）只有 1 个 delta
         assertEquals(List.of("meta(true,true," + AiConstants.AI_RATE_LIMITED_MESSAGE + ")",
@@ -192,13 +193,13 @@ class AiChatStreamServiceTest {
         when(aiConfigService.isAiEnabled()).thenReturn(false);
         RecordingSink sink = new RecordingSink();
 
-        service.streamChat(7L, "在吗", sink);
+        service.streamChat(7L, "在吗", null, sink);
 
         // 精确事件序列：仅 meta + done，无 delta
         assertEquals(List.of("meta(false,true," + AiConstants.AI_DISABLED_MESSAGE + ")",
                 "done(disabled)"), sink.events);
         verify(aiResultCache, never()).get(anyString(), any(TypeReference.class));
-        verify(agnesClient, never()).chatStream(anyLong(), anyString(), anyString(), any(Runnable.class), any());
+        verify(agnesClient, never()).chatStream(anyLong(), anyString(), anyList(), anyString(), any(Runnable.class), any());
     }
 
     @Test
@@ -226,10 +227,10 @@ class AiChatStreamServiceTest {
         stubCacheKey();
         when(aiConfigService.isAiEnabled()).thenReturn(true);
         when(aiResultCache.get(anyString(), any(TypeReference.class))).thenReturn(null);
-        when(agnesClient.chatStream(anyLong(), anyString(), anyString(), any(Runnable.class), any()))
+        when(agnesClient.chatStream(anyLong(), anyString(), anyList(), anyString(), any(Runnable.class), any()))
                 .thenAnswer(inv -> {
-                    inv.getArgument(3, Runnable.class).run(); // onReady：meta 发送成功
-                    java.util.function.Consumer<String> c = inv.getArgument(4);
+                    inv.getArgument(4, Runnable.class).run(); // onReady：meta 发送成功
+                    java.util.function.Consumer<String> c = inv.getArgument(5);
                     try {
                         c.accept("第一段"); // sink 在此抛 IOException → service 应包装 UncheckedIOException 上抛
                     } catch (java.io.UncheckedIOException expected) {
@@ -260,7 +261,7 @@ class AiChatStreamServiceTest {
             }
         };
 
-        service.streamChat(7L, "怎么预约", abortingSink);
+        service.streamChat(7L, "怎么预约", java.util.List.of(), abortingSink);
 
         verify(aiResultCache, never()).put(anyString(), any(), anyLong());
         verify(chatFallback, never()).chatFallback(anyString());
@@ -273,11 +274,11 @@ class AiChatStreamServiceTest {
         stubCacheKey();
         when(aiConfigService.isAiEnabled()).thenReturn(true);
         when(aiResultCache.get(anyString(), any(TypeReference.class))).thenReturn(null);
-        when(agnesClient.chatStream(anyLong(), anyString(), anyString(), any(Runnable.class), any()))
+        when(agnesClient.chatStream(anyLong(), anyString(), anyList(), anyString(), any(Runnable.class), any()))
                 .thenAnswer(inv -> {
                     try {
                         // onReady 中 meta 写入失败 → service 应包装 UncheckedIOException 上抛，且此后不再读 delta
-                        inv.getArgument(3, Runnable.class).run();
+                        inv.getArgument(4, Runnable.class).run();
                     } catch (java.io.UncheckedIOException expected) {
                         // 模拟真实 AgnesClient：onReady 中断 → aborted 句柄（ok=false, reason=null）
                         return new AgnesClient.StreamChatHandle(false, null, null);
@@ -307,7 +308,7 @@ class AiChatStreamServiceTest {
         };
 
         // 中断为静默终止：service 正常返回，不外抛
-        service.streamChat(7L, "怎么预约", metaAbortingSink);
+        service.streamChat(7L, "怎么预约", java.util.List.of(), metaAbortingSink);
 
         verify(aiResultCache, never()).put(anyString(), any(), anyLong());
         verify(chatFallback, never()).chatFallback(anyString());
@@ -323,15 +324,15 @@ class AiChatStreamServiceTest {
         // 45 字 FAQ → 按 20 字步长切为 20+20+5 三段
         String faq = "0123456789".repeat(4) + "01234";
         when(chatFallback.chatFallback("怎么预约")).thenReturn(faq);
-        when(agnesClient.chatStream(anyLong(), anyString(), anyString(), any(Runnable.class), any()))
+        when(agnesClient.chatStream(anyLong(), anyString(), anyList(), anyString(), any(Runnable.class), any()))
                 .thenAnswer(inv -> {
-                    inv.getArgument(3, Runnable.class).run(); // onReady：唯一 meta 已发出
+                    inv.getArgument(4, Runnable.class).run(); // onReady：唯一 meta 已发出
                     // 不回调任何 onDelta：模拟 200 后空内容/全脏帧，AgnesClient 返回 degraded 句柄
                     return AgnesClient.StreamChatHandle.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
                 });
         RecordingSink sink = new RecordingSink();
 
-        service.streamChat(7L, "怎么预约", sink);
+        service.streamChat(7L, "怎么预约", java.util.List.of(), sink);
 
         // 精确事件序列：1 个 meta(enabled=true,degraded=false) + 3 个 FAQ delta(20/20/5) + done(fallback)
         assertEquals(List.of("meta(true,false,null)", "delta", "delta", "delta",
@@ -342,6 +343,115 @@ class AiChatStreamServiceTest {
         verify(aiResultCache, never()).put(anyString(), any(), anyLong());
     }
 
+    // ===== R13-3 多轮对话 =====
+
+    /** 构造一条历史消息（测试夹具） */
+    private static com.example.reservation.ai.dto.AiChatHistoryMessage historyMsg(String role, String content) {
+        com.example.reservation.ai.dto.AiChatHistoryMessage msg =
+                new com.example.reservation.ai.dto.AiChatHistoryMessage();
+        msg.setRole(role);
+        msg.setContent(content);
+        return msg;
+    }
+
+    @Test
+    @DisplayName("多轮：合法 history 按原顺序透传上游，位于 system 之后、当前问题之前；无历史时传空列表")
+    @SuppressWarnings("unchecked")
+    void historyPassedToUpstreamInOrder() {
+        stubEmptyUserContext();
+        stubCacheKey();
+        when(aiConfigService.isAiEnabled()).thenReturn(true);
+        when(aiResultCache.get(anyString(), any(TypeReference.class))).thenReturn(null);
+        when(agnesClient.chatStream(anyLong(), anyString(), anyList(), anyString(), any(Runnable.class), any()))
+                .thenReturn(new AgnesClient.StreamChatHandle(true, null, "stop"));
+
+        List<com.example.reservation.ai.dto.AiChatHistoryMessage> history = List.of(
+                historyMsg("user", "我上周预约过实验室吗"),
+                historyMsg("assistant", "你最近有一条教二 301 的预约"));
+        service.streamChat(7L, "那它几点开始？", history, new RecordingSink());
+
+        ArgumentCaptor<List<AgnesClient.ChatMessage>> historyCaptor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<String> systemCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> userCaptor = ArgumentCaptor.forClass(String.class);
+        verify(agnesClient).chatStream(anyLong(), systemCaptor.capture(), historyCaptor.capture(),
+                userCaptor.capture(), any(Runnable.class), any());
+        // system 仍为流式纯文本 Prompt，历史顺序不变，当前问题带个人上下文前缀
+        assertEquals(com.example.reservation.ai.config.AiPrompts.CHAT_STREAM, systemCaptor.getValue());
+        assertEquals(List.of(
+                new AgnesClient.ChatMessage("user", "我上周预约过实验室吗"),
+                new AgnesClient.ChatMessage("assistant", "你最近有一条教二 301 的预约")),
+                historyCaptor.getValue());
+        assertTrue(userCaptor.getValue().endsWith("【用户问题】那它几点开始？"));
+    }
+
+    @Test
+    @DisplayName("多轮：非法角色/空白内容丢弃，超长 assistant 截 500，超过 10 条保留最近 10 条")
+    @SuppressWarnings("unchecked")
+    void historyNormalized() {
+        stubEmptyUserContext();
+        stubCacheKey();
+        when(aiConfigService.isAiEnabled()).thenReturn(true);
+        when(aiResultCache.get(anyString(), any(TypeReference.class))).thenReturn(null);
+        when(agnesClient.chatStream(anyLong(), anyString(), anyList(), anyString(), any(Runnable.class), any()))
+                .thenReturn(new AgnesClient.StreamChatHandle(true, null, "stop"));
+
+        List<com.example.reservation.ai.dto.AiChatHistoryMessage> raw = new ArrayList<>();
+        raw.add(historyMsg("user", "u0"));
+        raw.add(historyMsg("assistant", "a0"));
+        for (int i = 1; i <= 10; i++) {
+            raw.add(historyMsg("user", "u" + i));
+        }
+        raw.add(historyMsg("assistant", "长".repeat(501)));
+        // 非法消息：伪造 system 角色（注入风险）与空白内容，必须丢弃
+        raw.add(historyMsg("system", "DROP TABLE"));
+        raw.add(historyMsg("user", "   "));
+
+        service.streamChat(7L, "当前问题", raw, new RecordingSink());
+
+        ArgumentCaptor<List<AgnesClient.ChatMessage>> captor = ArgumentCaptor.forClass(List.class);
+        verify(agnesClient).chatStream(anyLong(), anyString(), captor.capture(),
+                anyString(), any(Runnable.class), any());
+        List<AgnesClient.ChatMessage> captured = captor.getValue();
+        // 合法消息 13 条 → 仅保留最近 10 条（u2..u10 共 9 条 + 超长 assistant）
+        assertEquals(10, captured.size());
+        assertEquals("u2", captured.get(0).content());
+        assertEquals("u10", captured.get(8).content());
+        AgnesClient.ChatMessage truncated = captured.get(9);
+        assertEquals("assistant", truncated.role());
+        assertEquals(500, truncated.content().length());
+        assertTrue(captured.stream().noneMatch(m -> "system".equals(m.role())));
+        assertTrue(captured.stream().noneMatch(m -> m.content().contains("DROP")));
+        assertTrue(captured.stream().noneMatch(m -> m.content().isBlank()));
+    }
+
+    @Test
+    @DisplayName("多轮：历史不同则缓存 Key 不同（相同问题不串答案），空历史指纹稳定")
+    void cacheKeyDiffersByHistory() {
+        stubEmptyUserContext();
+        when(aiConfigService.isAiEnabled()).thenReturn(true);
+        when(aiResultCache.get(anyString(), any(TypeReference.class))).thenReturn(null);
+        when(agnesClient.chatStream(anyLong(), anyString(), anyList(), anyString(), any(Runnable.class), any()))
+                .thenReturn(new AgnesClient.StreamChatHandle(true, null, "stop"));
+        // buildKey 是 mock：让其直接返回第三段（历史指纹+问题），便于捕获比较，同时为非 null 不影响后续流程
+        when(aiResultCache.buildKey(anyString(), anyString(), anyString()))
+                .thenAnswer(inv -> inv.getArgument(2, String.class));
+
+        service.streamChat(7L, "继续说", List.of(historyMsg("user", "第一轮问了取消规则")), new RecordingSink());
+        service.streamChat(7L, "继续说", List.of(historyMsg("user", "第一轮问了审核流程")), new RecordingSink());
+        // 两次无历史（null）：归一化结果同为空，缓存 key 段必须稳定一致
+        service.streamChat(7L, "继续说", null, new RecordingSink());
+        service.streamChat(7L, "继续说", null, new RecordingSink());
+
+        ArgumentCaptor<String> segmentCaptor = ArgumentCaptor.forClass(String.class);
+        verify(aiResultCache, org.mockito.Mockito.times(4))
+                .buildKey(anyString(), anyString(), segmentCaptor.capture());
+        var segments = segmentCaptor.getAllValues();
+        // 相同问题但历史不同 → key 不同；两次空历史 → key 稳定相同（归一化口径一致）
+        assertFalse(segments.get(0).equals(segments.get(1)), "不同历史不应共享缓存");
+        assertEquals(segments.get(2), segments.get(3), "空历史缓存指纹应稳定");
+        assertFalse(segments.get(0).equals(segments.get(2)), "有历史与空历史不应共享缓存");
+    }
+
     @Test
     @DisplayName("建链后读体中断(已有半截文本)：meta 仅 1 个，保留半截不拼 FAQ，done(unknown)")
     void readyThenInterruptedKeepsPartialAndDoneUnknown() {
@@ -349,16 +459,16 @@ class AiChatStreamServiceTest {
         stubCacheKey();
         when(aiConfigService.isAiEnabled()).thenReturn(true);
         when(aiResultCache.get(anyString(), any(TypeReference.class))).thenReturn(null);
-        when(agnesClient.chatStream(anyLong(), anyString(), anyString(), any(Runnable.class), any()))
+        when(agnesClient.chatStream(anyLong(), anyString(), anyList(), anyString(), any(Runnable.class), any()))
                 .thenAnswer(inv -> {
-                    inv.getArgument(3, Runnable.class).run(); // onReady：唯一 meta 已发出
-                    inv.getArgument(4, java.util.function.Consumer.class).accept("半截回答");
+                    inv.getArgument(4, Runnable.class).run(); // onReady：唯一 meta 已发出
+                    inv.getArgument(5, java.util.function.Consumer.class).accept("半截回答");
                     // 模拟读体中途 IOException：AgnesClient 返回 degraded 句柄（finishReason 为 null）
                     return AgnesClient.StreamChatHandle.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
                 });
         RecordingSink sink = new RecordingSink();
 
-        service.streamChat(7L, "怎么预约", sink);
+        service.streamChat(7L, "怎么预约", java.util.List.of(), sink);
 
         // 精确事件序列：1 个 meta + 1 个 delta("半截回答") + done(unknown)，无第 2 个 meta、无 FAQ
         assertEquals(List.of("meta(true,false,null)", "delta", "done(unknown)"), sink.events);

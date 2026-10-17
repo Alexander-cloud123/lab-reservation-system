@@ -5,15 +5,15 @@ import com.example.reservation.ai.service.AiConfigService;
 import com.example.reservation.ai.support.AiDegradeReason;
 import com.example.reservation.ai.support.AiMetrics;
 import com.example.reservation.ai.support.AiResponseParser;
-import com.example.reservation.ai.support.AiSseLineParser;
+import com.example.reservation.ai.support.AiStreamFrames;
 import com.example.reservation.ai.support.AiUsage;
-import com.fasterxml.jackson.databind.JsonNode;
+import com.example.reservation.ai.support.StreamExchange;
+import com.example.reservation.ai.support.StreamTransport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -22,13 +22,8 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
-import java.util.Objects;
+import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -75,19 +70,34 @@ public class AgnesClient {
     @Resource
     private AiResponseParser aiResponseParser;
 
+    /**
+     * 上游流式传输（R13-4：WebClient + JDK HttpClient 响应式消费 SSE，不引 reactor-netty；
+     * 非流式 chat 仍走 RestClient，与本组件互不影响）
+     */
+    @Resource
+    private StreamTransport streamTransport;
+
     /** 限流器（N2：懒初始化，参数来自 AiProperties；无 Spring 依赖，纯 JDK） */
     private volatile RateLimiter rateLimiter;
 
     /**
-     * 调用 Agnes 大模型对话补全
+     * 调用 Agnes 大模型对话补全（单轮，无历史上下文）
+     */
+    public AgnesResponse chat(Long userId, String system, String user, boolean jsonMode) {
+        return chat(userId, system, List.of(), user, jsonMode);
+    }
+
+    /**
+     * 调用 Agnes 大模型对话补全（R13-3：支持多轮历史，消息顺序为 system → history → 当前 user）
      *
+     * @param history  已归一化的历史消息（调用方负责角色白名单/条数/长度裁剪）；空列表表示单轮
      * @param userId   当前登录用户 ID（M7：按用户限流维度；null 时退化为共享窗口）
      * @param system   System 角色消息（Prompt 限定场景与结构化输出，AGENTS 4.4 第 4 条）
      * @param user      User 角色消息（实际业务内容）
      * @param jsonMode 是否要求 JSON 结构化输出（response_format={"type":"json_object"}）
      * @return 调用结果：ok=true 携带模型输出 content；ok=false 携带降级原因 reason（调用方据此切换本地规则模拟）
      */
-    public AgnesResponse chat(Long userId, String system, String user, boolean jsonMode) {
+    public AgnesResponse chat(Long userId, String system, List<ChatMessage> history, String user, boolean jsonMode) {
         // 1. 限流保护（N2：双层——用户维度 rpm-limit/min + 全站维度 global-rpm-limit/min；触发返回降级，不触发对外调用）
         if (!limiter().tryAcquire(userId)) {
             log.warn("Agnes 调用触发限流（rpm-limit={}，global-rpm-limit={}，userId={}），切换降级",
@@ -107,7 +117,7 @@ public class AgnesClient {
         try {
             // 3. 真实调用（超时/连接异常/服务异常统一捕获 → 降级，不阻断业务；429 不重试，避免放大额度消耗）
             RestClient client = buildClient();
-            ObjectNode body = buildRequestBody(system, user, jsonMode);
+            ObjectNode body = buildRequestBody(system, history, user, jsonMode);
             String responseBody = client.post()
                     .uri("/chat/completions")
                     .contentType(MediaType.APPLICATION_JSON)
@@ -156,18 +166,23 @@ public class AgnesClient {
     }
 
     /**
-     * 流式对话补全（R12，POST /api/ai/chat?stream=true 专用）
+     * 流式对话补全（R12 协议 / R13-4 传输层改造，POST /api/ai/chat?stream=true 专用）
      *
      * 与 chat 同口径：双层限流、密钥保护、指标计数、429/超时/异常直接降级；
-     * 区别：请求体带 stream=true 且不带 response_format，上游 SSE 逐帧到达，
-     * 内容片段经 onDelta 实时回调（打字机效果），onReady 在拿到 HTTP 200、
-     * 即将开始读流时回调一次（供调用方在「成功/降级」确定后再发 meta 事件）。
+     * 区别：请求体带 stream=true 且不带 response_format，上游 SSE 逐帧到达。
+     * R13-4 起上游 HTTP/读流经 {@link StreamTransport}（WebClient + JDK HttpClient）：
+     * SSE 分帧由 Spring 完成，data 帧由 {@link AiStreamFrames} 纯函数提取
+     * choices[0].delta.content 回调（打字机效果），onReady 在拿到 HTTP 200、
+     * 即将开始读流时回调一次（供调用方在「成功/降级」确定后再发 meta 事件）；
+     * 下游写入失败时 transport 自动 dispose 上游订阅，返回 CANCELLED。
      *
-     * @param onReady       上游 200 建链成功回调（失败/限流/无密钥时不回调）
-     * @param deltaConsumer 内容片段回调（按上游 chunk 粒度，可能多次）
-     * @return ok=true 携带 finishReason；ok=false 携带降级原因（调用方改推本地 FAQ）
+     * @param history       已归一化的历史消息（R13-3 多轮上下文，system 之后、当前 user 之前注入）；空列表为单轮
+     * @param onReady       上游 200 建链成功回调（失败/限流/无密钥时不回调）；抛 UncheckedIOException 视为客户端断开
+     * @param deltaConsumer 内容片段回调（按上游 chunk 粒度，可能多次）；抛 UncheckedIOException 时取消上游
+     * @return ok=true 携带 finishReason；ok=false 携带降级原因（调用方改推本地 FAQ）；
+     *         reason 与 finishReason 均为 null 表示客户端中断（调用方静默结束，不发任何事件）
      */
-    public StreamChatHandle chatStream(Long userId, String system, String user,
+    public StreamChatHandle chatStream(Long userId, String system, List<ChatMessage> history, String user,
                                        Runnable onReady, Consumer<String> deltaConsumer) {
         // 1. 限流保护（与 chat() 同口径，触发即降级、不发对外请求）
         if (!limiter().tryAcquire(userId)) {
@@ -184,60 +199,74 @@ public class AgnesClient {
         }
 
         long startNs = System.nanoTime();
+        // onFrame 由同一订阅串行回调（JDK HttpClient 线程），局部变量无竞争，无需同步
+        final StringBuilder full = new StringBuilder();
+        final String[] finishReasonHolder = {null};
+        final boolean[] doneSeen = {false};
         try {
-            RestClient client = buildClient();
-            ObjectNode body = buildStreamRequestBody(system, user);
-            // exchange 不应用 retrieve 的默认状态处理，4xx/5xx 需在此自行判定（SSE 不能再走全局异常 JSON）
-            return client.post()
-                    .uri("/chat/completions")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(body)
-                    .exchange((request, response) -> {
-                        HttpStatusCode status = response.getStatusCode();
-                        if (status.isError()) {
-                            log.warn("Agnes 流式调用 HTTP 异常：{}", status.value());
-                            if (status.value() == HTTP_TOO_MANY_REQUESTS) {
-                                aiMetrics.recordUpstream429();
-                                return StreamChatHandle.degraded(AiConstants.AI_RATE_LIMITED_MESSAGE);
-                            }
-                            aiMetrics.recordDegrade(AiDegradeReason.SERVICE_ERROR);
-                            return StreamChatHandle.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
+            ObjectNode body = buildStreamRequestBody(system, history, user);
+            Duration frameTimeout = Duration.ofSeconds(Math.max(aiProperties.getTimeoutSeconds(), 1));
+            // 3. 经传输端口发起流式调用，当前线程桥接阻塞至流结束/取消/异常
+            StreamExchange exchange = streamTransport.postStream(
+                    aiProperties.getBaseUrl() + "/chat/completions",
+                    aiProperties.getApiKey(), body, frameTimeout,
+                    onReady,
+                    payload -> {
+                        // [DONE] 之后到达的帧一律忽略（与 R12 行解析器口径一致）
+                        if (doneSeen[0]) {
+                            return;
                         }
-                        onReady.run();
-                        DispatchResult dispatched;
-                        try (InputStream upstream = response.getBody()) {
-                            dispatched = dispatchStream(upstream, deltaConsumer);
-                        } catch (IOException e) {
-                            log.warn("Agnes 流式读取中断：{}", e.getMessage());
-                            aiMetrics.recordDegrade(AiDegradeReason.SERVICE_ERROR);
-                            return StreamChatHandle.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
+                        if (AiStreamFrames.isDone(payload)) {
+                            doneSeen[0] = true;
+                            return;
                         }
-                        if (StrUtil.isBlank(dispatched.content())) {
-                            log.warn("Agnes 流式返回内容为空，切换降级");
-                            aiMetrics.recordDegrade(AiDegradeReason.SERVICE_ERROR);
-                            return StreamChatHandle.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
+                        Optional<AiStreamFrames.ChunkDelta> extracted = AiStreamFrames.tryExtract(payload, objectMapper);
+                        if (extracted.isEmpty()) {
+                            // 脏帧跳过不中断整条流；日志截断，防止异常长脏帧刷屏
+                            log.warn("Agnes 流式脏帧已跳过：{}", StrUtil.brief(payload, 120));
+                            return;
                         }
-                        // 流式分片不回传 usage（未请求 stream_options.include_usage），token 计数如实保持 0；结束原因照常分桶
-                        aiMetrics.recordFinishReason(dispatched.finishReason());
-                        return StreamChatHandle.ok(dispatched.finishReason());
+                        AiStreamFrames.ChunkDelta delta = extracted.get();
+                        if (delta.finishReason() != null) {
+                            finishReasonHolder[0] = delta.finishReason();
+                        }
+                        if (delta.content() != null) {
+                            full.append(delta.content());
+                            // 回调置于脏帧容错之外：下游 SSE 写入失败（UncheckedIOException）
+                            // 必须原样到达 transport，由其 dispose 上游并返回 CANCELLED，禁止吞掉
+                            deltaConsumer.accept(delta.content());
+                        }
                     });
-        } catch (UncheckedIOException e) {
-            // 仅可能来自 onReady / deltaConsumer（上游自身读取 IOException 已在 exchange 内转降级）：客户端中断，静默终止
-            log.warn("Agnes 流式因客户端中断而终止：{}", e.getMessage());
-            return StreamChatHandle.aborted();
-        } catch (ResourceAccessException e) {
-            log.warn("Agnes 流式调用超时或网络异常：{}", e.getMessage());
-            aiMetrics.recordDegrade(AiDegradeReason.SERVICE_ERROR);
-            return StreamChatHandle.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
-        } catch (RestClientException e) {
-            log.warn("Agnes 流式调用服务异常：{}", e.getMessage());
-            aiMetrics.recordDegrade(AiDegradeReason.SERVICE_ERROR);
-            return StreamChatHandle.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
-        } catch (Exception e) {
-            log.error("Agnes 流式调用未知异常：", e);
-            aiMetrics.recordDegrade(AiDegradeReason.SERVICE_ERROR);
-            return StreamChatHandle.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
+
+            // 4. 交换终态映射（与 R12 指标口径完全一致：429 只记 upstream429，中断不记降级）
+            if (exchange.state() == StreamExchange.State.CANCELLED) {
+                log.warn("Agnes 流式因客户端中断而终止");
+                return StreamChatHandle.aborted();
+            }
+            if (exchange.state() == StreamExchange.State.HTTP_ERROR) {
+                log.warn("Agnes 流式调用 HTTP 异常：{}", exchange.statusCode());
+                if (exchange.statusCode() == HTTP_TOO_MANY_REQUESTS) {
+                    aiMetrics.recordUpstream429();
+                    return StreamChatHandle.degraded(AiConstants.AI_RATE_LIMITED_MESSAGE);
+                }
+                aiMetrics.recordDegrade(AiDegradeReason.SERVICE_ERROR);
+                return StreamChatHandle.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
+            }
+            if (exchange.state() == StreamExchange.State.TRANSPORT_ERROR) {
+                log.warn("Agnes 流式调用超时或网络异常");
+                aiMetrics.recordDegrade(AiDegradeReason.SERVICE_ERROR);
+                return StreamChatHandle.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
+            }
+            if (StrUtil.isBlank(full.toString())) {
+                log.warn("Agnes 流式返回内容为空，切换降级");
+                aiMetrics.recordDegrade(AiDegradeReason.SERVICE_ERROR);
+                return StreamChatHandle.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
+            }
+            // 流式分片不回传 usage（未请求 stream_options.include_usage），token 计数如实保持 0；结束原因照常分桶
+            aiMetrics.recordFinishReason(finishReasonHolder[0]);
+            return StreamChatHandle.ok(finishReasonHolder[0]);
         } finally {
+            // 无论成功/失败/中断，真实发起的上游调用都计入次数与耗时
             aiMetrics.recordModelCall((System.nanoTime() - startNs) / 1_000_000);
         }
     }
@@ -245,73 +274,17 @@ public class AgnesClient {
     /**
      * 构建流式请求体：复用 buildRequestBody（jsonMode=false → 不带 response_format），追加 stream=true
      */
-    private ObjectNode buildStreamRequestBody(String system, String user) {
-        ObjectNode root = buildRequestBody(system, user, false);
+    private ObjectNode buildStreamRequestBody(String system, List<ChatMessage> history, String user) {
+        ObjectNode root = buildRequestBody(system, history, user, false);
         root.put("stream", true);
         return root;
     }
 
     /**
-     * 分发上游 SSE 字节流：逐帧解析 → 提取 choices[0].delta.content 回调；记录最后一个非空 finish_reason（上游 SSE 协议下该值仅出现一次，与首个等价）。
-     * 脏帧（非 JSON/结构缺失）跳过不中断整条流；遇到 [DONE] 即结束（其后内容忽略）。
-     * 包可见以便纯单测（不发起真实 HTTP）。
-     *
-     * 关键：readLine 对 SSE 空行（帧边界）返回空串 ""，parser 据此完成派发并可能返回帧；
-     * 因此必须先判 DONE、再判 isEmpty（非空 data 行返回 empty 才继续），顺序不可颠倒。
-     */
-    DispatchResult dispatchStream(InputStream body, Consumer<String> deltaConsumer) throws IOException {
-        Objects.requireNonNull(body, "upstream stream");
-        Objects.requireNonNull(deltaConsumer, "deltaConsumer");
-        AiSseLineParser parser = new AiSseLineParser();
-        StringBuilder full = new StringBuilder();
-        String finishReason = null;
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(body, StandardCharsets.UTF_8))) {
-            String raw;
-            while ((raw = reader.readLine()) != null) {
-                Optional<AiSseLineParser.Frame> frameOpt = parser.feedLine(raw);
-                if (frameOpt.isPresent() && frameOpt.get().kind() == AiSseLineParser.Frame.Kind.DONE) {
-                    break;
-                }
-                if (frameOpt.isEmpty()) {
-                    // 非空 data/event 行：帧未结束，继续读；空行但无 data：parser 已返回 empty
-                    continue;
-                }
-                AiSseLineParser.Frame frame = frameOpt.get();
-                String piece = null;
-                try {
-                    JsonNode chunk = objectMapper.readTree(frame.payload());
-                    JsonNode choices = chunk.path("choices");
-                    if (choices.isArray() && !choices.isEmpty()) {
-                        JsonNode first = choices.get(0);
-                        JsonNode contentNode = first.path("delta").path("content");
-                        if (contentNode.isTextual() && !contentNode.asText().isEmpty()) {
-                            piece = contentNode.asText();
-                        }
-                        JsonNode finishNode = first.path("finish_reason");
-                        // 记录最后一个非空 finish_reason（上游 SSE 协议下该值仅出现一次，与首个等价）
-                        if (finishNode.isTextual() && !finishNode.asText().isEmpty()) {
-                            finishReason = finishNode.asText();
-                        }
-                    }
-                } catch (Exception parseEx) {
-                    // 脏帧不中断整条流（与 AiResponseParser 的容错原则一致）；注意：deltaConsumer 不在此 try 内，
-                    // 客户端中断（UncheckedIOException）必须原样上抛，由 chatStream 识别为 aborted
-                    log.warn("Agnes 流式脏帧已跳过：{}", parseEx.getMessage());
-                }
-                // 回调置于脏帧 try 之外：消费者异常（如 SSE 写入失败→客户端断连）不得被吞掉
-                if (piece != null) {
-                    full.append(piece);
-                    deltaConsumer.accept(piece);
-                }
-            }
-        }
-        return new DispatchResult(full.toString(), finishReason);
-    }
-
-    /**
      * 构建 Chat Completions 请求体（OpenAI v1 规范）
+     * 消息顺序：system（可选）→ history（R13-3，已归一化的多轮上下文）→ 当前 user
      */
-    private ObjectNode buildRequestBody(String system, String user, boolean jsonMode) {
+    private ObjectNode buildRequestBody(String system, List<ChatMessage> history, String user, boolean jsonMode) {
         ObjectNode root = objectMapper.createObjectNode();
         root.put("model", aiConfigService.getEffectiveModel());
         ArrayNode messages = root.putArray("messages");
@@ -319,6 +292,14 @@ public class AgnesClient {
             ObjectNode sys = messages.addObject();
             sys.put("role", "system");
             sys.put("content", system);
+        }
+        // 多轮历史：调用方已完成角色白名单与条数/长度裁剪，此处按序透传
+        if (history != null) {
+            for (ChatMessage msg : history) {
+                ObjectNode item = messages.addObject();
+                item.put("role", msg.role());
+                item.put("content", msg.content());
+            }
         }
         ObjectNode usr = messages.addObject();
         usr.put("role", "user");
@@ -375,6 +356,15 @@ public class AgnesClient {
     }
 
     /**
+     * 上游对话消息载体（R13-3）：role 仅取 OpenAI 规范的 system/user/assistant
+     *
+     * @param role    消息角色
+     * @param content 消息内容
+     */
+    public record ChatMessage(String role, String content) {
+    }
+
+    /**
      * Agnes 调用结果载体：ok=true 表示拿到模型内容；ok=false 表示已降级（携带降级原因）
      *
      * @param ok      是否拿到模型内容
@@ -414,11 +404,5 @@ public class AgnesClient {
         public static StreamChatHandle aborted() {
             return new StreamChatHandle(false, null, null);
         }
-    }
-
-    /**
-     * 上游流分发结果（内部使用）：累积全文 + 最后一个非空 finish_reason（上游 SSE 协议下该值仅出现一次，与首个等价）
-     */
-    public record DispatchResult(String content, String finishReason) {
     }
 }

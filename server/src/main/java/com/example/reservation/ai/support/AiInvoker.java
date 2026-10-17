@@ -8,6 +8,7 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -53,7 +54,7 @@ public class AiInvoker {
                            Function<String, R> parser,
                            Function<R, V> onSuccess,
                            Function<String, V> onDegrade) {
-        return invoke(label, userId, system, user, parser, onSuccess, onDegrade, null);
+        return invoke(label, userId, system, List.of(), user, parser, onSuccess, onDegrade, null);
     }
 
     /**
@@ -76,7 +77,42 @@ public class AiInvoker {
                            Function<R, V> onSuccess,
                            Function<String, V> onDegrade,
                            AiCacheSpec<V> cacheSpec) {
-        // 1. 缓存查询：命中即返回，不产生上游调用（故 modelCallCount 不增长）
+        return invoke(label, userId, system, List.of(), user, parser, onSuccess, onDegrade, cacheSpec);
+    }
+
+    /**
+     * 执行一次「缓存 → AI 调用（R13-3：可带多轮历史）→ 解析 → 降级」
+     *
+     * @param history 已归一化的历史消息（system 之后、当前 user 之前注入）；空列表为单轮
+     * @see #invoke(String, Long, String, String, Function, Function, Function, AiCacheSpec)
+     */
+    public <R, V> V invoke(String label, Long userId, String system,
+                           List<AgnesClient.ChatMessage> history, String user,
+                           Function<String, R> parser,
+                           Function<R, V> onSuccess,
+                           Function<String, V> onDegrade,
+                           AiCacheSpec<V> cacheSpec) {
+        // R13-5：结构化流式以外的调用方无「调用前进度」需求，传空操作保持既有行为
+        return invoke(label, userId, system, history, user, parser, onSuccess, onDegrade, cacheSpec, () -> {
+        });
+    }
+
+    /**
+     * 执行一次「缓存 → AI 调用（R13-3：可带多轮历史）→ 解析 → 降级」，并支持调用前回调（R13-5）。
+     *
+     * @param beforeUpstreamCall 缓存未命中、真正发起上游调用前的回调（结构化流式用于发 phase 进度帧）；
+     *                           缓存命中时【不执行】。回调抛异常（如客户端断开包装的 UncheckedIOException）
+     *                           直接向上中止，不发起上游调用
+     * @see #invoke(String, Long, String, java.util.List, String, Function, Function, Function, AiCacheSpec)
+     */
+    public <R, V> V invoke(String label, Long userId, String system,
+                           List<AgnesClient.ChatMessage> history, String user,
+                           Function<String, R> parser,
+                           Function<R, V> onSuccess,
+                           Function<String, V> onDegrade,
+                           AiCacheSpec<V> cacheSpec,
+                           Runnable beforeUpstreamCall) {
+        // 1. 缓存查询：命中即返回，不产生上游调用（故 modelCallCount 不增长，beforeUpstreamCall 也不执行）
         if (cacheSpec != null) {
             V cached = aiResultCache.get(cacheSpec.key(), cacheSpec.type());
             if (cached != null) {
@@ -86,8 +122,11 @@ public class AiInvoker {
             aiMetrics.recordCacheMiss();
         }
 
-        // 2. 调用模型；ok=false 时 reason 为失败类降级原因（限流/密钥缺失/服务异常）
-        AgnesClient.AgnesResponse resp = agnesClient.chat(userId, system, user, true);
+        // 2. 缓存未命中：先执行调用前回调（phase 进度帧）；回调失败（客户端已断开）则中止，不空耗配额
+        beforeUpstreamCall.run();
+
+        // 3. 调用模型；ok=false 时 reason 为失败类降级原因（限流/密钥缺失/服务异常）
+        AgnesClient.AgnesResponse resp = agnesClient.chat(userId, system, history, user, true);
         if (resp.ok()) {
             R parsed = parser.apply(resp.content());
             if (parsed != null) {

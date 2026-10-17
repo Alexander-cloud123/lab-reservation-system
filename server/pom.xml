@@ -32,6 +32,16 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
+        <!-- R13-4：仅引 spring-webflux 使用 WebClient 响应式 HTTP 客户端（AI 上游 SSE 消费）。
+             版本由 spring-boot-starter-parent BOM 管理，不单独写版本号；
+             明确【不引】spring-boot-starter-webflux / reactor-netty：服务端栈保持 Spring MVC + Tomcat，
+             WebClient 传输层用 JdkClientHttpConnector（JDK 21 自带 java.net.http.HttpClient），零 Netty。
+             传递引入 reactor-core（响应式流门面，仅作用于 ai 包边缘）。 -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webflux</artifactId>
+        </dependency>
+
         <!-- Redis（需求设计文档 2.2 第 145 行可选加分项，经负责人确认实施；
              版本由 spring-boot-starter-parent 统一管理，不单独写版本号；
              使用 Spring Boot 默认 Lettuce 客户端，禁止引入 Redisson 等额外组件） -->

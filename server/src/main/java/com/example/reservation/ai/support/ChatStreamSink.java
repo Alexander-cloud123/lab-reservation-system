@@ -11,7 +11,7 @@ import java.io.IOException;
  *
  * @author reservation-team
  */
-public interface ChatStreamSink {
+public interface ChatStreamSink extends AiStreamSink {
 
     /** 元信息：AI 是否启用、是否降级、降级原因文案（非降级 message=null） */
     void meta(boolean enabled, boolean degraded, String message) throws IOException;
@@ -21,7 +21,4 @@ public interface ChatStreamSink {
 
     /** 正常收尾：finishReason=stop/fallback/disabled 等 */
     void done(String finishReason) throws IOException;
-
-    /** 流已建立后的致命错误（如线程池拒绝后的兜底通知） */
-    void error(String message) throws IOException;
 }

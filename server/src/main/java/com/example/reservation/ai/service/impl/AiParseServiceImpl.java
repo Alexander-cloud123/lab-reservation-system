@@ -9,6 +9,8 @@ import com.example.reservation.ai.service.AiParseService;
 import com.example.reservation.ai.support.AiInvoker;
 import com.example.reservation.ai.support.AiJsonSupport;
 import com.example.reservation.ai.support.AiParseFallback;
+import com.example.reservation.ai.support.StructuredStreamEvents;
+import com.example.reservation.ai.support.StructuredStreamSink;
 import com.example.reservation.common.BusinessException;
 import com.example.reservation.common.TimeUtil;
 import com.example.reservation.common.UserContext;
@@ -17,8 +19,10 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 
 /**
  * 自然语言预约解析实现（R7）
@@ -49,6 +53,17 @@ public class AiParseServiceImpl implements AiParseService {
 
     @Override
     public AiParseVO parse(String text) {
+        validateParseInput(text);
+        // 双开关关闭：返回友好提示，不报 500、不阻断核心（前端据此隐藏 AI 入口）
+        if (!aiConfigService.isAiEnabled()) {
+            return AiParseVO.disabled();
+        }
+        return parseInternal(text, UserContext.getUserId(), () -> {
+        });
+    }
+
+    @Override
+    public void validateParseInput(String text) {
         if (StrUtil.isBlank(text)) {
             throw new BusinessException("请输入预约需求描述");
         }
@@ -56,11 +71,35 @@ public class AiParseServiceImpl implements AiParseService {
         if (text.length() > PARSE_TEXT_MAX_LENGTH) {
             throw new BusinessException("预约需求描述过长（不超过 " + PARSE_TEXT_MAX_LENGTH + " 字）");
         }
-        // 双开关关闭：返回友好提示，不报 500、不阻断核心（前端据此隐藏 AI 入口）
-        if (!aiConfigService.isAiEnabled()) {
-            return AiParseVO.disabled();
-        }
+    }
 
+    @Override
+    public void streamParse(String text, Long userId, StructuredStreamSink<AiParseVO> sink) {
+        // 入参校验由 Controller 在请求线程先调 validateParseInput；此处不重复
+        // 双开关关闭：meta(false) → result(关闭 VO) → done，不调上游
+        if (!aiConfigService.isAiEnabled()) {
+            StructuredStreamEvents.emitDisabled(sink, AiParseVO.disabled(), AiConstants.AI_DISABLED_MESSAGE);
+            return;
+        }
+        try {
+            sink.meta(true, false, null);
+        } catch (IOException e) {
+            log.debug("流式解析客户端已断开（meta）：{}", e.getMessage());
+            return;
+        }
+        // 解析无结果缓存，phase 必发（在真正调用上游前）
+        Runnable phase = StructuredStreamEvents.phaseEmitter(
+                sink, AiConstants.PHASE_CODE_PARSE, AiConstants.PHASE_TEXT_PARSE);
+        AiParseVO vo = parseInternal(text, userId, phase);
+        StructuredStreamEvents.finish(sink, vo);
+    }
+
+    /**
+     * 解析主流程（非流式与 R13-5 流式共用，禁止分叉出两套 prompt/降级逻辑）
+     *
+     * @param beforeUpstreamCall 调用上游前回调（非流式传空操作，流式发 phase 帧）
+     */
+    private AiParseVO parseInternal(String text, Long userId, Runnable beforeUpstreamCall) {
         // 1. 尝试大模型解析（Prompt 严格限定场景与结构化 JSON 输出，AGENTS 4.4）
         // 模板来自 ai_config.prompt_parse；追加当前日期上下文（模型知识不含实时日期，不注入会幻觉输出绝对日期，
         // 实测 2026-09-13 曾返回 2024-04-04 —— 2026-09-13 AI 演示准备轮修复）
@@ -69,7 +108,8 @@ public class AiParseServiceImpl implements AiParseService {
                 ? AiPrompts.PARSE
                 : template + "（今天是" + LocalDate.now() + "，用户说“今天/明天/后天/周X”时按此日期推算）";
         // M7 修复：传入当前用户 ID，限流按用户维度隔离；失败/非法输出统一由 AiInvoker 降级
-        return aiInvoker.invoke("解析", UserContext.getUserId(), system, text,
+        // R13-5：走 10 参重载（无缓存 spec=null + 调用前回调）
+        return aiInvoker.invoke("解析", userId, system, List.of(), text,
                 this::parseModelOutput,
                 vo -> {
                     vo.setEnabled(true);
@@ -80,7 +120,9 @@ public class AiParseServiceImpl implements AiParseService {
                     AiParseVO vo = parseFallback.parseFallback(text);
                     vo.setMessage(reason);
                     return vo;
-                });
+                },
+                null,
+                beforeUpstreamCall);
     }
 
     /**

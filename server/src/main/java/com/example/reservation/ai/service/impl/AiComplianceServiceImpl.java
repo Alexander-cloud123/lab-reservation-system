@@ -11,6 +11,8 @@ import com.example.reservation.ai.support.AiHash;
 import com.example.reservation.ai.support.AiInvoker;
 import com.example.reservation.ai.support.AiJsonSupport;
 import com.example.reservation.ai.support.AiResultCache;
+import com.example.reservation.ai.support.StructuredStreamEvents;
+import com.example.reservation.ai.support.StructuredStreamSink;
 import com.example.reservation.common.BusinessException;
 import com.example.reservation.common.UserContext;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -18,6 +20,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
+import java.io.IOException;
+import java.util.List;
 
 /**
  * 预约合规校验实现（R7）
@@ -53,6 +58,17 @@ public class AiComplianceServiceImpl implements AiComplianceService {
 
     @Override
     public AiComplianceVO check(String purpose) {
+        validateCheckInput(purpose);
+        // 双开关关闭：返回友好提示，不报 500（前端隐藏 AI 校验入口）
+        if (!aiConfigService.isAiEnabled()) {
+            return AiComplianceVO.disabled();
+        }
+        return checkInternal(purpose, UserContext.getUserId(), () -> {
+        });
+    }
+
+    @Override
+    public void validateCheckInput(String purpose) {
         if (StrUtil.isBlank(purpose)) {
             throw new BusinessException("请输入预约用途");
         }
@@ -60,11 +76,35 @@ public class AiComplianceServiceImpl implements AiComplianceService {
         if (purpose.length() > PURPOSE_MAX_LENGTH) {
             throw new BusinessException("预约用途过长（不超过 " + PURPOSE_MAX_LENGTH + " 字）");
         }
-        // 双开关关闭：返回友好提示，不报 500（前端隐藏 AI 校验入口）
-        if (!aiConfigService.isAiEnabled()) {
-            return AiComplianceVO.disabled();
-        }
+    }
 
+    @Override
+    public void streamCheck(String purpose, Long userId, StructuredStreamSink<AiComplianceVO> sink) {
+        // 入参校验由 Controller 在请求线程先调 validateCheckInput；此处不重复
+        // 双开关关闭：meta(false) → result(关闭 VO) → done，不查缓存、不调上游
+        if (!aiConfigService.isAiEnabled()) {
+            StructuredStreamEvents.emitDisabled(sink, AiComplianceVO.disabled(), AiConstants.AI_DISABLED_MESSAGE);
+            return;
+        }
+        try {
+            sink.meta(true, false, null);
+        } catch (IOException e) {
+            log.debug("流式合规客户端已断开（meta）：{}", e.getMessage());
+            return;
+        }
+        // phase 仅在缓存未命中、即将调用上游时由 invoker 触发；命中时直接 result
+        Runnable phase = StructuredStreamEvents.phaseEmitter(
+                sink, AiConstants.PHASE_CODE_COMPLIANCE, AiConstants.PHASE_TEXT_COMPLIANCE);
+        AiComplianceVO vo = checkInternal(purpose, userId, phase);
+        StructuredStreamEvents.finish(sink, vo);
+    }
+
+    /**
+     * 合规校验主流程（非流式与 R13-5 流式共用，禁止分叉出两套 prompt/缓存/降级逻辑）
+     *
+     * @param beforeUpstreamCall 缓存未命中、调用上游前回调（非流式传空操作，流式发 phase 帧）
+     */
+    private AiComplianceVO checkInternal(String purpose, Long userId, Runnable beforeUpstreamCall) {
         // 1. 尝试大模型合规校验（Prompt 限定输出 {"compliant":true|false,"reason":"string"}）
         String system = aiConfigService.getPromptCompliance();
         if (StrUtil.isBlank(system)) {
@@ -78,7 +118,8 @@ public class AiComplianceServiceImpl implements AiComplianceService {
         String cacheKey = aiResultCache.buildKey(
                 AiConstants.AI_CACHE_NS_COMPLIANCE, cacheVersion, AiHash.sha256Prefix8(purpose));
         // M7 修复：传入当前用户 ID，限流按用户维度隔离；失败/非法输出统一由 AiInvoker 降级
-        return aiInvoker.invoke("合规", UserContext.getUserId(), system, purpose,
+        // R13-5：缓存未命中时先执行 beforeUpstreamCall（phase）
+        return aiInvoker.invoke("合规", userId, system, List.of(), purpose,
                 this::parseModelOutput,
                 vo -> {
                     vo.setEnabled(true);
@@ -94,7 +135,8 @@ public class AiComplianceServiceImpl implements AiComplianceService {
                 // 3. 结果缓存规格（仅成功分支入缓存，降级结果不缓存）
                 new AiInvoker.AiCacheSpec<>(cacheKey, AiConstants.AI_CACHE_TTL_COMPLIANCE_SECONDS,
                         new TypeReference<AiComplianceVO>() {
-                        }));
+                        }),
+                beforeUpstreamCall);
     }
 
     /**

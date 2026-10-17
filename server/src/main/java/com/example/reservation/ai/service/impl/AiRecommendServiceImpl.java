@@ -12,6 +12,8 @@ import com.example.reservation.ai.support.AiInvoker;
 import com.example.reservation.ai.support.AiJsonSupport;
 import com.example.reservation.ai.support.AiRecommendFallback;
 import com.example.reservation.ai.support.AiResultCache;
+import com.example.reservation.ai.support.StructuredStreamEvents;
+import com.example.reservation.ai.support.StructuredStreamSink;
 import com.example.reservation.common.BusinessException;
 import com.example.reservation.common.Constants;
 import com.example.reservation.entity.Classroom;
@@ -26,6 +28,7 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -78,6 +81,37 @@ public class AiRecommendServiceImpl implements AiRecommendService {
 
     @Override
     public AiRecommendVO recommend(Long userId) {
+        return recommendInternal(userId, () -> {
+        });
+    }
+
+    @Override
+    public void streamRecommend(Long userId, StructuredStreamSink<AiRecommendVO> sink) {
+        // 双开关关闭：meta(false) → result(关闭 VO) → done，不查库、不查缓存、不调上游
+        if (!aiConfigService.isAiEnabled()) {
+            StructuredStreamEvents.emitDisabled(sink, AiRecommendVO.disabled(), AiConstants.AI_DISABLED_MESSAGE);
+            return;
+        }
+        // 启用态先发唯一 meta（degraded=false：实际是否降级由 result.message 表达，与非流式 VO 口径一致）
+        try {
+            sink.meta(true, false, null);
+        } catch (IOException e) {
+            log.debug("流式推荐客户端已断开（meta）：{}", e.getMessage());
+            return;
+        }
+        // phase 仅在缓存未命中、即将调用上游时由 invoker 触发；命中时直接 result
+        Runnable phase = StructuredStreamEvents.phaseEmitter(
+                sink, AiConstants.PHASE_CODE_RECOMMEND, AiConstants.PHASE_TEXT_RECOMMEND);
+        AiRecommendVO vo = recommendInternal(userId, phase);
+        StructuredStreamEvents.finish(sink, vo);
+    }
+
+    /**
+     * 推荐主流程（非流式与 R13-5 流式共用，禁止分叉出两套候选/降级/缓存逻辑）
+     *
+     * @param beforeUpstreamCall 缓存未命中、调用上游前回调（非流式传空操作，流式发 phase 帧）
+     */
+    private AiRecommendVO recommendInternal(Long userId, Runnable beforeUpstreamCall) {
         if (userId == null) {
             throw new BusinessException("用户 ID 不能为空");
         }
@@ -117,8 +151,8 @@ public class AiRecommendServiceImpl implements AiRecommendService {
                 AiConstants.AI_CACHE_NS_RECOMMEND,
                 AiPrompts.versionOf(AiPrompts.RECOMMEND) + "-" + aiConfigService.getEffectiveModel(),
                 AiHash.sha256Prefix8(userId + ":" + targetDate));
-        // M7 修复：传入当前用户 ID，限流按用户维度隔离
-        return aiInvoker.invoke("推荐", userId, AiPrompts.RECOMMEND, userMessage,
+        // M7 修复：传入当前用户 ID，限流按用户维度隔离；R13-5：缓存未命中时先执行 beforeUpstreamCall（phase）
+        return aiInvoker.invoke("推荐", userId, AiPrompts.RECOMMEND, List.of(), userMessage,
                 content -> parseModelTop(content, candidates),
                 llmTop -> buildVO(targetDate, llmTop),
                 // 5. 降级：规则打分排序 Top3
@@ -131,7 +165,8 @@ public class AiRecommendServiceImpl implements AiRecommendService {
                 // 6. 结果缓存规格（仅成功分支入缓存，降级结果不缓存）
                 new AiInvoker.AiCacheSpec<>(cacheKey, AiConstants.AI_CACHE_TTL_RECOMMEND_SECONDS,
                         new TypeReference<AiRecommendVO>() {
-                        }));
+                        }),
+                beforeUpstreamCall);
     }
 
     /**

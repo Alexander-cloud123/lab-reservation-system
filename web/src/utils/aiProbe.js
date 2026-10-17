@@ -1,4 +1,4 @@
-import { aiRecommend } from '@/api/ai'
+import { aiRecommendStream } from '@/api/ai'
 import { useUserStore } from '@/stores/user'
 
 /**
@@ -13,8 +13,11 @@ import { useUserStore } from '@/stores/user'
  *   - force=true 绕过缓存（当前无 UI 刷新入口，留作后续使用）；
  *   - 硬要求：缓存必须按 userId 隔离，否则切换账号会拿到上一个用户的推荐。
  *
- * 调用口径（与 L13 一致）：probe 内部以 aiRecommend({}) 调用，不发送 userId——
+ * 调用口径（与 L13 一致）：probe 内部不发送 userId——
  * 后端 AiController 一律取 UserContext 当前登录用户，忽略请求体。
+ * R13-5：推荐接口已 SSE 结构化流式化，probe 内部走 ?stream=true，完整消费
+ * meta → phase（缓存未命中时 1 个，onPhase 回调可用于进度提示）→ result（同构 VO）→ done，
+ * 落地结果与旧非流式 JSON 同构，调用方无感知。
  *
  * R8：登录接口已随 LoginVO 下发 aiEnabled，并落盘 localStorage（刷新后仍生效）。
  * 后端明确关闭（false）时直接返回未启用，不再打一次 /ai/recommend 才知道要隐藏入口；
@@ -36,9 +39,11 @@ function disabledResult() {
  * message：后端降级提示（限流/密钥缺失/服务异常/输出格式异常时非空），
  * 由调用方透出到界面，使用户能区分「真实模型结果」与「本地规则降级结果」。
  *
- * @param {{ force?: boolean }} options force=true 绕过缓存强制发起新调用
+ * @param {{ force?: boolean, onPhase?: Function }} options
+ *        force=true 绕过缓存强制发起新调用；
+ *        onPhase({phase,text}) 可选进度回调（仅缓存未命中、真正调用模型前触发一次）
  */
-export function probeAiRecommend({ force = false } = {}) {
+export function probeAiRecommend({ force = false, onPhase } = {}) {
   const userStore = useUserStore()
   const userId = userStore.userInfo ? userStore.userInfo.id : null
   if (userId == null) {
@@ -55,25 +60,37 @@ export function probeAiRecommend({ force = false } = {}) {
       return hit.promise
     }
   }
-  const promise = (async () => {
-    let result
-    try {
-      // L13 口径：不发送 { userId }，后端只认 UserContext
-      const res = await aiRecommend({})
-      const data = res.data || {}
-      result = {
-        enabled: data.enabled === true,
-        recommendations: data.recommendations || [],
-        // 降级提示透传（AI 关闭时 message 为「AI 服务未启用…」，调用方按 enabled 区分处理）
-        message: data.enabled === true ? data.message || '' : ''
+  const promise = new Promise(resolve => {
+    let settled = false
+    // result/done/error 三个终态只落地一次（done 无载荷，以已收到的 result 为准；
+    // 未收到 result 即 done/error，按未启用兜底）
+    let holder = null
+    const finish = result => {
+      if (settled) {
+        return
       }
-    } catch {
-      // 失败也缓存结果（enabled=false），避免重复打接口
-      result = disabledResult()
+      settled = true
+      holder = result
+      probeCache.set(userId, { promise, result })
+      resolve(result)
     }
-    probeCache.set(userId, { promise, result })
-    return result
-  })()
+    // R13-5：流式消费，result 帧 VO 与旧非流式 res.data 完全同构
+    aiRecommendStream({
+      onPhase: d => onPhase && onPhase(d),
+      onResult: data => {
+        const vo = data || {}
+        finish({
+          enabled: vo.enabled === true,
+          recommendations: vo.recommendations || [],
+          // 降级提示透传（AI 关闭时 message 为「AI 服务未启用…」，调用方按 enabled 区分处理）
+          message: vo.enabled === true ? vo.message || '' : ''
+        })
+      },
+      onDone: () => finish(holder || disabledResult()),
+      // 连接级失败（超时/线程池繁忙/网络异常）也缓存 enabled=false，避免重复打接口
+      onError: () => finish(disabledResult())
+    })
+  })
   // 先同步占位（缓存 in-flight promise），合并并发请求
   probeCache.set(userId, { promise, result: null })
   return promise

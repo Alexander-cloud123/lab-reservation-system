@@ -14,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -99,7 +100,7 @@ class AiResultCacheTest {
         AiInvoker invoker = buildInvoker(cache, agnes, metrics);
 
         when(cache.get(eq(KEY), any())).thenReturn(null);
-        when(agnes.chat(any(), any(), any(), anyBoolean()))
+        when(agnes.chat(any(), any(), anyList(), any(), anyBoolean()))
                 .thenReturn(AgnesClient.AgnesResponse.ok("{\"compliant\":true}", AiUsage.EMPTY));
 
         // onSuccess 与生产口径一致：成功分支把 enabled 置真（前端据此显示入口）
@@ -125,7 +126,7 @@ class AiResultCacheTest {
         AiInvoker invoker = buildInvoker(cache, agnes, metrics);
 
         when(cache.get(eq(KEY), any())).thenReturn(null);
-        when(agnes.chat(any(), any(), any(), anyBoolean()))
+        when(agnes.chat(any(), any(), anyList(), any(), anyBoolean()))
                 .thenReturn(AgnesClient.AgnesResponse.degraded("AI 服务暂时不可用，已自动切换为本地规则模式"));
 
         AiComplianceVO degraded = new AiComplianceVO();
@@ -149,7 +150,7 @@ class AiResultCacheTest {
         AiInvoker invoker = buildInvoker(cache, agnes, metrics);
 
         when(cache.get(eq(KEY), any())).thenReturn(null);
-        when(agnes.chat(any(), any(), any(), anyBoolean()))
+        when(agnes.chat(any(), any(), anyList(), any(), anyBoolean()))
                 .thenReturn(AgnesClient.AgnesResponse.ok("not-a-json-object", AiUsage.EMPTY));
 
         AiComplianceVO result = invoker.invoke("合规", 1L, "sys", "purpose",

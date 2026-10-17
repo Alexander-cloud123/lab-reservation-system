@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.reservation.ai.config.AgnesClient;
 import com.example.reservation.ai.config.AiConstants;
 import com.example.reservation.ai.config.AiPrompts;
+import com.example.reservation.ai.dto.AiChatHistoryMessage;
 import com.example.reservation.ai.dto.AiChatVO;
 import com.example.reservation.ai.service.AiChatService;
 import com.example.reservation.ai.service.AiConfigService;
@@ -32,6 +33,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -83,24 +85,36 @@ public class AiChatServiceImpl implements AiChatService {
     /** 提问文本最大长度（M11 修复：防超长输入放大 token 消耗与超时概率） */
     private static final int QUESTION_MAX_LENGTH = 200;
 
+    /** R13-3 多轮上下文：最多携带历史消息条数（5 轮问答） */
+    private static final int HISTORY_MAX_MESSAGES = 10;
+
+    /** R13-3 历史中 user 消息最大长度（与当前问题上限一致） */
+    private static final int HISTORY_USER_MAX_LENGTH = 200;
+
+    /** R13-3 历史中 assistant 消息最大长度（防止长答案回灌放大 token） */
+    private static final int HISTORY_ASSISTANT_MAX_LENGTH = 500;
+
     @Override
-    public AiChatVO chat(String question) {
+    public AiChatVO chat(String question, List<AiChatHistoryMessage> history) {
         // M11 修复：AI 入参长度上限（流式/非流式共用 validateQuestion，口径保持一致）
         validateQuestion(question);
         // 双开关关闭：返回友好提示，不报 500（前端隐藏悬浮助手）
         if (!aiConfigService.isAiEnabled()) {
             return AiChatVO.disabled();
         }
+        // R13-3：历史归一化（角色白名单 + 条数/长度裁剪），不信任前端
+        List<AgnesClient.ChatMessage> normalizedHistory = normalizeHistory(history);
 
         // 1. 尝试大模型问答（检索增强注入个人预约上下文）；失败/非法输出统一由 AiInvoker 降级
         String userMessage = buildContext(UserContext.getUserId()) + "\n【用户问题】" + question;
-        // 结果缓存：Key 含 userId + 问题（答案注入了个人预约上下文，故不跨用户复用）；TTL 取 30s（上下文会变）
+        // 结果缓存：Key 含 userId + 历史指纹 + 问题（答案注入了个人预约上下文，故不跨用户复用；
+        // 不同上下文的相同问题不共享缓存）；TTL 取 30s（上下文会变）
         String cacheKey = aiResultCache.buildKey(
                 AiConstants.AI_CACHE_NS_CHAT,
                 AiPrompts.versionOf(AiPrompts.CHAT) + "-" + aiConfigService.getEffectiveModel(),
-                AiHash.sha256Prefix8(UserContext.getUserId() + ":" + question));
-        // M7 修复：传入当前用户 ID，限流按用户维度隔离
-        return aiInvoker.invoke("问答", UserContext.getUserId(), AiPrompts.CHAT, userMessage,
+                AiHash.sha256Prefix8(UserContext.getUserId() + ":" + historyFingerprint(normalizedHistory) + ":" + question));
+        // M7 修复：传入当前用户 ID，限流按用户维度隔离；R13-3：透传多轮历史
+        return aiInvoker.invoke("问答", UserContext.getUserId(), AiPrompts.CHAT, normalizedHistory, userMessage,
                 this::parseModelOutput,
                 vo -> {
                     vo.setEnabled(true);
@@ -131,7 +145,9 @@ public class AiChatServiceImpl implements AiChatService {
     }
 
     @Override
-    public void streamChat(Long userId, String question, ChatStreamSink sink) {
+    public void streamChat(Long userId, String question, List<AiChatHistoryMessage> history, ChatStreamSink sink) {
+        // R13-3：历史归一化（AI 关闭分支虽不使用历史，但归一化是纯函数，提前执行无副作用）
+        List<AgnesClient.ChatMessage> normalizedHistory = normalizeHistory(history);
         // 1. AI 双开关关闭：meta 告知后直接 done（不查缓存、不调上游）
         if (!aiConfigService.isAiEnabled()) {
             try {
@@ -148,7 +164,7 @@ public class AiChatServiceImpl implements AiChatService {
         String cacheKey = aiResultCache.buildKey(
                 AiConstants.AI_CACHE_NS_CHAT,
                 AiPrompts.versionOf(AiPrompts.CHAT_STREAM) + "-" + aiConfigService.getEffectiveModel(),
-                AiHash.sha256Prefix8(userId + ":" + question));
+                AiHash.sha256Prefix8(userId + ":" + historyFingerprint(normalizedHistory) + ":" + question));
         AiChatVO cached = aiResultCache.get(cacheKey, new TypeReference<AiChatVO>() {
         });
         if (cached != null && StrUtil.isNotBlank(cached.getAnswer())) {
@@ -198,7 +214,7 @@ public class AiChatServiceImpl implements AiChatService {
             }
         };
         AgnesClient.StreamChatHandle handle =
-                agnesClient.chatStream(userId, AiPrompts.CHAT_STREAM, userMessage, onReady, onDelta);
+                agnesClient.chatStream(userId, AiPrompts.CHAT_STREAM, normalizedHistory, userMessage, onReady, onDelta);
         if (closed[0]) {
             // aborted 句柄静默结束：不发降级 meta、不推 FAQ、不写缓存、不发 done/error
             log.debug("流式问答客户端已断开（上游读取分支）");
@@ -248,6 +264,52 @@ public class AiChatServiceImpl implements AiChatService {
         for (String chunk : AiStreamText.chunks(text, AiConstants.AI_STREAM_CHUNK_SIZE)) {
             sink.delta(chunk);
         }
+    }
+
+    /**
+     * 多轮历史归一化（R13-3，后端不信任前端的第二道边界）：
+     * 1) null/空白 content 与非 user/assistant 角色直接丢弃；
+     * 2) 单条超长保留开头截断（user 200 字 / assistant 500 字）；
+     * 3) 总条数超过 10 条时保留最近 10 条（更早的对话对当前问题价值最低）。
+     */
+    private List<AgnesClient.ChatMessage> normalizeHistory(List<AiChatHistoryMessage> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return List.of();
+        }
+        List<AgnesClient.ChatMessage> valid = new ArrayList<>();
+        for (AiChatHistoryMessage message : raw) {
+            if (message == null || StrUtil.isBlank(message.getRole()) || StrUtil.isBlank(message.getContent())) {
+                continue;
+            }
+            String role = message.getRole().trim();
+            if (!"user".equals(role) && !"assistant".equals(role)) {
+                continue;
+            }
+            int maxLength = "user".equals(role) ? HISTORY_USER_MAX_LENGTH : HISTORY_ASSISTANT_MAX_LENGTH;
+            String content = message.getContent().trim();
+            if (content.length() > maxLength) {
+                content = content.substring(0, maxLength);
+            }
+            valid.add(new AgnesClient.ChatMessage(role, content));
+        }
+        if (valid.size() > HISTORY_MAX_MESSAGES) {
+            return List.copyOf(valid.subList(valid.size() - HISTORY_MAX_MESSAGES, valid.size()));
+        }
+        return List.copyOf(valid);
+    }
+
+    /**
+     * 历史指纹（R13-3）：归一化后的历史按 role:content 串联后取短哈希，并入缓存 key；
+     * 空历史固定 "none"，使「不带历史」的 key 段稳定可预期。
+     */
+    private String historyFingerprint(List<AgnesClient.ChatMessage> normalizedHistory) {
+        if (normalizedHistory == null || normalizedHistory.isEmpty()) {
+            return "none";
+        }
+        String joined = normalizedHistory.stream()
+                .map(message -> message.role() + ":" + message.content())
+                .collect(Collectors.joining("|"));
+        return AiHash.sha256Prefix8(joined);
     }
 
     /**

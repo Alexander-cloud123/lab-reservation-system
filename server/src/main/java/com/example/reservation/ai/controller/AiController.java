@@ -14,6 +14,9 @@ import com.example.reservation.ai.service.AiParseService;
 import com.example.reservation.ai.service.AiRecommendService;
 import com.example.reservation.ai.support.ChatStreamSink;
 import com.example.reservation.ai.support.SseChatStreamSink;
+import com.example.reservation.ai.support.SseStreams;
+import com.example.reservation.ai.support.SseStructuredStreamSink;
+import com.example.reservation.ai.support.StructuredStreamSink;
 import com.example.reservation.common.Result;
 import com.example.reservation.common.UserContext;
 import io.swagger.v3.oas.annotations.Operation;
@@ -68,18 +71,51 @@ public class AiController {
      * 推荐对象固定取 UserContext 当前用户，不信任请求体传入的 userId，防止越权读取他人预约偏好（P1 修复）
      */
     @Operation(summary = "AI-智能教室推荐", description = "基于当前登录用户历史预约习惯（时段/楼栋/类型/人数）+实时空闲推荐Top3教室及理由")
-    @PostMapping("/recommend")
+    @PostMapping(value = "/recommend", params = "stream!=true")
     public Result<AiRecommendVO> recommend(@RequestBody(required = false) AiRecommendRequest request) {
         return Result.success(aiRecommendService.recommend(UserContext.getUserId()));
+    }
+
+    /**
+     * 智能教室推荐（SSE 结构化流式，R13-5）：meta → phase（缓存未命中时）→ result（与非流式 data 同构）→ done。
+     * 无请求体入参；userId 在请求线程捕获（异步线程无 UserContext）；生命周期样板统一走 {@link SseStreams}。
+     */
+    @Operation(summary = "AI-智能教室推荐（流式SSE）", description = "text/event-stream：meta/phase/result/done 事件；?stream=true")
+    @PostMapping(value = "/recommend", params = "stream=true")
+    public SseEmitter recommendStream() {
+        Long userId = UserContext.getUserId();
+        return SseStreams.<StructuredStreamSink<AiRecommendVO>>start(
+                STREAM_TIMEOUT_MS, aiStreamExecutor, "流式推荐", userId,
+                SseStructuredStreamSink::new,
+                sink -> aiRecommendService.streamRecommend(userId, sink),
+                "AI 响应超时，请稍后再试", "AI 服务繁忙，请稍后再试", "服务暂时不可用，请稍后再试");
     }
 
     /**
      * 自然语言预约解析：口语化描述 → 结构化预约参数（日期/时段/人数/类型/用途）
      */
     @Operation(summary = "AI-自然语言预约解析", description = "口语化文本→结构化JSON（date/startTime/endTime/capacity/roomType/purpose），识别失败返回error")
-    @PostMapping("/parse-reservation")
+    @PostMapping(value = "/parse-reservation", params = "stream!=true")
     public Result<AiParseVO> parseReservation(@RequestBody AiParseRequest request) {
         return Result.success(aiParseService.parse(request.getText()));
+    }
+
+    /**
+     * 自然语言预约解析（SSE 结构化流式，R13-5）：meta → phase → result（同构 VO）→ done。
+     * 入参校验在请求线程完成（SSE 建立前），校验失败与非流式一致返回 Result JSON。
+     */
+    @Operation(summary = "AI-自然语言预约解析（流式SSE）", description = "text/event-stream：meta/phase/result/done 事件；?stream=true")
+    @PostMapping(value = "/parse-reservation", params = "stream=true")
+    public SseEmitter parseReservationStream(@RequestBody AiParseRequest request) {
+        // 1. SSE 建立前校验：BusinessException 由全局异常处理器转 Result JSON（与非流式完全一致）
+        aiParseService.validateParseInput(request.getText());
+        // 2. 请求线程捕获登录身份
+        Long userId = UserContext.getUserId();
+        return SseStreams.<StructuredStreamSink<AiParseVO>>start(
+                STREAM_TIMEOUT_MS, aiStreamExecutor, "流式解析", userId,
+                SseStructuredStreamSink::new,
+                sink -> aiParseService.streamParse(request.getText(), userId, sink),
+                "AI 响应超时，请稍后再试", "AI 服务繁忙，请稍后再试", "服务暂时不可用，请稍后再试");
     }
 
     /**
@@ -88,7 +124,7 @@ public class AiController {
     @Operation(summary = "AI-预约智能问答", description = "场景绝对限定：仅回答预约/教室/个人记录相关问题；无关问题返回预设话术")
     @PostMapping(value = "/chat", params = "stream!=true")
     public Result<AiChatVO> chat(@RequestBody AiChatRequest request) {
-        return Result.success(aiChatService.chat(request.getQuestion()));
+        return Result.success(aiChatService.chat(request.getQuestion(), request.getHistory()));
     }
 
     /**
@@ -130,7 +166,7 @@ public class AiController {
                     return;
                 }
                 try {
-                    aiChatService.streamChat(userId, request.getQuestion(), sink);
+                    aiChatService.streamChat(userId, request.getQuestion(), request.getHistory(), sink);
                 } catch (Exception e) {
                     if (finished.get()) {
                         log.debug("流式问答在连接结束后异常：userId={}，{}", userId, e.toString());
@@ -174,8 +210,26 @@ public class AiController {
      * 预约合规校验：用途 → compliant/reason（辅助管理员审核，只提示不改状态）
      */
     @Operation(summary = "AI-预约合规校验", description = "输入预约用途→合规结果；只提示不改状态，审核动作仍由管理员手动执行")
-    @PostMapping("/compliance-check")
+    @PostMapping(value = "/compliance-check", params = "stream!=true")
     public Result<AiComplianceVO> complianceCheck(@RequestBody AiComplianceRequest request) {
         return Result.success(aiComplianceService.check(request.getPurpose()));
+    }
+
+    /**
+     * 预约合规校验（SSE 结构化流式，R13-5）：meta → phase（缓存未命中时）→ result（同构 VO）→ done。
+     * 入参校验在请求线程完成（SSE 建立前），校验失败与非流式一致返回 Result JSON。
+     */
+    @Operation(summary = "AI-预约合规校验（流式SSE）", description = "text/event-stream：meta/phase/result/done 事件；只提示不改状态；?stream=true")
+    @PostMapping(value = "/compliance-check", params = "stream=true")
+    public SseEmitter complianceCheckStream(@RequestBody AiComplianceRequest request) {
+        // 1. SSE 建立前校验：BusinessException 由全局异常处理器转 Result JSON（与非流式完全一致）
+        aiComplianceService.validateCheckInput(request.getPurpose());
+        // 2. 请求线程捕获登录身份
+        Long userId = UserContext.getUserId();
+        return SseStreams.<StructuredStreamSink<AiComplianceVO>>start(
+                STREAM_TIMEOUT_MS, aiStreamExecutor, "流式合规", userId,
+                SseStructuredStreamSink::new,
+                sink -> aiComplianceService.streamCheck(request.getPurpose(), userId, sink),
+                "AI 响应超时，请稍后再试", "AI 服务繁忙，请稍后再试", "服务暂时不可用，请稍后再试");
     }
 }

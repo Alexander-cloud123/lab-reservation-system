@@ -50,6 +50,42 @@ export function chatStreamBody(payload) {
   return body
 }
 
+/**
+ * 把结构化 VO（recommend/parse/compliance）转换为 SSE 响应体（R13-5）：
+ * meta → phase（仅缓存未命中；payload._streamPhase===false 或关闭态不发）→ result（VO 本体）→ done。
+ * 与后端 StructuredStreamEvents/SseStructuredStreamSink 的线序列严格一致：
+ *  - 启用态 meta 固定 (true,false,null)，降级原因只在 result.message 体现；
+ *  - 关闭态 meta(false,true,message) → result(关闭 VO) → done，中间无 phase；
+ *  - result 帧 data 经后端 @JsonValue 展平为 VO 本体（不是 {data:{...}}）。
+ * @param {'recommend'|'parse'|'compliance'} kind 接口 kind（用于 phase code/文案）
+ * @param {object} payload VO 同构假数据；_streamPhase:false 模拟缓存命中（无 phase），不会进入 result
+ */
+export function structuredStreamBody(kind, payload) {
+  const phaseMeta = {
+    recommend: { phase: 'recommend', text: '正在分析你的预约习惯与明日教室空闲' },
+    parse: { phase: 'parse', text: '正在理解你的预约需求' },
+    compliance: { phase: 'compliance', text: '正在校验预约用途的合规性' }
+  }
+  const disabled = payload.enabled === false
+  // 控制字段只用于 mock 编排，必须从 result VO 中剔除（真实 VO 无此字段）
+  const vo = { ...payload }
+  delete vo._streamPhase
+  const sendPhase = payload._streamPhase !== false && !disabled
+
+  let body = sseFrame('meta', {
+    enabled: !disabled,
+    degraded: disabled,
+    message: disabled ? (payload.message ?? null) : null
+  })
+  if (sendPhase) {
+    body += sseFrame('phase', phaseMeta[kind])
+  }
+  body += sseFrame('result', vo)
+  // done 无业务载荷（后端发空对象）
+  body += sseFrame('done', {})
+  return body
+}
+
 /** 默认假数据（结构对齐后端 VO；字段名不一致会在前端表现为"解析成功但表单未回填"） */
 export function defaultAiPayloads() {
   const date = futureDate(1)
@@ -125,8 +161,10 @@ export function aiDisabledPayload() {
  * Vite 的源码模块路径 /src/api/*.js 也会命中 glob，导致模块加载被劫持成 JSON（MIME 报错、白屏）。
  *
  * @returns {Record<string, number>} 各接口命中次数（可变对象，用例可读；用于断言"未真实调用模型"）
+ * @param {(streamInfo:{path:string, body:string, stream:boolean}) => void} [opts.onStream]
+ *        每次响应后回调（JSON/SSE 均可），供用例在网络层断言 SSE 帧序列（phase/result/done 顺序）
  */
-export async function mockAi(page, overrides = {}) {
+export async function mockAi(page, overrides = {}, opts = {}) {
   const payloads = { ...defaultAiPayloads(), ...overrides }
   const calls = {}
 
@@ -136,27 +174,63 @@ export async function mockAi(page, overrides = {}) {
       const reqUrl = new URL(route.request().url())
       const path = reqUrl.pathname
       calls[path] = (calls[path] || 0) + 1
-      const payload = payloads[path] ?? aiDisabledPayload()
+      const rawPayload = payloads[path] ?? aiDisabledPayload()
+      // 覆盖项支持函数形式：(requestBody) => payload，供同一接口按请求内容动态返回（如多轮问答分流）
+      let payload = rawPayload
+      if (typeof rawPayload === 'function') {
+        let reqBody = {}
+        const postData = route.request().postData()
+        if (postData) {
+          try {
+            reqBody = JSON.parse(postData)
+          } catch {
+            // 非 JSON 请求体：保持空对象，函数覆盖项自行兜底
+          }
+        }
+        payload = rawPayload(reqBody)
+      }
       // 模拟真实模型的"有延迟才出结果"，避免用例把 loading 态当成最终态断言
       await new Promise((r) => setTimeout(r, 120))
-      // 问答流式：前端请求 ?stream=true，改回 text/event-stream（pathname 仍为 /api/ai/chat，计数口径不变）
-      if (path === AI_PATHS.chat && reqUrl.searchParams.get('stream') === 'true') {
+      const wantStream = reqUrl.searchParams.get('stream') === 'true'
+      // 流式请求（R12 chat / R13-5 三个结构化接口）：回 text/event-stream（pathname 不变，计数口径不变）
+      if (wantStream && path === AI_PATHS.chat) {
+        const body = chatStreamBody(payload)
         await route.fulfill({
           status: 200,
           contentType: 'text/event-stream;charset=UTF-8',
-          body: chatStreamBody(payload)
+          body
         })
+        opts.onStream && opts.onStream({ path, body, stream: true })
         return
       }
+      if (wantStream && STRUCTURED_KINDS[path]) {
+        const body = structuredStreamBody(STRUCTURED_KINDS[path], payload)
+        await route.fulfill({
+          status: 200,
+          contentType: 'text/event-stream;charset=UTF-8',
+          body
+        })
+        opts.onStream && opts.onStream({ path, body, stream: true })
+        return
+      }
+      const jsonBody = JSON.stringify({ code: 200, message: '操作成功', data: payload })
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ code: 200, message: '操作成功', data: payload })
+        body: jsonBody
       })
+      opts.onStream && opts.onStream({ path, body: jsonBody, stream: false })
     }
   )
 
   return calls
+}
+
+/** 结构化 SSE 接口路径 → kind（structuredStreamBody 的 phase 元信息索引） */
+const STRUCTURED_KINDS = {
+  [AI_PATHS.recommend]: 'recommend',
+  [AI_PATHS.parse]: 'parse',
+  [AI_PATHS.compliance]: 'compliance'
 }
 
 /** 断言某条 AI 接口被命中过（证明前端确实发起了该 AI 调用） */

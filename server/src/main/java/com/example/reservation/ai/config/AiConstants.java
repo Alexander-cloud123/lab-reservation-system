@@ -95,6 +95,22 @@ public final class AiConstants {
     /** 流式结束原因：AI 总开关关闭（短路应答） */
     public static final String FINISH_REASON_DISABLED = "disabled";
 
+    /* ===== 结构化流式 SSE 进度事件（R13-5：recommend/parse/compliance 三接口 ?stream=true）=====
+     * phase 在「缓存未命中、即将调用上游」时发出（每流至多 1 个）；缓存命中直接 result，不发 phase。
+     * code 供前端/测试识别阶段，text 为直接展示的进度文案（用户视角、主动语态）。 */
+    /** 推荐：阶段 code */
+    public static final String PHASE_CODE_RECOMMEND = "recommend";
+    /** 推荐：进度文案 */
+    public static final String PHASE_TEXT_RECOMMEND = "正在分析你的预约习惯与明日教室空闲";
+    /** 解析：阶段 code */
+    public static final String PHASE_CODE_PARSE = "parse";
+    /** 解析：进度文案 */
+    public static final String PHASE_TEXT_PARSE = "正在理解你的预约需求";
+    /** 合规：阶段 code */
+    public static final String PHASE_CODE_COMPLIANCE = "compliance";
+    /** 合规：进度文案 */
+    public static final String PHASE_TEXT_COMPLIANCE = "正在校验预约用途的合规性";
+
     /* ===== 智能推荐（spec.md 6.2 推荐口径）===== */
     /** 推荐目标日期偏移（天）：默认推荐明天（当日时段过半后意义降低，固定偏移保证可复跑） */
     public static final int RECOMMEND_DATE_OFFSET_DAYS = 1;

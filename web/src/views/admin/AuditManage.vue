@@ -199,7 +199,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import { pageManageReservations, auditReservation, batchAuditReservations } from '@/api/reservation'
-import { aiComplianceCheck } from '@/api/ai'
+import { aiComplianceCheckStream } from '@/api/ai'
 import { useUserStore } from '@/stores/user'
 import { statusText, statusTagType } from '@/utils/dict'
 
@@ -264,31 +264,44 @@ function complianceTip(row) {
 /**
  * 单行按需 AI 合规校验（M9：点击行内「AI 校验」标签触发；结果缓存，已校验/校验中的行不重复请求；
  * 失败静默，标签保持可点击重试，不阻断列表加载与人工审核）
+ * R13-5：改走 SSE 结构化流式（meta→phase→result→done），对外保持 Promise 契约，
+ * 供 autoComplianceCheck 的并发队列 await；行级 loading 已覆盖 phase 等待，无需额外进度 UI。
  */
-async function checkSingle(row) {
+function checkSingle(row) {
   if (!row || row.status !== 0 || isChecking(row) || complianceInfo(row)) {
-    return
+    return Promise.resolve()
   }
   checkingIds.value.add(row.id)
-  try {
-    const res = await aiComplianceCheck({ purpose: row.purpose })
-    if (res.data && res.data.enabled === false) {
-      aiEnabled.value = false
-      return
+  return new Promise(resolve => {
+    let finished = false
+    const finish = () => {
+      if (finished) {
+        return
+      }
+      finished = true
+      checkingIds.value.delete(row.id)
+      resolve()
     }
-    aiEnabled.value = true
-    complianceMap.value.set(row.id, {
-      compliant: res.data.compliant,
-      reason: res.data.reason || '合规校验完成',
-      // 降级提示（非空 = 判定来自本地关键词规则而非模型），用于区分校验来源
-      degraded: !!res.data.message,
-      notice: res.data.message || ''
+    aiComplianceCheckStream({ purpose: row.purpose }, {
+      onResult: data => {
+        if (!data || data.enabled === false) {
+          aiEnabled.value = false
+          return
+        }
+        aiEnabled.value = true
+        complianceMap.value.set(row.id, {
+          compliant: data.compliant,
+          reason: data.reason || '合规校验完成',
+          // 降级提示（非空 = 判定来自本地关键词规则而非模型），用于区分校验来源
+          degraded: !!data.message,
+          notice: data.message || ''
+        })
+      },
+      onDone: finish,
+      // 校验失败静默（连接级错误/建链前校验失败），标签保持「AI 校验」可点击重试
+      onError: finish
     })
-  } catch {
-    // 校验失败静默，标签保持「AI 校验」可点击重试
-  } finally {
-    checkingIds.value.delete(row.id)
-  }
+  })
 }
 
 /**

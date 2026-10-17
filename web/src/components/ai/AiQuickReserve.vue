@@ -30,6 +30,11 @@
           <el-button type="primary" :loading="parsing" @click="handleParse">智能解析</el-button>
           <el-button v-if="parsed" @click="resetParse">重新描述</el-button>
         </div>
+        <!-- R13-5：phase 进度（仅真正调用模型时出现，缓存命中时解析很快完成不闪文案） -->
+        <div v-if="parsing && parsePhase" class="parse-phase">
+          <el-icon class="is-loading"><Loading /></el-icon>
+          <span>{{ parsePhase }}</span>
+        </div>
 
         <el-alert v-if="parseError" type="error" :title="parseError" show-icon :closable="false" class="tip" />
         <el-alert
@@ -144,8 +149,8 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { MagicStick } from '@element-plus/icons-vue'
-import { aiParseReservation } from '@/api/ai'
+import { MagicStick, Loading } from '@element-plus/icons-vue'
+import { aiParseReservationStream } from '@/api/ai'
 import { listClassrooms } from '@/api/classroom'
 import { checkConflict, submitReservation } from '@/api/reservation'
 import { validateBooking } from '@/utils/booking'
@@ -171,6 +176,8 @@ const parsed = ref(false)
 const parseError = ref('')
 /** 解析降级提示（后端 message，非空 = 当前为本地正则规则解析结果，标注「AI 生成」不准确） */
 const parseNotice = ref('')
+/** R13-5：流式解析阶段进度文案（仅缓存未命中真正调用模型时收到一次） */
+const parsePhase = ref('')
 const parseForm = reactive({ date: '', startTime: '', endTime: '', capacity: null, roomType: '', purpose: '' })
 
 function openDialog() {
@@ -181,11 +188,36 @@ function resetParse() {
   parsed.value = false
   parseError.value = ''
   parseNotice.value = ''
+  parsePhase.value = ''
   rawText.value = ''
   Object.assign(parseForm, { date: '', startTime: '', endTime: '', capacity: null, roomType: '', purpose: '' })
 }
 
-async function handleParse() {
+/** 应用 result 帧 VO（与旧非流式 res.data 同构）：关闭态 / 识别失败 / 成功预填三分支 */
+function applyParseResult(data) {
+  if (!data || data.enabled === false) {
+    ElMessage.info('AI 服务未启用')
+    return
+  }
+  if (data.error) {
+    parsed.value = false
+    parseError.value = '无法识别您的需求，请尝试更具体的描述，例如：明天下午2点到4点 40人 机房 做课程设计'
+    return
+  }
+  // 解析成功 → 预填结构化参数（可编辑）；降级提示透出到顶部标注
+  parsed.value = true
+  parseNotice.value = data.message || ''
+  Object.assign(parseForm, {
+    date: data.date || '',
+    startTime: data.startTime || '',
+    endTime: data.endTime || '',
+    capacity: data.capacity || null,
+    roomType: data.roomType || '',
+    purpose: data.purpose || ''
+  })
+}
+
+function handleParse() {
   if (!rawText.value.trim()) {
     ElMessage.warning('请先描述您的预约需求')
     return
@@ -193,34 +225,32 @@ async function handleParse() {
   parsing.value = true
   parseError.value = ''
   parseNotice.value = ''
-  try {
-    const res = await aiParseReservation({ text: rawText.value.trim() })
-    if (res.data && res.data.enabled === false) {
-      ElMessage.info('AI 服务未启用')
+  parsePhase.value = ''
+  parsed.value = false
+  // result/done/error 终态只收尾一次（正常顺序 result→done；error 为连接级终态）
+  let finished = false
+  const finish = () => {
+    if (finished) {
       return
     }
-    if (res.data && res.data.error) {
-      parsed.value = false
-      parseError.value = '无法识别您的需求，请尝试更具体的描述，例如：明天下午2点到4点 40人 机房 做课程设计'
-      return
-    }
-    // 解析成功 → 预填结构化参数（可编辑）；降级提示透出到顶部标注
-    parsed.value = true
-    parseNotice.value = res.data.message || ''
-    Object.assign(parseForm, {
-      date: res.data.date || '',
-      startTime: res.data.startTime || '',
-      endTime: res.data.endTime || '',
-      capacity: res.data.capacity || null,
-      roomType: res.data.roomType || '',
-      purpose: res.data.purpose || ''
-    })
-  } catch {
-    // 统一错误提示已由 request.js 处理
-    parsed.value = false
-  } finally {
+    finished = true
     parsing.value = false
+    parsePhase.value = ''
   }
+  // R13-5：SSE 结构化流式（meta→phase→result→done）；入参校验失败由 ssePost 识别 Result JSON 走 onError
+  aiParseReservationStream({ text: rawText.value.trim() }, {
+    onPhase: d => {
+      parsePhase.value = d.text || ''
+    },
+    onResult: data => applyParseResult(data),
+    onDone: finish,
+    onError: message => {
+      parseError.value = message
+      ElMessage.error(message)
+      finish()
+    }
+  })
+  // 连接建立即进入 loading（不再 await：状态全部由事件回调驱动，组件卸载无需特殊处理）
 }
 
 /* ===== 步骤二：筛选教室 ===== */
@@ -380,6 +410,15 @@ function resetAll() {
 
 .step-actions {
   margin: 12px 0;
+}
+
+.parse-phase {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -4px 0 12px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
 }
 
 .tip {

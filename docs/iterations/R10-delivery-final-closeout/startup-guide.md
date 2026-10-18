@@ -1,7 +1,6 @@
 # R10 交付启动说明 —— 高校实验室预约管理系统（最终交付）
 
-> 交付包根目录：`archive/R10-delivery-final-closeout/`
-> 代码快照：后端 `code/reservation-server/`（= 项目根 `server/`，排除 `target/` 与日志）、前端 `code/reservation-web/`（= 项目根 `web/`，排除 `node_modules/`、`dist/`、`e2e-report/`、`test-results/` 与日志）；数据库脚本：`database/init_db.sql`。
+> 路径说明：R10 交付时的代码快照目录 `archive/R10-delivery-final-closeout/` 已不再纳入版本管理（逐轮变更可从 git 历史完整回溯），下文路径统一指向当前仓库根——后端工程 `server/`、前端工程 `web/`、数据库脚本 `database/init_db.sql`。
 > 对应仓库提交：HEAD `188e4bc`（阶段5 无障碍修复 + 41-a11y 无障碍回归用例；`web/src` 业务代码与 `11862a9` 一致）；后端冻结标签：`v1.0-backend-freeze`。
 > 技术栈：Spring Boot 3.2.10 / Vue 3.4 + Vite 5 / Element Plus 2.7 / MySQL 8.0 / Redis 7.0。
 
@@ -19,7 +18,7 @@
 
 禁止降级安装任何环境；禁止启动无关的旧项目容器。
 
-容器启动（本机）：交付包根目录（`archive/R10-delivery-final-closeout/`）已附带 `docker-compose.yml`，在该目录执行 `docker compose up -d` 一键启动 `reservation-mysql` 与 `reservation-redis`（`docker compose ps` 查看状态、`docker compose stop` 停止）；容器名与端口（3307 / 6380）与本文档其余章节一致。该文件**只编排数据库依赖**，后端与前端仍按第三、四节在宿主机运行。
+容器启动（本机）：仓库根目录已附带 `docker-compose.yml`，在该目录执行 `docker compose up -d` 一键启动 `reservation-mysql` 与 `reservation-redis`（`docker compose ps` 查看状态、`docker compose stop` 停止）；容器名与端口（3307 / 6380）与本文档其余章节一致。该文件**只编排数据库依赖**，后端与前端仍按第三、四节在宿主机运行。
 
 ## 二、数据库初始化
 
@@ -38,7 +37,7 @@ cmd /c "docker exec -i reservation-mysql mysql --default-character-set=utf8mb4 -
 ## 三、后端启动（含端口与 `MYSQL_URL` 覆盖示例）
 
 ```powershell
-cd archive\R10-delivery-final-closeout\code\reservation-server
+cd server
 & 'C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.3\plugins\maven\lib\maven3\bin\mvn.cmd' spring-boot:run
 ```
 
@@ -76,12 +75,12 @@ $env:REDIS_PASSWORD=''          # 如容器设置了密码，通过该变量注�
 ## 四、前端启动
 
 ```powershell
-cd archive\R10-delivery-final-closeout\code\reservation-web
-npm install   # 首次（快照不含 node_modules，需按 package-lock.json 还原）
+cd web
+npm install   # 首次（按 package-lock.json 还原依赖）
 npm run dev   # http://localhost:5173
 ```
 
-- 快照已包含 `package.json` / `package-lock.json` / `vite.config.js` / `playwright.config.js`。
+- 工程已包含 `package.json` / `package-lock.json` / `vite.config.js` / `playwright.config.js`。
 - 前端通过 Vite 代理转发 `/api` 到后端（代理目标可用 `VITE_API_TARGET` 指定，默认 `http://localhost:8080`）。
 
 ## 五、默认账号
@@ -107,7 +106,7 @@ npm run dev   # http://localhost:5173
 
 - **交付默认关闭**：`application.yml` 中 `ai.enable=false`（数据库 `ai_config.ai_enable=false`），AI 接口返回 `enabled=false` 友好提示，前端隐藏 AI 入口，系统为纯预约系统，核心功能不受影响。
 - **启用方式（双开关必须同时为 true）**：
-  1. `code/reservation-server/src/main/resources/application.yml` 中 `ai.enable` 改为 `true`，重启后端；
+  1. `server/src/main/resources/application.yml` 中 `ai.enable` 改为 `true`，重启后端；
   2. 数据库执行：`UPDATE ai_config SET config_value='true' WHERE config_key='ai_enable';`
   3. （可选）如需真实模型输出，注入环境变量 `AGNES_API_KEY`（前端零接触密钥）。
 - **降级说明**：无密钥 / 上游限流（RPM 20，全站聚合上限 100）/ 超时（60s）/ 连接失败时自动降级为本地规则模拟，接口仍返回 200 且结果可用，降级原因透出在 `data.message`，不阻断业务。
@@ -118,7 +117,7 @@ npm run dev   # http://localhost:5173
 ### 8.1 后端单元测试（JUnit 5 + Surefire，34 条）
 
 ```powershell
-cd archive\R10-delivery-final-closeout\code\reservation-server
+cd server
 # 必需：测试会真实连接容器 MySQL / Redis，端口需按第 3.2 节覆盖
 $env:MYSQL_URL='jdbc:mysql://localhost:3307/reservation?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai'
 $env:MYSQL_PASSWORD='root'; $env:REDIS_PORT='6380'
@@ -133,7 +132,7 @@ $env:MYSQL_PASSWORD='root'; $env:REDIS_PORT='6380'
 
 ```powershell
 # 前置：MySQL / Redis 容器在线，后端已启动（Playwright 不自动起后端，仅探活）
-cd archive\R10-delivery-final-closeout\code\reservation-web
+cd web
 npm run test:e2e            # 全量 16 spec / 105 用例（串行 1 worker，Chromium）
 npm run test:e2e:smoke      # 仅骨架冒烟
 npm run test:e2e:report     # 查看 HTML 报告（e2e-report/html）

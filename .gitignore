@@ -1,37 +1,62 @@
-# 开发临时目录（不入库）
+# ===== 本地临时与构建产物 =====
 .devtmp/
-
-# IDE
-.idea/
-.vscode/
-*.iml
-
-# 构建产物（与子工程内置 .gitignore 双保险）
 target/
-node_modules/
 dist/
 dist-ssr/
 *.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+node_modules/
+web/e2e-report/
+web/playwright-report/
+web/test-results/
 
-# 日志
+# ===== 历史轮次源码快照（git 历史已完整保留，不再入库）=====
+/archive/
+
+# ===== 运行残留与内部派单稿（结论性报告仍入库）=====
+prompts.md
+docs/*任务提示词.md
+docs/qa/**/*.py
+docs/qa/**/*.json
+docs/qa/**/evidence/
+
+# ===== 日志与本地备份 =====
 *.log
 logs/
+*.bak
+*.orig
+*.tmp
 
-# 回归令牌文件（已废弃：脚本改为自行登录，保留忽略以防误提交）
+# ===== 环境变量与密钥（严禁入库）=====
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.jks
+
+# ===== IDE / 编辑器 =====
+.idea/
+.vscode/
+*.iml
+.classpath
+.project
+.settings/
+*.suo
+*.swp
+*~
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ===== 项目既有约定 =====
 server/.regression-tokens.txt
-
-# 评审临时证据：只忽略截图与运行日志，脚本与报告入库
 docs/*.png
 docs/e2e/*.png
 docs/e2e/*.log
-
-# 系统
-.DS_Store
-Thumbs.db
-
-# Agent / 工具本地目录（不入库）
 .trae/
 docs/superpowers/
-
-# 数据库设计图（本地生成产物，不入库）
 database/diagram/

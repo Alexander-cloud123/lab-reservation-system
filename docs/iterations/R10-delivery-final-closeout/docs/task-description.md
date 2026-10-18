@@ -74,15 +74,15 @@ mvn -B test（server）    : Tests run: 34, Failures: 0, Errors: 0, Skipped: 0 �
 
 ## 五、交付清单
 
-交付物按**仓库既有约定分两处存放**（与 R1–R7 各轮交付包结构一致）：代码与数据库快照在 `archive/`，交付文档在 `docs/iterations/`。**文档不在 `archive/` 包内**，请勿在代码快照目录下查找。
+交付物按**仓库既有约定分两处存放**：R10 交付时，代码与数据库快照存放于 `archive/R10-delivery-final-closeout/`，交付文档存放于 `docs/iterations/`。该快照目录现已不再纳入版本管理（逐轮变更可从 git 历史完整回溯），当前唯一代码源为仓库根的 `server/` 与 `web/`。
 
-**① 代码与数据库快照** —— `archive/R10-delivery-final-closeout/`（共 183 个文件）
+**① 代码与数据库快照** —— `archive/R10-delivery-final-closeout/`（当时共 183 个文件，现已不再纳入版本管理）
 
 ```
-archive/R10-delivery-final-closeout/
+archive/R10-delivery-final-closeout/          # 历史快照，现由仓库根 server/ + web/ 取代
 ├── code/
-│   ├── reservation-server/   # 后端快照 112 文件（= 项目根 server/，排除 target/ 与日志）
-│   └── reservation-web/      # 前端快照 70 文件（= 项目根 web/，排除 node_modules/ dist/ e2e-report/ test-results/ 与日志）
+│   ├── reservation-server/   # = 项目根 server/，排除 target/ 与日志
+│   └── reservation-web/      # = 项目根 web/，排除 node_modules/ dist/ e2e-report/ test-results/ 与日志
 └── database/
     └── init_db.sql           # 数据库初始化脚本（与项目根 database/init_db.sql SHA256 一致）
 ```

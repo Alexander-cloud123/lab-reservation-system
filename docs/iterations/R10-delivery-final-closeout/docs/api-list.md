@@ -1,6 +1,6 @@
 # R10 最终版接口清单（源码实地枚举，共 38 个端点）
 
-> 适用工程：`archive/R10-delivery-final-closeout/code/reservation-server`（Spring Boot 3.2.10；Knife4j 在线文档：`http://localhost:8080/doc.html`）
+> 适用工程：后端工程 `server/`（Spring Boot 3.2.10；Knife4j 在线文档：`http://localhost:8080/doc.html`）
 > 枚举口径：逐一读取 `server/src/main/java/com/example/reservation/controller/` 下 7 个控制器 + `ai/controller/AiController.java` 的映射注解与入参类型，**以源码为唯一事实来源**；随后与 `docs/iterations/R7-delivery-ai-integration/docs/api-list.md`、`docs/iterations/R8-delivery-defense-prep/接口清单.md` 对照，补齐 R8/R9/阶段3 的新增与调整（见第十节）。
 > 权限口径以 `common/Constants.java` 的 `ADMIN_API_PREFIXES`（`/api/user/manage`、`/api/classroom/manage`、`/api/reservation/manage`、`/api/reservation/export`、`/api/stats`）+ `AuthInterceptor` 精确路径校验（单条审核、批量审核）为准。
 

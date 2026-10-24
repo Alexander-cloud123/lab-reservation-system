@@ -162,4 +162,22 @@ router.afterEach((to) => {
   document.title = to.meta.title ? `${to.meta.title} - 高校实验室预约管理系统` : '高校实验室预约管理系统'
 })
 
+// BUG-01 修复：浏览器后退（popstate）到登录/注册页时，守卫返回的重定向目标等于
+// 当前 currentRoute 会被 vue-router 判「冗余导航」丢弃，导致地址栏停在 /login 而
+// 视图仍是角色首页。此时视图已正确，仅需把地址栏与 history.state 校正回目标。
+window.addEventListener('popstate', () => {
+  requestAnimationFrame(() => {
+    const path = location.pathname
+    if (path !== '/login' && path !== '/register') return
+    if (!getToken()) return
+    const user = getStoredUser()
+    const target = roleHome[user && user.role] || '/student/home'
+    if (router.currentRoute.value.fullPath === target) {
+      history.replaceState({ ...history.state, current: target, replaced: true }, '', target)
+    } else {
+      router.replace(target)
+    }
+  })
+})
+
 export default router

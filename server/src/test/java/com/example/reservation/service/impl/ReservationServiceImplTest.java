@@ -27,6 +27,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -211,8 +212,9 @@ class ReservationServiceImplTest {
     @Test
     @DisplayName("边界：取消时限——开始前 59 分钟禁止取消")
     void cancelReservation_rejectsWithinOneHour() {
-        LocalTime start = LocalTime.now().plusMinutes(59);
-        Assumptions.assumeTrue(start.isBefore(LocalTime.of(23, 0)), "接近午夜，跳过以免跨天");
+        LocalDateTime startAt = LocalDateTime.now().plusMinutes(59);
+        Assumptions.assumeTrue(startAt.toLocalDate().equals(LocalDate.now()), "接近午夜，跳过以免跨天");
+        LocalTime start = startAt.toLocalTime();
         Reservation r = reservation(1L, start, start.plusMinutes(60));
         r.setReserveDate(LocalDate.now());
         when(reservationMapper.selectById(1L)).thenReturn(r);
@@ -225,8 +227,9 @@ class ReservationServiceImplTest {
     @Test
     @DisplayName("边界：取消时限——开始前 61 分钟（刚过 1 小时）可取消")
     void cancelReservation_allowsJustOverOneHour() {
-        LocalTime start = LocalTime.now().plusMinutes(61);
-        Assumptions.assumeTrue(start.isBefore(LocalTime.of(23, 0)), "接近午夜，跳过以免跨天");
+        LocalDateTime startAt = LocalDateTime.now().plusMinutes(61);
+        Assumptions.assumeTrue(startAt.toLocalDate().equals(LocalDate.now()), "接近午夜，跳过以免跨天");
+        LocalTime start = startAt.toLocalTime();
         Reservation r = reservation(1L, start, start.plusMinutes(60));
         r.setReserveDate(LocalDate.now());
         when(reservationMapper.selectById(1L)).thenReturn(r);

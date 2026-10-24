@@ -175,7 +175,11 @@ test.describe('我的预约', () => {
   test('今日预约置顶：当日预约排在列表最前并带「今日」标记', async ({ page, request }) => {
     const startAt = dayjs().add(3, 'hour').startOf('hour')
     const endAt = startAt.add(1, 'hour')
-    test.skip(startAt.hour() > 21, '当前时刻已无今日可预约时段')
+    // 加 3 小时后跨到次日、或落在当日 08:00-22:00 窗口外时无今日时段可造，跳过避免误报
+    test.skip(
+      !startAt.isSame(dayjs(), 'day') || startAt.hour() < 8 || endAt.hour() > 22,
+      '当前时刻已无今日可预约时段'
+    )
 
     await openMine(page)
     const token = await pageToken(page)

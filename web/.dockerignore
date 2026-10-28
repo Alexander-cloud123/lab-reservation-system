@@ -1,0 +1,9 @@
+node_modules/
+dist/
+dist-ssr/
+e2e/
+e2e-report/
+test-results/
+playwright-report/
+.idea/
+*.log

@@ -64,19 +64,41 @@ lab-reservation-system/
 ├── CHANGELOG.md                  # 版本与迭代变更记录
 ├── CONTRIBUTING.md               # 贡献指南（环境基线 / 提交规范 / 入库纪律）
 ├── LICENSE                       # 版权声明
-├── docker-compose.yml            # MySQL 与 Redis 编排
+├── docker-compose.yml            # MySQL / Redis / 后端 api / 前端 web 编排
 ├── spec.md                       # 技术开发规格书
 └── 需求设计文档.md               # 业务需求与设计依据（唯一需求基准，V3.1）
 ```
 
 ## 快速开始
 
-环境要求：JDK 21 LTS · Maven 3.9.x · Node.js 22.x · Docker。
+环境要求：Docker（仅容器方式）；本地开发另需 JDK 21 LTS · Maven 3.9.x · Node.js 22.x。
+
+### 方式一：容器一键启动（数据库 / 缓存 / 后端 / 前端全在 Docker 内）
+
+```powershell
+# 1. 准备环境变量（可选；不建 .env 时使用默认值：Web 8088、API 8080、AI 关闭）
+Copy-Item .env.example .env
+
+# 2. 首次执行：MySQL 数据卷为外部卷，需先创建
+docker volume create reservation-mysql-data
+
+# 3. 构建并启动四条服务（首次构建需拉取依赖镜像，耗时较长）
+docker compose up -d --build
+docker compose ps                             # 四条服务均应为 healthy
+
+# 4. 访问
+#    系统入口   http://localhost:8088
+#    接口文档   http://localhost:8080/doc.html
+```
+
+数据库首次初始化由容器自动执行 [init_db.sql](database/init_db.sql)（仅在数据卷为空时触发，不会覆盖已有数据）；若已有历史数据卷，数据原样保留。
+
+### 方式二：本地开发（后端 / 前端跑在宿主机，数据库与缓存用容器）
 
 ```powershell
 # 1. 启动数据库与缓存（容器名 reservation-mysql:3307 / reservation-redis:6380）
 docker volume create reservation-mysql-data   # 首次执行：该数据卷为外部卷
-docker compose up -d
+docker compose up -d mysql redis
 docker compose ps                             # 查看健康状态
 
 # 2. 初始化数据库（仅需一次；脚本自包含 DROP+CREATE+INSERT，可重复执行）

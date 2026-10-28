@@ -1,18 +1,21 @@
-# 本项目数据库依赖的 Compose 编组（纯部署辅助，不改动任何需求文档记载的业务规则）
+# 本项目完整运行环境的 Compose 编组（MySQL / Redis / 后端 api / 前端 web 四条服务）
 #
 # 需求依据：《需求设计文档.md》2.2 第 135 行（reservation-mysql）、第 145 行（reservation-redis）
 # 说明：
-#   1. 容器名、镜像版本、端口映射与迁移前完全一致（3307/6380 是本机避开其他课程项目占用的选择），
-#      因此 docs 下的启动说明、单测与 E2E 脚本中出现的容器名与端口均无需改动。
-#   2. MySQL 数据复用既有外部数据卷 reservation-mysql-data，迁移不丢数据。
-#   3. 后端以 mvn spring-boot:run 跑在宿主机，不在本编组内，仍通过 localhost:3307/6380 连接，
-#      故 application.yml 的 MYSQL_URL / REDIS_PORT 环境变量覆盖规则不变。
+#   1. 四条服务同属默认网络 reservation-system，容器间用服务名互访（mysql / redis / api），
+#      因此后端容器内不再使用 localhost:3307 / 6380，而是 mysql:3306 / redis:6379。
+#   2. 宿主机的 3307 / 6380 映射保留，供本机 mvn spring-boot:run、单测与 E2E 直连使用；
+#      Web 默认映射 8088（不占用 5173，避免与 Vite dev server / Playwright webServer 冲突）。
+#   3. MySQL 数据复用既有外部数据卷 reservation-mysql-data，迁移不丢数据；
+#      database/init_db.sql 仅在数据目录为空（首次初始化）时由官方镜像自动执行，不会覆盖已有数据。
+#   4. 端口、JWT 密钥、AI 开关与密钥均可在项目根目录 .env 中覆盖（见 .env.example），禁止写进镜像。
 #
 # 常用命令（在项目根目录执行）：
-#   docker compose up -d      # 启动两个容器
-#   docker compose ps         # 查看状态与健康检查
-#   docker compose stop       # 停止（保留容器）
-#   docker compose down       # 停止并删除容器（数据卷为外部卷，不受影响）
+#   docker compose up -d --build   # 构建并启动全部服务
+#   docker compose ps              # 查看状态与健康检查
+#   docker compose logs -f api     # 跟踪后端日志
+#   docker compose stop            # 停止（保留容器）
+#   docker compose down            # 停止并删除容器（数据卷为外部卷，不受影响）
 
 name: reservation-system
 
@@ -23,12 +26,15 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: reservation
       TZ: Asia/Shanghai
     ports:
       # 本机开发映射 3307，避开 student-manage-mysql 占用的 3306
       - "127.0.0.1:3307:3306"
     volumes:
       - reservation-mysql-data:/var/lib/mysql
+      # 仅首次初始化（数据目录为空）时执行；脚本自包含 DROP+CREATE+INSERT，可重复执行
+      - ./database/init_db.sql:/docker-entrypoint-initdb.d/01-init_db.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
       interval: 10s
@@ -49,6 +55,61 @@ services:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: reservation-api:latest
+    container_name: reservation-api
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # 容器内按服务名互访，端口为容器原生端口
+      MYSQL_URL: "jdbc:mysql://mysql:3306/reservation?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai"
+      MYSQL_USERNAME: root
+      MYSQL_PASSWORD: root
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_ENABLE: "true"
+      # 生产/演示必须覆盖 JWT_SECRET；AI 密钥只从 .env 或宿主机环境变量注入
+      JWT_SECRET: ${JWT_SECRET:-reservation-system-jwt-secret-2026}
+      AI_ENABLE: ${AI_ENABLE:-false}
+      AGNES_API_KEY: ${AGNES_API_KEY:-}
+      TZ: Asia/Shanghai
+    ports:
+      # 暴露到宿主机，便于 Knife4j 文档（/doc.html）、smoke.ps1 与 E2E 直连；端口冲突时改 .env 的 API_PORT
+      - "127.0.0.1:${API_PORT:-8080}:8080"
+    healthcheck:
+      # 运行镜像无 curl，用 bash 内建 /dev/tcp 探测端口可连
+      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/127.0.0.1/8080' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    image: reservation-web:latest
+    container_name: reservation-web
+    restart: unless-stopped
+    depends_on:
+      # 等后端健康后再起前端，避免首屏请求拿到 502
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8088}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
       retries: 5
 
 volumes:

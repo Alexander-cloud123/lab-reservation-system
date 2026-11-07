@@ -26,6 +26,7 @@
 - 新增 [`docs/无障碍人工验收清单.md`](docs/无障碍人工验收清单.md)（读屏器人工验收步骤；人工听感按项目负责人 2026-11-07 决定**不执行**，非需求项，机器代理记录见下）。
 - 新增无障碍机器代理验收：脚本 [`web/scripts/a11y-acceptance.mjs`](web/scripts/a11y-acceptance.mjs)、记录 [`docs/review/无障碍机器代理验收记录.md`](docs/review/无障碍机器代理验收记录.md) 与证据 [`docs/review/a11y-evidence/`](docs/review/a11y-evidence/)；**16 项全部有机器证据并通过**（C4 修复后由机器验证）；真实播报人工听感按负责人决定不纳入交付（本机未安装 NVDA、讲述人未运行，未执行）。
 - 修正会话撤销「立即生效」的绝对表述：补充「删除鉴权状态快照失败时，Redis 恢复后 ≤60s 旧快照窗口内旧 Token 仍可能被接受」的如实口径（故障期间仍 fail-closed 401；窗口结束后回源数据库即 401），同步 [`docs/Redis加分项接入说明.md`](docs/Redis加分项接入说明.md) §3/§4/§5/§6.2、[`docs/演示脚本.md`](docs/演示脚本.md)、`AuthInterceptor` 与 `RedisCache` 注释。
+- README 重构为作品页结构（250 行）：预览截图前置、迭代历程压缩为 4 个里程碑，环境变量 / AI / Redis / 端口细节迁移至 [`docs/运行与配置.md`](docs/运行与配置.md)；新增 `.gitattributes` 统一换行为 LF（13 个文本文件 renormalize，无内容改动）。
 - README 增加「项目预览」真实运行截图（[`docs/images/`](docs/images/)，由 [`web/scripts/capture-screens.mjs`](web/scripts/capture-screens.mjs) 采集）与「架构设计」Mermaid 图、三点设计取舍表；「测试」章节补充规模统计表，方便快速了解项目与面试讲解。
 
 ### 持续集成

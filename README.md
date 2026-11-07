@@ -7,6 +7,8 @@
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.10-6DB33F.svg)
 ![Vue](https://img.shields.io/badge/Vue-3.4-4FC08D.svg)
 ![Node.js](https://img.shields.io/badge/Node.js-22-339933.svg)
+![Backend Tests](https://img.shields.io/badge/backend%20tests-184-brightgreen.svg)
+![E2E](https://img.shields.io/badge/E2E-120%20%28Chromium%20%2B%20Edge%29-brightgreen.svg)
 
 前后端分离的高校实验室/教室预约管理系统，覆盖 R1–R13 共 13 轮完整迭代。核心特点是**预约提交的「前端实时校验 + 后端二次冲突检测」双重校验机制**，以及**严格的预约状态流转**：
 

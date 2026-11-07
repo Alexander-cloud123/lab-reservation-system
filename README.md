@@ -13,6 +13,45 @@
 - 冲突检测公式：`新开始 < 旧结束 AND 新结束 > 旧开始`
 - 状态流转：待审核(0) → 已通过(1) / 已驳回(2)；待审核 / 已通过 → 已取消(3)
 
+## 项目预览
+
+截图来自本机真实运行（种子账号登录，1440×900），可用 `node web/scripts/capture-screens.mjs` 复现：
+
+<table>
+  <tr>
+    <td><img src="docs/images/01-login.png" width="430" /></td>
+    <td><img src="docs/images/02-student-home.png" width="430" /></td>
+  </tr>
+  <tr>
+    <td align="center">登录（角色切换 + 字段级错误提示）</td>
+    <td align="center">教室列表（关键词 / 楼栋 / 类型 / 日期筛选）</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/03-classroom-detail.png" width="430" /></td>
+    <td><img src="docs/images/04-my-reservations.png" width="430" /></td>
+  </tr>
+  <tr>
+    <td align="center">教室详情（预约申请与实时冲突检测）</td>
+    <td align="center">我的预约（今日置顶 + 状态筛选 + 取消）</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/05-calendar.png" width="430" /></td>
+    <td><img src="docs/images/06-admin-dashboard.png" width="430" /></td>
+  </tr>
+  <tr>
+    <td align="center">日历总览（FullCalendar 月 / 周视图）</td>
+    <td align="center">数据看板（使用率排行 / 时段分布 / 趋势）</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/07-admin-audit.png" width="430" /></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td align="center">预约审核（单条审核 + 批量通过 / 驳回）</td>
+    <td></td>
+  </tr>
+</table>
+
 ## 核心功能
 
 | 模块 | 能力 |
@@ -38,6 +77,45 @@
 
 后端严格遵循 `controller → service → mapper → entity` 四层结构，所有接口统一返回 `Result`，并实现全局异常处理器，不向前端暴露异常堆栈。
 
+## 架构设计
+
+```mermaid
+flowchart TB
+    subgraph FE["前端 · Vue 3 单页应用（5173 / 8088）"]
+        UI["页面与组件<br/>Element Plus + ECharts + FullCalendar"]
+        AX["Axios 封装<br/>自动携带 JWT / 统一错误提示"]
+        UI --> AX
+    end
+
+    subgraph BE["后端 · Spring Boot 3 API（8080）"]
+        INT["AuthInterceptor<br/>JWT 验签 + token_version 比对"]
+        CTL["Controller 层<br/>参数校验 / 统一 Result"]
+        SVC["Service 层<br/>冲突检测 · 状态流转 · 缓存失效"]
+        MAP["MyBatis-Plus Mapper"]
+        AIC["ai 包 · Agnes 客户端<br/>限流 / 超时预算 / 本地降级"]
+        INT --> CTL --> SVC --> MAP
+        SVC --> AIC
+    end
+
+    subgraph ST["数据与缓存"]
+        DB[("MySQL 8.0<br/>reservation")]
+        RD[("Redis 7.0<br/>会话态 · 热点缓存")]
+    end
+
+    AX -->|"HTTP / JWT"| INT
+    MAP --> DB
+    SVC --> RD
+    CI["GitHub Actions<br/>server-ci · web-lint"] -.->|"质量门禁"| BE
+```
+
+关键取舍（面试常被追问的三点）：
+
+| 设计点 | 方案 | 原因 |
+|--------|------|------|
+| 会话撤销 | `sys_user.token_version` 版本号 + JWT 携带比对，Redis 仅做 60 秒缓存 | 登出 / 改密 / 禁用必须**服务端持久生效**；纯 Redis 黑名单在 Redis 关闭或抖动时失效，且无法证明“无 Redis 也能撤销” |
+| 冲突检测 | 前端实时校验 + 后端 `新开始 < 旧结束 AND 新结束 > 旧开始` 二次检测，条件更新 + `FOR UPDATE` | 前端校验只做体验，并发正确性必须由数据库条件更新兜底，避免“先查后写”竞态 |
+| AI 降级 | 超时 60 秒 / 429 / 报错一律降级为本地规则模拟；`ai.enable` + `ai_config.ai_enable` 双开关 | AI 是加分项而非依赖项，任何情况都不能阻断预约主流程；双开关保证默认关闭时零外部依赖 |
+
 ## 目录结构
 
 ```
@@ -48,6 +126,7 @@ lab-reservation-system/
 │   └── scripts/                  # smoke.ps1（接口冒烟 41 项）/ ai-real-acceptance.ps1（真实模型验收）/ a11y-acceptance.mjs（无障碍机器代理）
 ├── web/                          # 前端工程（Vue 3.4 + Vite 5，唯一代码源）
 │   ├── src/                      # 页面 / 组件 / 路由 / 接口封装
+│   ├── scripts/                  # capture-screens.mjs（README 预览截图采集）/ a11y-acceptance.mjs
 │   └── e2e/                      # Playwright E2E（specs + helpers）
 ├── database/init_db.sql          # 建库建表 + 基线数据（自包含，可重复执行）
 ├── database/migrations/          # 存量库增量迁移（token_version 会话撤销列）
@@ -56,7 +135,8 @@ lab-reservation-system/
 │   ├── iterations/R1~R13/        # 各轮 任务说明 / 接口清单 / 测试报告 / 启动说明
 │   ├── qa/                       # QA 收口报告
 │   ├── review/                   # 软件审查报告与可视化
-│   └── e2e/                      # 端到端测试报告与回归脚本
+│   ├── e2e/                      # 端到端测试报告与回归脚本
+│   └── images/                   # README 预览截图（真实运行采集）
 ├── .agents/skills/               # 项目级前端设计技能（frontend-design / avoid-ai-design / web-design-guidelines）
 ├── .github/
 │   ├── workflows/                # web-lint.yml（前端 lint+build）/ server-ci.yml（后端构建与单测）
@@ -196,6 +276,13 @@ npm run dev                                   # 浏览器访问 http://127.0.0.1
 
 ## 测试
 
+| 层次 | 规模 | 入口 |
+|------|------|------|
+| 后端单元 / 集成测试 | 30 个测试类、184 个用例（含真实 MySQL + Redis 的 `@SpringBootTest` 与并发集成测试） | `mvn -f server/pom.xml test` |
+| 接口冒烟回归 | 41 项（鉴权 / 权限 / 预约生命周期 / 冲突检测 / 参数校验 / 看板 / 收藏 / AI 降级 / 会话撤销） | `pwsh server/scripts/smoke.ps1` |
+| 前端 E2E | 17 个 spec、120 个用例 × Chromium + Edge | `npm run test:e2e:all` |
+| 无障碍机器代理 | 16/16 项（人工听感按负责人决定不执行） | `node scripts/a11y-acceptance.mjs` |
+
 ```powershell
 # 后端单元测试（30 个测试类；其中 4 个 @SpringBootTest 需 MySQL 在线，3 个另需 Redis；
 # TokenRevocationIntegrationTest 固定 redis.enable=false，用于证明“没有 Redis 也能持久撤销”）
@@ -218,6 +305,9 @@ npm run test:e2e:report     # 打开 HTML 报告
 
 # 无障碍「读屏器清单」机器代理验收（需后端 8080 + 前端 dev server 5173；AI 全 mock，零真实模型调用）
 node scripts/a11y-acceptance.mjs   # 证据输出 docs/review/a11y-evidence/（16/16 项；人工听感按负责人决定不执行）
+
+# README 预览截图（需后端 8080 + 前端 dev server 5173，只读页面、不写库）
+node scripts/capture-screens.mjs   # 输出 docs/images/*.png
 ```
 
 ## 持续集成

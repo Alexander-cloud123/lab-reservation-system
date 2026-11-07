@@ -1,0 +1,22 @@
+# 统一换行符：仓库内文本文件一律 LF（与 .editorconfig 的 end_of_line = lf 一致）
+# 目的：Windows 克隆/提交时不再出现「整文件 diff」，PR 只显示真实改动。
+* text=auto eol=lf
+
+# 二进制：不参与换行与文本 diff
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.svg text
+
+# Office / 交付物 / 依赖压缩包
+*.docx binary
+*.pptx binary
+*.xlsx binary
+*.pdf binary
+*.jar binary
+*.zip binary
+*.woff binary
+*.woff2 binary

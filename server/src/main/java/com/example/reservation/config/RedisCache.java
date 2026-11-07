@@ -13,15 +13,18 @@ import java.util.concurrent.TimeUnit;
 /**
  * Redis 统一封装（需求设计文档 2.2 第 145 行可选加分项）
  * 业务层只与本类交互，不直接散落 RedisTemplate 调用，职责：
- *  1. 登录会话：saveToken / validateToken / removeToken（支撑「可注销会话 / 单点会话」）；
+ *  1. 登录会话：saveToken / validateToken / invalidateSession（支撑「单点会话」；会话撤销的权威来源是
+ *     sys_user.token_version，本类删除会话只影响单点会话与缓存，不承担撤销保证）；
  *  2. 业务缓存：getObject / setObject（对象以 JSON 文本存取，redis-cli 可读、无乱码）；
  *  3. 缓存失效：delete（单 Key）/ invalidateBusinessCaches（代次失效，O(1) 且无需 SCAN）。
- * 降级原则（AGENTS.md 4.4 风格对齐 AI 模块）：
- *  - redis.enable=false 时所有操作直接空转 / 视为跳过；
- *  - Redis 连接失败、命令超时、序列化异常等任何问题一律捕获，读操作回源、写操作空转，绝不向上抛出阻断业务；
- *  - 会话校验异常时返回 SKIP，由拦截器退化为「仅 JWT 校验」。
+ * 降级原则：
+ *  - 普通业务缓存异常仍回源或空转，不阻断核心业务；
+ *  - redis.enable=true 时会话校验异常返回 INVALID（fail closed），删除失败仅记录 WARN
+ *    （旧 Token 已因数据库版本号不匹配而失效，删除失败不构成安全缺口）；
+ *  - SKIP 仅用于 redis.enable=false 的明确无状态模式：该模式没有单点会话，
+ *    但「登出 / 改密 / 重置 / 禁用」仍由 token_version 持久撤销。
  *
- * @author reservation-team
+ * @author hyr
  */
 @Slf4j
 @Component
@@ -60,31 +63,30 @@ public class RedisCache {
         try {
             redisTemplate.opsForValue().set(tokenKey(userId), token, ttlSeconds, TimeUnit.SECONDS);
         } catch (Exception e) {
-            // 写入失败不阻断登录：退化为无状态 JWT（降级）
-            log.warn("Redis 写入登录 Token 失败，退化为无状态 JWT 校验：{}", e.getMessage());
+            // 启用 Redis 时不会退化为仅 JWT：本次签发的 Token 可能因会话未写入而被后续校验拒绝。
+            log.warn("Redis 写入登录 Token 失败，后续会话校验将 fail closed：{}", e.getMessage());
         }
     }
 
     /**
-     * 退出登录时删除会话 Key，登出后该 Token 立即失效。
+     * 清理该用户的共享会话与鉴权状态缓存（best-effort）。
+     *
+     * <p>撤销保证由数据库 token_version 承担：本方法失败只意味着单点会话残留或状态缓存延迟一个 TTL，
+     * 旧 Token 仍会因版本号不匹配被拒绝，因此不再向上报告「撤销未完全确认」。</p>
      */
-    public void removeToken(Long userId) {
-        if (!isEnabled() || userId == null) {
+    public void invalidateSession(Long userId) {
+        if (userId == null || !isEnabled()) {
             return;
         }
-        try {
-            redisTemplate.delete(tokenKey(userId));
-        } catch (Exception e) {
-            // 删除失败不阻断登出流程（降级）
-            log.warn("Redis 删除登录 Token 失败，忽略：{}", e.getMessage());
-        }
+        delete(tokenKey(userId));
+        removeUserState(userId);
     }
 
     /**
-     * 校验请求携带的 Token 是否仍是当前有效会话。
+     * 校验请求携带的 Token 是否仍是当前有效会话（单点会话语义）。
      *
-     * @return VALID-命中且与当前会话一致；INVALID-Redis 正常但无此会话（已登出/被新登录顶掉）→ 应返回 401；
-     *         SKIP-未启用或 Redis 异常 → 调用方退化为仅 JWT 校验，不阻断请求
+     * @return VALID-命中且与当前会话一致；INVALID-无会话、Token 不一致或 Redis 校验异常；
+     *         SKIP-仅 redis.enable=false，由调用方保留无状态 JWT 校验
      */
     public SessionStatus validateToken(Long userId, String presentedToken) {
         if (!isEnabled()) {
@@ -98,19 +100,19 @@ public class RedisCache {
             }
             return stored.equals(presentedToken) ? SessionStatus.VALID : SessionStatus.INVALID;
         } catch (Exception e) {
-            // Redis 不可用：降级为仅 JWT 校验，不阻断业务
-            log.warn("Redis 校验登录会话失败，退化为仅 JWT 校验：{}", e.getMessage());
-            return SessionStatus.SKIP;
+            // 启用 Redis 时无法确认会话状态必须拒绝，不能让已撤销旧 JWT 因异常重新可用。
+            log.warn("Redis 校验登录会话失败，按会话无效处理（fail closed）：{}", e.getMessage());
+            return SessionStatus.INVALID;
         }
     }
 
-    /** 会话校验结果三态（区分「确实失效」与「缓存不可用需降级」） */
+    /** 会话校验结果三态（区分有效、应拒绝与明确无状态模式） */
     public enum SessionStatus {
         /** 会话有效，Token 与 Redis 中一致 */
         VALID,
-        /** 会话确实不存在 / 已被顶掉，应拒绝（401） */
+        /** 会话无效或无法可靠确认，应拒绝（401） */
         INVALID,
-        /** 未启用或 Redis 异常，跳过 Redis 校验，退化为仅 JWT */
+        /** 仅 Redis 明确禁用：跳过服务端会话校验，退化为无状态 JWT，不能立即服务端撤销 */
         SKIP
     }
 
@@ -252,56 +254,78 @@ public class RedisCache {
         delete(key);
     }
 
-    /* ==================== 用户状态缓存（M10 修复：鉴权拦截器每请求查库的优化） ==================== */
-
-    /** 用户状态缓存 Key 前缀 */
-    private static final String USER_STATUS_KEY_PREFIX = "cache:user:status:";
-
-    /** 用户状态缓存 TTL（秒）：短 TTL 防状态失真；管理员禁用账号时主动删缓存，保证禁用即时生效 */
-    private static final long USER_STATUS_TTL_SECONDS = 60;
+    /* ==================== 用户鉴权状态缓存（M10 优化：拦截器每请求查库 → 60s 短缓存） ==================== */
 
     /**
-     * 缓存用户状态（存整数文本；异常空转）。
+     * 鉴权状态快照：账号状态 + 当前 Token 版本号。
+     * 拦截器一次读取即可完成「禁用校验 + 版本号比对」，Redis 启用时每请求零查库。
      */
-    public void saveUserStatus(Long userId, Integer status) {
-        if (!isEnabled() || userId == null || status == null) {
+    public record UserState(int status, int tokenVersion) {
+    }
+
+    /** 用户鉴权状态缓存 Key 前缀（值形如 {@code status|tokenVersion}） */
+    private static final String USER_STATE_KEY_PREFIX = "cache:user:state:";
+
+    /** 状态缓存 TTL（秒）：短 TTL 防状态失真；状态变更 / 版本号自增时主动删缓存（删除成功即即时生效，失败时最多残留一个 TTL） */
+    private static final long USER_STATE_TTL_SECONDS = 60;
+
+    /**
+     * 缓存用户鉴权状态（异常空转）。
+     *
+     * <p>值格式 {@code status|tokenVersion}：版本号只作为缓存内容，权威值始终在 sys_user.token_version。</p>
+     */
+    public void saveUserState(Long userId, UserState state) {
+        if (!isEnabled() || userId == null || state == null) {
             return;
         }
         try {
-            redisTemplate.opsForValue().set(USER_STATUS_KEY_PREFIX + userId, String.valueOf(status),
-                    USER_STATUS_TTL_SECONDS, TimeUnit.SECONDS);
+            redisTemplate.opsForValue().set(USER_STATE_KEY_PREFIX + userId,
+                    state.status() + "|" + state.tokenVersion(),
+                    USER_STATE_TTL_SECONDS, TimeUnit.SECONDS);
         } catch (Exception e) {
-            log.warn("Redis 写入用户状态缓存失败（userId={}）：{}", userId, e.getMessage());
+            log.warn("Redis 写入用户鉴权状态缓存失败（userId={}）：{}", userId, e.getMessage());
         }
     }
 
     /**
-     * 读取用户状态缓存：命中返回状态值；未命中 / 未启用 / 异常返回 null（调用方回源查库，即降级）。
+     * 读取用户鉴权状态：命中返回快照；未命中 / 未启用 / 异常 / 值格式不合法返回 null（调用方回源查库，即降级）。
+     * 值格式不合法时顺手删除脏 Key，避免持续命中坏数据导致鉴权结果错乱。
      */
-    public Integer getUserStatus(Long userId) {
+    public UserState getUserState(Long userId) {
         if (!isEnabled() || userId == null) {
             return null;
         }
+        String key = USER_STATE_KEY_PREFIX + userId;
         try {
-            String v = redisTemplate.opsForValue().get(USER_STATUS_KEY_PREFIX + userId);
+            String v = redisTemplate.opsForValue().get(key);
             if (v == null || v.isBlank()) {
                 return null;
             }
-            return Integer.valueOf(v);
+            String[] parts = v.split("\\|", 2);
+            if (parts.length != 2) {
+                delete(key);
+                return null;
+            }
+            return new UserState(Integer.parseInt(parts[0].trim()), Integer.parseInt(parts[1].trim()));
+        } catch (NumberFormatException e) {
+            log.warn("Redis 用户鉴权状态缓存格式非法，回源查库（userId={}）：{}", userId, e.getMessage());
+            delete(key);
+            return null;
         } catch (Exception e) {
-            log.warn("Redis 读取用户状态缓存失败（userId={}）：{}", userId, e.getMessage());
+            log.warn("Redis 读取用户鉴权状态缓存失败（userId={}）：{}", userId, e.getMessage());
             return null;
         }
     }
 
     /**
-     * 删除用户状态缓存（用户状态变更/账号删除时主动失效，保证禁用即时生效；异常空转）。
+     * 删除用户鉴权状态缓存（状态变更 / 版本号自增时主动失效）：删除成功即即时生效；
+     * Redis 异常时由 {@link #delete(String)} 内部 catch 告警空转，旧快照最多残留一个 TTL（≤60s，见拦截器注释）。
      */
-    public void removeUserStatus(Long userId) {
+    public void removeUserState(Long userId) {
         if (userId == null) {
             return;
         }
-        delete(USER_STATUS_KEY_PREFIX + userId);
+        delete(USER_STATE_KEY_PREFIX + userId);
     }
 
     /** 组装登录会话 Key：auth:token:{userId} */
@@ -311,16 +335,16 @@ public class RedisCache {
 
     /* ==================== 登录失败计数与锁定（N1 修复：登录状态迁 Redis，键 TTL 天然淘汰） ==================== */
 
-    /** 登录失败计数 Key 前缀（完整 Key = 前缀 + 账号:角色；计数 TTL=锁定窗口，到期自动清除） */
+    /** 登录失败计数 Key 前缀（完整 Key = 前缀 + 规范化登录账号；计数 TTL=锁定窗口，到期自动清除） */
     public static final String LOGIN_FAIL_KEY_PREFIX = "auth:login:fail:";
-    /** 登录锁定 Key 前缀（完整 Key = 前缀 + 账号:角色；锁定键 TTL=锁定窗口，到期自动解锁） */
+    /** 登录锁定 Key 前缀（完整 Key = 前缀 + 规范化登录账号；锁定键 TTL=锁定窗口，到期自动解锁） */
     public static final String LOGIN_LOCK_KEY_PREFIX = "auth:login:lock:";
 
     /**
      * 登录失败计数 +1（INCR + 每次刷新 EXPIRE，TTL=锁定窗口；到期 Key 自动清除，天然淘汰无内存增长）。
      * 异常不阻断登录（fail-open）：返回 0，由调用方按「未命中」处理。
      *
-     * @param key        账号:角色（业务侧拼接，本方法补前缀）
+     * @param key        规范化登录账号（业务侧完成 trim + Locale.ROOT 小写，本方法补前缀）
      * @param ttlSeconds 计数 TTL（锁定窗口分钟数换算秒）
      * @return 最新失败计数（≥1）；未启用/异常返回 0
      */
@@ -341,23 +365,27 @@ public class RedisCache {
     }
 
     /**
-     * 写入账号锁定标记（SET + TTL=锁定窗口；到期自动解锁；异常空转，不阻断登录）。
+     * 写入账号锁定标记（SET + TTL=锁定窗口；到期自动解锁）。
+     *
+     * @return true=共享锁写入成功；false=未启用、参数无效或异常，调用方必须写内存 TTL 锁兜底
      */
-    public void lockLogin(String key, long ttlSeconds) {
+    public boolean lockLogin(String key, long ttlSeconds) {
         if (!isEnabled() || StrUtil.isBlank(key)) {
-            return;
+            return false;
         }
         try {
             redisTemplate.opsForValue().set(LOGIN_LOCK_KEY_PREFIX + key, "1", ttlSeconds, TimeUnit.SECONDS);
+            return true;
         } catch (Exception e) {
-            log.warn("Redis 写入登录锁定失败（key={}）：{}", key, e.getMessage());
+            log.warn("Redis 写入登录锁定失败，交由业务层写内存 TTL 锁（key={}）：{}", key, e.getMessage());
+            return false;
         }
     }
 
     /**
      * 账号是否处于锁定（锁定键存在即锁定）。
      *
-     * @return true=锁定中；false=未锁定 / 未启用 / 异常（异常按未锁定处理，不阻断登录）
+     * @return true=共享锁存在；false=未锁定 / 未启用 / 异常（调用方须同时检查本地降级锁）
      */
     public boolean isLoginLocked(String key) {
         if (!isEnabled() || StrUtil.isBlank(key)) {
@@ -366,7 +394,7 @@ public class RedisCache {
         try {
             return Boolean.TRUE.equals(redisTemplate.hasKey(LOGIN_LOCK_KEY_PREFIX + key));
         } catch (Exception e) {
-            // Redis 不可用：按未锁定放行，避免 Redis 故障阻断登录（降级）
+            // 此处只表示共享锁不可读；业务层会先检查本地降级锁，故障期间形成的锁不会因此失效。
             log.warn("Redis 读取登录锁定失败（key={}）：{}", key, e.getMessage());
             return false;
         }

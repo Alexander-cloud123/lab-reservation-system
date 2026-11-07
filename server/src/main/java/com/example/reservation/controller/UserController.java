@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 用户模块控制器（R1：登录 / 注册 / 当前用户信息；R2：管理端用户管理）
  *
- * @author reservation-team
+ * @author hyr
  */
 @Tag(name = "用户模块", description = "登录、注册、当前用户信息、管理端用户管理")
 @RestController
@@ -46,10 +46,10 @@ public class UserController {
     }
 
     /**
-     * 退出登录（Redis 加分项）：删除服务端会话，登出后当前 Token 立即失效；
-     * 需携带 Token（拦截器据此识别用户并写入 UserContext）；接口路径/参数风格与现有接口保持一致
+     * 退出登录：自增 sys_user.token_version 并清理服务端会话（Redis 加分项），
+     * 当前 Token 立即失效；需携带 Token（拦截器据此识别用户并写入 UserContext）
      */
-    @Operation(summary = "退出登录", description = "删除 Redis 登录会话，登出后当前 Token 立即失效（需携带 Token）")
+    @Operation(summary = "退出登录", description = "自增 Token 版本号并删除服务端会话，登出后当前 Token 立即失效（Redis 关闭时同样生效）；需携带 Token")
     @PostMapping("/logout")
     public Result<Void> logout() {
         userService.logout();
@@ -98,9 +98,10 @@ public class UserController {
 
     /**
      * 修改密码（R4 个人中心）
-     * 验证原密码；新密码长度不少于 6 位、两次一致，BCrypt 加密存储
+     * 验证原密码；新密码长度不少于 6 位、两次一致，BCrypt 加密存储；
+     * 改密成功后自增 Token 版本号，旧 Token 立即失效（需用新密码重新登录）
      */
-    @Operation(summary = "修改密码", description = "验证原密码后修改，新密码 BCrypt 加密存储")
+    @Operation(summary = "修改密码", description = "验证原密码后修改，新密码 BCrypt 加密存储；改密成功后旧 Token 立即失效")
     @PutMapping("/password")
     public Result<Void> updatePassword(@RequestBody PasswordDTO dto) {
         userService.updatePassword(dto);
@@ -122,9 +123,9 @@ public class UserController {
     }
 
     /**
-     * 管理端：启用/禁用用户（禁用后该用户无法登录；禁止操作当前登录管理员自己）
+     * 管理端：启用/禁用用户（禁用后该用户无法登录且已签发 Token 立即失效；禁止操作当前登录管理员自己）
      */
-    @Operation(summary = "用户管理-启用/禁用", description = "status：0-禁用，1-正常")
+    @Operation(summary = "用户管理-启用/禁用", description = "status：0-禁用，1-正常；状态变更后该用户已签发 Token 立即失效")
     @PutMapping("/manage/{id}/status")
     public Result<Void> updateUserStatus(@PathVariable Long id, @RequestBody UserStatusDTO dto) {
         userService.updateUserStatus(id, dto.getStatus());
@@ -133,8 +134,9 @@ public class UserController {
 
     /**
      * 管理端：重置用户密码为默认密码（123456，BCrypt 存储；禁止操作当前登录管理员自己）
+     * 重置后自增 Token 版本号，该用户已签发 Token 立即失效
      */
-    @Operation(summary = "用户管理-重置密码", description = "重置为默认密码 123456，BCrypt 加密存储")
+    @Operation(summary = "用户管理-重置密码", description = "重置为默认密码 123456，BCrypt 加密存储；重置后该用户已签发 Token 立即失效")
     @PutMapping("/manage/{id}/password")
     public Result<Void> resetPassword(@PathVariable Long id) {
         userService.resetPassword(id);

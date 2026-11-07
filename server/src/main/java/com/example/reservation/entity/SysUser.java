@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  * 用户实体（sys_user）
  * role：0-学生，1-管理员；status：0-禁用，1-正常；password 为 BCrypt 密文
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 @TableName("sys_user")
@@ -46,6 +46,13 @@ public class SysUser {
 
     /** 状态：0-禁用，1-正常 */
     private Integer status;
+
+    /**
+     * Token 版本号（登出 / 改密 / 管理员重置 / 禁用时自增）。
+     * JWT 签发时携带该值，拦截器与库中当前值比对，不一致的旧 Token 立即失效——
+     * 使服务端撤销不依赖 Redis（Redis 关闭、进程重启、多实例部署下同样成立）。
+     */
+    private Integer tokenVersion;
 
     /** 创建时间（自动填充） */
     @TableField(fill = FieldFill.INSERT)

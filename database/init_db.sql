@@ -23,6 +23,7 @@ CREATE TABLE sys_user (
     email       VARCHAR(50)  NULL COMMENT '邮箱',
     role        TINYINT      NOT NULL DEFAULT 0 COMMENT '角色：0-学生，1-管理员',
     status      TINYINT      NOT NULL DEFAULT 1 COMMENT '状态：0-禁用，1-正常',
+    token_version INT        NOT NULL DEFAULT 0 COMMENT 'Token 版本号：登出/改密/重置/禁用时自增，JWT 携带并比对，旧 Token 立即失效',
     create_time DATETIME     NOT NULL COMMENT '创建时间',
     update_time DATETIME     NOT NULL COMMENT '更新时间',
     PRIMARY KEY (id),

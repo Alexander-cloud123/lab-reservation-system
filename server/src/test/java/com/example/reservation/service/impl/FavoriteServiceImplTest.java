@@ -37,7 +37,7 @@ import static org.mockito.Mockito.when;
  * 改为"方法级"断言——修复的本质是"改用 sys_user 行加锁读"，因此断言调用了 selectOne(FOR UPDATE)
  * 且其调用顺序先于 selectCount 与 insert。
  *
- * @author reservation-team
+ * @author hyr
  */
 @ExtendWith(MockitoExtension.class)
 class FavoriteServiceImplTest {
@@ -84,7 +84,7 @@ class FavoriteServiceImplTest {
     void toggleFavorite_locksUserBeforeCountAndInsert() {
         when(userMapper.selectOne(any())).thenReturn(new SysUser());
         when(favoriteMapper.selectOne(any())).thenReturn(null);
-        when(classroomMapper.selectById(any())).thenReturn(enabledRoom());
+        when(classroomMapper.selectOne(any())).thenReturn(enabledRoom());
         when(favoriteMapper.selectCount(any())).thenReturn(9L);
 
         Boolean result = favoriteService.toggleFavorite(1L);
@@ -92,8 +92,9 @@ class FavoriteServiceImplTest {
         assertTrue(result);
         // 修复本质：对 sys_user 行加锁（selectOne FOR UPDATE）必须是事务第一条语句，
         // 且加锁先于计数与插入——否则先普通读建立旧 read view，锁内计数仍读旧快照、上限可被突破
-        InOrder inOrder = inOrder(userMapper, favoriteMapper);
+        InOrder inOrder = inOrder(userMapper, classroomMapper, favoriteMapper);
         inOrder.verify(userMapper).selectOne(any());
+        inOrder.verify(classroomMapper).selectOne(any());
         inOrder.verify(favoriteMapper).selectCount(any());
         inOrder.verify(favoriteMapper).insert(any(UserFavorite.class));
     }
@@ -103,7 +104,7 @@ class FavoriteServiceImplTest {
     void toggleFavorite_rejectsWhenLimitReached() {
         when(userMapper.selectOne(any())).thenReturn(new SysUser());
         when(favoriteMapper.selectOne(any())).thenReturn(null);
-        when(classroomMapper.selectById(any())).thenReturn(enabledRoom());
+        when(classroomMapper.selectOne(any())).thenReturn(enabledRoom());
         when(favoriteMapper.selectCount(any())).thenReturn(10L);
 
         BusinessException ex = assertThrows(BusinessException.class,

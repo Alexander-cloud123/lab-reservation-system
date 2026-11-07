@@ -13,6 +13,7 @@ import com.example.reservation.common.TimeUtil;
 import com.example.reservation.common.UserContext;
 import com.example.reservation.config.RedisCache;
 import com.example.reservation.config.RedisProperties;
+import com.example.reservation.config.TransactionCacheInvalidator;
 import com.example.reservation.dto.ClassroomDTO;
 import com.example.reservation.entity.Classroom;
 import com.example.reservation.entity.Reservation;
@@ -29,6 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.HashSet;
 import java.util.List;
@@ -40,7 +42,7 @@ import java.util.stream.Collectors;
  * 教室业务实现
  * 删除保护规则（R2）：该教室存在任何预约记录时禁止删除，返回 400 提示
  *
- * @author reservation-team
+ * @author hyr
  */
 @Service
 public class ClassroomServiceImpl implements ClassroomService {
@@ -94,7 +96,7 @@ public class ClassroomServiceImpl implements ClassroomService {
         classroom.setStatus(Constants.CLASSROOM_STATUS_ENABLED);
         classroomMapper.insert(classroom);
         // 缓存一致性：教室基础数据变更，失效看板 + 教室列表缓存（下次读回源重建）
-        redisCache.invalidateBusinessCaches();
+        TransactionCacheInvalidator.afterCommit(redisCache::invalidateBusinessCaches);
         return classroom.getId();
     }
 
@@ -117,7 +119,7 @@ public class ClassroomServiceImpl implements ClassroomService {
         classroom.setDescription(dto.getDescription());
         classroomMapper.updateById(classroom);
         // 缓存一致性：教室基础数据变更，失效看板 + 教室列表缓存
-        redisCache.invalidateBusinessCaches();
+        TransactionCacheInvalidator.afterCommit(redisCache::invalidateBusinessCaches);
     }
 
     @Override
@@ -146,7 +148,7 @@ public class ClassroomServiceImpl implements ClassroomService {
         favoriteMapper.delete(new LambdaQueryWrapper<UserFavorite>().eq(UserFavorite::getClassroomId, id));
         classroomMapper.deleteById(id);
         // 缓存一致性：教室删除，失效看板 + 教室列表缓存
-        redisCache.invalidateBusinessCaches();
+        TransactionCacheInvalidator.afterCommit(redisCache::invalidateBusinessCaches);
     }
 
     @Override
@@ -168,7 +170,7 @@ public class ClassroomServiceImpl implements ClassroomService {
         update.setStatus(status);
         classroomMapper.updateById(update);
         // 缓存一致性：教室启停影响学生端可见性与看板，失效相关缓存
-        redisCache.invalidateBusinessCaches();
+        TransactionCacheInvalidator.afterCommit(redisCache::invalidateBusinessCaches);
     }
 
     @Override
@@ -182,10 +184,12 @@ public class ClassroomServiceImpl implements ClassroomService {
         // 批量更新（条件：id in ids）
         LambdaUpdateWrapper<Classroom> wrapper = new LambdaUpdateWrapper<Classroom>()
                 .in(Classroom::getId, ids)
-                .set(Classroom::getStatus, status);
+                .set(Classroom::getStatus, status)
+                // Wrapper 更新不会触发实体自动填充，需显式维护 update_time。
+                .set(Classroom::getUpdateTime, LocalDateTime.now());
         int updated = classroomMapper.update(null, wrapper);
         // 缓存一致性：批量启停影响学生端可见性与看板，失效相关缓存
-        redisCache.invalidateBusinessCaches();
+        TransactionCacheInvalidator.afterCommit(redisCache::invalidateBusinessCaches);
         return updated;
     }
 
@@ -403,6 +407,11 @@ public class ClassroomServiceImpl implements ClassroomService {
         if (StrUtil.hasBlank(dto.getName(), dto.getBuilding(), dto.getRoomNo())) {
             throw new BusinessException("教室名称、楼栋、编号不能为空");
         }
+        validateLength(dto.getName(), "教室名称", Constants.CLASSROOM_NAME_MAX_LENGTH);
+        validateLength(dto.getBuilding(), "所属楼栋", Constants.CLASSROOM_BUILDING_MAX_LENGTH);
+        validateLength(dto.getRoomNo(), "教室编号", Constants.CLASSROOM_ROOM_NO_MAX_LENGTH);
+        validateLength(dto.getEquipment(), "设备说明", Constants.CLASSROOM_EQUIPMENT_MAX_LENGTH);
+        validateLength(dto.getDescription(), "备注描述", Constants.CLASSROOM_DESCRIPTION_MAX_LENGTH);
         if (dto.getType() == null) {
             throw new BusinessException("教室类型不能为空");
         }
@@ -416,6 +425,13 @@ public class ClassroomServiceImpl implements ClassroomService {
         }
         if (dto.getCapacity() <= 0) {
             throw new BusinessException("教室容量必须大于 0");
+        }
+    }
+
+    /** 字段长度与数据库/前端表单保持一致，直调接口也在进入 Mapper 前返回 400。 */
+    private void validateLength(String value, String fieldName, int maxLength) {
+        if (value != null && value.length() > maxLength) {
+            throw new BusinessException(fieldName + "过长（不超过 " + maxLength + " 字）");
         }
     }
 }

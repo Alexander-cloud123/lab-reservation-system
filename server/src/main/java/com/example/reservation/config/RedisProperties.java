@@ -9,14 +9,17 @@ import org.springframework.stereotype.Component;
  * 对应需求设计文档 2.2 第 145 行可选加分项：缓存热门教室数据、存储登录 Token。
  * 风格对齐 AI 模块 AiProperties：总开关 + 参数全部可配置，禁止硬编码。
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 @Component
 @ConfigurationProperties(prefix = "redis")
 public class RedisProperties {
 
-    /** Redis 总开关（默认 true；置为 false 或连接异常时，业务自动降级：纯 JWT 校验 + 直接查库，不阻断核心流程） */
+    /**
+     * Redis 总开关（默认 true）。仅明确置为 false 时采用无状态 JWT：此模式不能立即服务端撤销会话；
+     * 开启但连接异常时普通缓存回源，会话校验 fail closed，不退化为仅 JWT。
+     */
     private boolean enable = true;
 
     /** 登录 Token 相关配置 */

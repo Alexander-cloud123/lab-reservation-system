@@ -14,6 +14,7 @@ import com.example.reservation.mapper.ClassroomMapper;
 import com.example.reservation.mapper.ReservationMapper;
 import com.example.reservation.mapper.SysUserMapper;
 import com.example.reservation.mapper.UserFavoriteMapper;
+import com.example.reservation.service.ClassroomService;
 import com.example.reservation.service.FavoriteService;
 import com.example.reservation.service.ReservationService;
 import org.junit.jupiter.api.AfterEach;
@@ -36,6 +37,7 @@ import java.util.function.IntConsumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -57,7 +59,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>注意：本类<b>不能</b>标注 {@code @Transactional}——用例需要每个工作线程各自独立提交事务，
  * 若测试方法被纳入同一事务，行锁不会释放、并发语义完全失效。
  *
- * @author reservation-team
+ * @author hyr
  */
 @SpringBootTest
 class ConcurrencyIntegrationTest {
@@ -81,6 +83,9 @@ class ConcurrencyIntegrationTest {
     private FavoriteService favoriteService;
 
     @Autowired
+    private ClassroomService classroomService;
+
+    @Autowired
     private ReservationMapper reservationMapper;
 
     @Autowired
@@ -100,6 +105,9 @@ class ConcurrencyIntegrationTest {
 
     /** 并发提交/审核用例使用的教室 */
     private Long classroomId;
+
+    /** 收藏/删除竞态用例动态创建的教室，测试结束后兜底清理。 */
+    private final List<Long> transientClassroomIds = Collections.synchronizedList(new ArrayList<>());
 
     @BeforeEach
     void setUp() {
@@ -129,6 +137,12 @@ class ConcurrencyIntegrationTest {
                 .eq(Reservation::getReserveDate, TEST_DATE));
         favoriteMapper.delete(new LambdaQueryWrapper<UserFavorite>()
                 .eq(UserFavorite::getUserId, testUserId));
+        for (Long id : transientClassroomIds) {
+            favoriteMapper.delete(new LambdaQueryWrapper<UserFavorite>()
+                    .eq(UserFavorite::getClassroomId, id));
+            classroomMapper.deleteById(id);
+        }
+        transientClassroomIds.clear();
         userMapper.deleteById(testUserId);
         UserContext.clear();
     }
@@ -205,6 +219,41 @@ class ConcurrencyIntegrationTest {
         // 核心不变量：行锁串行化「计数+插入」后，收藏数精确等于上限，不会被并发突破
         assertEquals(Constants.FAVORITE_MAX_COUNT, countFavorites(),
                 "并发收藏不得突破上限 " + Constants.FAVORITE_MAX_COUNT);
+    }
+
+    @Test
+    @DisplayName("并发收藏/删除：最终不得留下指向已删教室的收藏")
+    void concurrentFavoriteAndDelete_neverLeavesDanglingFavorite() throws Exception {
+        for (int round = 0; round < 10; round++) {
+            Classroom room = new Classroom();
+            room.setName("收藏删除竞态测试");
+            room.setBuilding("测试楼");
+            // Base36 保证编号在 room_no VARCHAR(20) 内且各轮唯一。
+            room.setRoomNo("IT-FAV-" + Long.toString(System.nanoTime(), 36).toUpperCase());
+            room.setType(Constants.CLASSROOM_TYPE_NORMAL);
+            room.setCapacity(20);
+            room.setStatus(Constants.CLASSROOM_STATUS_ENABLED);
+            classroomMapper.insert(room);
+            Long id = room.getId();
+            transientClassroomIds.add(id);
+
+            List<Throwable> failures = runConcurrently(2, testUserId, Constants.ROLE_ADMIN, i -> {
+                if (i == 0) {
+                    favoriteService.toggleFavorite(id);
+                } else {
+                    classroomService.deleteClassroom(id);
+                }
+            });
+
+            assertTrue(failures.size() <= 1, "收藏/删除最多允许后到收藏方因教室不存在而失败");
+            for (Throwable failure : failures) {
+                assertInstanceOf(BusinessException.class, failure);
+                assertTrue(failure.getMessage().contains("教室不存在"));
+            }
+            assertNull(classroomMapper.selectById(id));
+            assertEquals(0L, favoriteMapper.selectCount(new LambdaQueryWrapper<UserFavorite>()
+                    .eq(UserFavorite::getClassroomId, id)), "删除后不能残留收藏引用");
+        }
     }
 
     /* ==================== 并发执行骨架 ==================== */

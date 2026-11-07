@@ -2,7 +2,9 @@ package com.example.reservation.service.impl;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.MybatisMapperBuilderAssistant;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.reservation.common.BusinessException;
 import com.example.reservation.common.Constants;
 import com.example.reservation.common.UserContext;
@@ -22,6 +24,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -31,10 +34,12 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -45,7 +50,7 @@ import static org.mockito.Mockito.when;
  *  - H3 可预约时段窗口后端强制（08:00-22:00 + 单次时长上限）
  *  - M1 状态流转条件更新（并发状态变更后写者拒绝，不覆盖前写）
  *
- * @author reservation-team
+ * @author hyr
  */
 @ExtendWith(MockitoExtension.class)
 class ReservationServiceImplTest {
@@ -124,14 +129,46 @@ class ReservationServiceImplTest {
         assertTrue(ex.getMessage().contains("8 小时"));
     }
 
+    /* ===== 服务层授权：不能依赖 /{id}/audit 的 URI 正则 ===== */
+
+    @Test
+    @DisplayName("授权：学生即使通过 +id 到达 Service 也不能单条审核")
+    void auditReservation_rejectsStudentBeforeDatabaseAccess() {
+        AuditDTO dto = new AuditDTO();
+        dto.setStatus(Constants.RES_STATUS_APPROVED);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> reservationService.auditReservation(1L, dto));
+
+        assertEquals(403, ex.getCode());
+        verifyNoInteractions(reservationMapper);
+    }
+
+    @Test
+    @DisplayName("授权：学生不能调用批量审核 Service")
+    void batchAudit_rejectsStudentBeforeDatabaseAccess() {
+        BatchAuditDTO dto = new BatchAuditDTO();
+        dto.setIds(List.of(1L));
+        dto.setStatus(Constants.RES_STATUS_APPROVED);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> reservationService.batchAudit(dto));
+
+        assertEquals(403, ex.getCode());
+        verifyNoInteractions(reservationMapper);
+    }
+
     /* ===== H1：批量审核批内互斥（同批重叠必须整批拒绝） ===== */
 
     @Test
     @DisplayName("H1：同批两条时段重叠的待审核记录被整批拒绝")
     void batchAudit_rejectsOverlapWithinBatch() {
+        UserContext.set(1L, "admin", Constants.ROLE_ADMIN);
         Reservation r1 = reservation(101L, LocalTime.of(9, 0), LocalTime.of(11, 0));
         Reservation r2 = reservation(102L, LocalTime.of(10, 0), LocalTime.of(12, 0));
         when(reservationMapper.selectBatchIds(any())).thenReturn(List.of(r1, r2));
+        // 教室行锁定后的当前读重取目标。
+        when(reservationMapper.selectList(any())).thenReturn(List.of(r1, r2));
 
         BatchAuditDTO dto = new BatchAuditDTO();
         dto.setIds(List.of(101L, 102L));
@@ -149,6 +186,7 @@ class ReservationServiceImplTest {
     @Test
     @DisplayName("H2：审核通过无冲突时完成条件更新")
     void auditReservation_approveWhenNoConflict() {
+        UserContext.set(1L, "admin", Constants.ROLE_ADMIN);
         Reservation r = reservation(1L, LocalTime.of(9, 0), LocalTime.of(11, 0));
         when(reservationMapper.selectById(1L)).thenReturn(r);
         when(classroomMapper.selectOne(any())).thenReturn(new Classroom());
@@ -163,7 +201,11 @@ class ReservationServiceImplTest {
 
         // 复审加锁读已执行（FOR UPDATE 查询已通过列表）+ 条件更新已执行
         verify(reservationMapper).selectList(any());
-        verify(reservationMapper).update(any(), any());
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        ArgumentCaptor<com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Reservation>> captor =
+                ArgumentCaptor.forClass(com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper.class);
+        verify(reservationMapper).update(any(), captor.capture());
+        assertTrue(captor.getValue().getSqlSet().contains("update_time"));
     }
 
     /* ===== M1：条件更新 + 影响行数校验（并发状态变更后写者不覆盖） ===== */
@@ -239,6 +281,37 @@ class ReservationServiceImplTest {
 
         // 通过时限校验后执行条件更新 → 取消成功
         verify(reservationMapper).update(any(), any());
+    }
+
+    @Test
+    @DisplayName("排序：今日优先在数据库分页前完成")
+    void pageMine_ordersTodayFirstBeforePagination() {
+        Page<Reservation> emptyPage = new Page<>();
+        when(reservationMapper.selectPage(any(), any())).thenReturn(emptyPage);
+
+        reservationService.pageMine(1, 10, null);
+
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        ArgumentCaptor<QueryWrapper<Reservation>> captor = ArgumentCaptor.forClass(QueryWrapper.class);
+        verify(reservationMapper).selectPage(any(), captor.capture());
+        String orderBy = captor.getValue().getCustomSqlSegment();
+        assertTrue(orderBy.contains("CASE WHEN reserve_date = CURDATE()"));
+        assertTrue(orderBy.indexOf("CASE WHEN") < orderBy.indexOf("create_time"));
+    }
+
+    @Test
+    @DisplayName("输入校验：驳回备注超过 255 字时返回 400 且不访问数据库")
+    void auditReservation_rejectsOverlongRemark() {
+        UserContext.set(1L, "admin", Constants.ROLE_ADMIN);
+        AuditDTO dto = new AuditDTO();
+        dto.setStatus(Constants.RES_STATUS_REJECTED);
+        dto.setAuditRemark("x".repeat(Constants.AUDIT_REMARK_MAX_LENGTH + 1));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> reservationService.auditReservation(1L, dto));
+
+        assertEquals(400, ex.getCode());
+        verifyNoInteractions(reservationMapper);
     }
 
     /* ===== 测试数据构造 ===== */

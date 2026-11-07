@@ -13,6 +13,7 @@ import com.example.reservation.common.PageValidator;
 import com.example.reservation.common.ResultCode;
 import com.example.reservation.common.UserContext;
 import com.example.reservation.config.RedisCache;
+import com.example.reservation.config.TransactionCacheInvalidator;
 import com.example.reservation.dto.LoginDTO;
 import com.example.reservation.dto.PasswordDTO;
 import com.example.reservation.dto.RegisterDTO;
@@ -28,9 +29,11 @@ import com.example.reservation.vo.UserVO;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,18 +42,18 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 /**
  * 用户业务实现
  *
- * @author reservation-team
+ * @author hyr
  */
 @Slf4j
 @Service
 public class UserServiceImpl implements UserService {
 
     /**
-     * 登录失败计数（N1：内存降级 Map，仅 Redis 未启用时使用；key=账号:角色 → 连续失败次数；
+     * 登录失败计数（内存降级 Map；key=规范化登录账号 → 连续失败次数；
      * 实例字段而非 static：@Service 单例下等价，且便于纯 Mockito 单测隔离）
      */
     private final Map<String, Integer> LOGIN_FAIL_COUNT = new ConcurrentHashMap<>();
-    /** 账号锁定截止时间戳（N1：内存降级 Map，仅 Redis 未启用时使用；key=账号:角色 → 解锁时刻） */
+    /** 账号锁定截止时间戳（内存降级 Map；key=规范化登录账号 → 解锁时刻；Redis 写锁失败时同样使用） */
     private final Map<String, Long> LOGIN_LOCK_UNTIL = new ConcurrentHashMap<>();
     /** 内存降级路径写入顺序队列（N1：配合容量上限定向清理，删最旧写入条目；禁止 clear() 全清） */
     private final Queue<String> LOGIN_TRACK_ORDER = new ConcurrentLinkedQueue<>();
@@ -81,22 +84,23 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException("角色参数不合法");
         }
 
-        // N1 修复：账号锁定检查（锁定状态优先落 Redis：auth:login:lock:{账号}:{角色}，键存在即锁定；
-        // Redis 未启用时降级内存 Map 解锁时刻判断；锁定策略不变：连续 5 次失败锁 10 分钟）
-        String failKey = dto.getUsername() + ":" + dto.getRole();
-        if (isLoginLocked(failKey)) {
-            long remainMinutes = Math.max(1, (getLoginLockRemainSeconds(failKey) + 59) / 60);
+        // 登录查询与防爆破桶使用同一规范化账号，匹配 MySQL utf8mb4_general_ci 的大小写/尾随空格语义；
+        // 桶只包含账号，不包含客户端提交的 role，避免 ADMIN/Admin/admin 空格及角色变体换桶绕过。
+        String loginName = normalizeLoginUsername(dto.getUsername());
+        // 锁定策略不变：连续 5 次失败锁 10 分钟；Redis 未启用或不可用时均读内存降级锁。
+        if (isLoginLocked(loginName)) {
+            long remainMinutes = Math.max(1, (getLoginLockRemainSeconds(loginName) + 59) / 60);
             throw new BusinessException("登录失败次数过多，账号已临时锁定，请约 " + remainMinutes + " 分钟后再试");
         }
 
         SysUser user = userMapper.selectOne(
-                new LambdaQueryWrapper<SysUser>().eq(SysUser::getUsername, dto.getUsername()));
+                new LambdaQueryWrapper<SysUser>().eq(SysUser::getUsername, loginName));
         // 账号不存在与密码错误统一提示，避免账号枚举
         if (user == null || !BCrypt.checkpw(dto.getPassword(), user.getPassword())) {
-            // N1：失败计数 +1（Redis INCR+TTL 自动淘汰 / 内存 merge），达到阈值进入锁定窗口（锁定期间直接拦截）
-            long fails = recordLoginFail(failKey);
+            // 失败计数 +1（Redis INCR+TTL 自动淘汰 / 内存 merge），达到阈值进入锁定窗口（锁定期间直接拦截）
+            long fails = recordLoginFail(loginName);
             if (fails >= Constants.LOGIN_FAIL_MAX_TIMES) {
-                lockAccount(failKey);
+                lockAccount(loginName);
             }
             throw new BusinessException("账号或密码错误");
         }
@@ -109,12 +113,13 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException("角色选择与账号类型不匹配");
         }
 
-        // 登录成功：清除失败计数与锁定状态（N1：Redis/内存双路径统一清理）
-        clearLoginTrack(failKey);
+        // 登录成功：清除失败计数与锁定状态（Redis/内存双路径统一清理）
+        clearLoginTrack(loginName);
 
-        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
-        // Redis 加分项：登录会话写入 Redis（Key=auth:token:{userId}，TTL 与 JWT 一致）；
-        // 同一用户重复登录覆盖旧 Token，实现「单点会话」（旧 Token 立即失效）；Redis 异常时封装层自动降级
+        // Token 携带当前版本号：此后任何撤销动作（登出/改密/重置/禁用）自增版本，旧 Token 立即失效。
+        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole(), user.getTokenVersion());
+        // Redis 启用：同一用户重复登录覆盖旧 Token，实现单点会话；会话读写异常时后续校验 fail closed。
+        // Redis 禁用：没有单点会话，但撤销仍由 token_version 在服务端持久生效。
         redisCache.saveToken(user.getId(), token, jwtUtil.getExpireSeconds());
         // AI 开关随登录下发：前端据此直接决定 AI 入口显隐，省掉一次 /ai/recommend 探测调用
         return new LoginVO(token, UserVO.from(user), aiConfigService.isAiEnabled());
@@ -122,11 +127,11 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public void logout() {
-        // 删除 Redis 会话，登出后该 Token 立即失效（拦截器查不到会话即返回 401）；
-        // 未登录场景 UserContext 无用户，直接返回；Redis 未启用/异常由封装层降级为空操作
+        // 服务端持久撤销：数据库 token_version 自增（权威），Redis 会话与状态缓存提交后清理。
+        // Redis 关闭或删除失败都不影响撤销结果——旧 Token 因版本不匹配必然 401。
         Long userId = UserContext.getUserId();
         if (userId != null) {
-            redisCache.removeToken(userId);
+            revokeSession(userId);
         }
     }
 
@@ -213,6 +218,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void updateUserStatus(Long id, Integer status) {
         if (id == null) {
             throw new BusinessException("用户 ID 不能为空");
@@ -236,11 +242,13 @@ public class UserServiceImpl implements UserService {
         update.setId(id);
         update.setStatus(status);
         userMapper.updateById(update);
-        // M10 配合：用户状态变更（禁用/启用）后主动失效状态缓存，保证下次请求即时生效（不等 60s TTL）
-        redisCache.removeUserStatus(id);
+        // 状态变更即撤销该用户已签发 Token（禁用→旧 Token 401；重新启用后也需重新登录），
+        // 并在提交后清理状态缓存，保证下一次请求即时生效（不等 60s TTL）
+        revokeSession(id);
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void resetPassword(Long id) {
         if (id == null) {
             throw new BusinessException("用户 ID 不能为空");
@@ -258,10 +266,10 @@ public class UserServiceImpl implements UserService {
         update.setId(id);
         update.setPassword(BCrypt.hashpw(Constants.DEFAULT_PASSWORD));
         userMapper.updateById(update);
-        // M2 修复：重置密码后立即失效该用户 Redis 会话（"改密即下线"），旧 Token 不再可用；
-        // N1：与 login 口径一致清理失败计数与锁定（管理员重置即人工解锁；Redis/内存双路径）
-        redisCache.removeToken(id);
-        clearLoginTrack(user.getUsername() + ":" + user.getRole());
+        // 重置密码后撤销该用户已签发 Token（token_version 自增，与密码更新同事务，任一步失败整体回滚）；
+        // 同时按登录规范化口径清理失败计数与锁定（管理员重置即人工解锁；不引入角色维度）。
+        revokeSession(id);
+        clearLoginTrack(normalizeLoginUsername(user.getUsername()));
     }
 
     @Override
@@ -334,6 +342,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void updatePassword(PasswordDTO dto) {
         // 必填校验
         if (StrUtil.hasBlank(dto.getOldPassword(), dto.getNewPassword(), dto.getConfirmPassword())) {
@@ -359,47 +368,78 @@ public class UserServiceImpl implements UserService {
         update.setId(user.getId());
         update.setPassword(BCrypt.hashpw(dto.getNewPassword()));
         userMapper.updateById(update);
-        // M2 修复：修改密码后立即失效本人 Redis 会话（"改密即下线"），
-        // 旧 Token 在改密瞬间即不可用（此前可继续使用最长 24 小时）
-        redisCache.removeToken(user.getId());
-        // N1 补齐：改密成功后与 resetPassword 一致清理失败计数与锁定（改密即解锁，Redis/内存双路径）
-        clearLoginTrack(user.getUsername() + ":" + user.getRole());
+        // 改密后撤销本人已签发 Token（token_version 自增，与密码更新同事务）；提交后清理会话与状态缓存。
+        // 旧 Token 无论 Redis 是否可用、实例是否重启都立即失效，无需再向上报告撤销不确定性。
+        revokeSession(user.getId());
+        clearLoginTrack(normalizeLoginUsername(user.getUsername()));
     }
 
-    /* ==================== 登录失败计数与锁定（N1 修复：Redis 优先 + 内存降级带容量上限） ==================== */
+    /**
+     * 撤销该用户全部已签发 Token：sys_user.token_version 原子自增（撤销凭据在数据库，跨实例/重启有效），
+     * 并在事务提交后清理 Redis 会话与鉴权状态缓存（提交前清理会与回滚/并发回填竞态）。
+     */
+    private void revokeSession(Long userId) {
+        if (userId == null) {
+            return;
+        }
+        if (userMapper.bumpTokenVersion(userId) == 0) {
+            // 用户已被删除：没有可撤销的 Token，仅记录日志（调用方此前已做过存在性校验）
+            log.warn("撤销会话时用户不存在，跳过版本自增（userId={}）", userId);
+            return;
+        }
+        TransactionCacheInvalidator.afterCommit(() -> redisCache.invalidateSession(userId));
+    }
+
+    /** 登录专用账号规范化；注册唯一性与其它业务查询仍保留原输入，不扩大改动范围。 */
+    private String normalizeLoginUsername(String username) {
+        return username.trim().toLowerCase(Locale.ROOT);
+    }
+
+    /* ==================== 登录失败计数与锁定（Redis 优先 + 内存降级带容量上限） ==================== */
 
     /**
-     * 账号是否处于锁定（Redis 优先：锁定键存在即锁定；Redis 未启用时读内存 Map 解锁时刻）。
+     * 账号是否处于锁定。先读本地锁，保证 Redis 写锁失败后的降级锁在故障及恢复切换期间都真实有效；
+     * 本地未锁定时再读共享 Redis 锁，Redis 读异常仍可由本地锁兜底。
      */
     private boolean isLoginLocked(String key) {
-        if (redisCache.isEnabled()) {
-            return redisCache.isLoginLocked(key);
+        if (isMemoryLoginLocked(key)) {
+            return true;
         }
-        Long lockUntil = LOGIN_LOCK_UNTIL.get(key);
-        return lockUntil != null && System.currentTimeMillis() < lockUntil;
+        return redisCache.isEnabled() && redisCache.isLoginLocked(key);
     }
 
-    /**
-     * 锁定剩余秒数（提示剩余时间；未锁定返回 0；Redis 未启用时按内存解锁时刻换算）。
-     */
+    /** 锁定剩余秒数；两种锁并存时取较长窗口，Redis 读异常不影响本地锁的剩余时间。 */
     private long getLoginLockRemainSeconds(String key) {
+        long memoryRemain = getMemoryLoginLockRemainSeconds(key);
         if (redisCache.isEnabled()) {
-            return redisCache.getLoginLockRemainSeconds(key);
+            return Math.max(memoryRemain, redisCache.getLoginLockRemainSeconds(key));
         }
+        return memoryRemain;
+    }
+
+    /** 读取本地锁并惰性清理已过期条目，模拟 Redis TTL 到期自动删除。 */
+    private boolean isMemoryLoginLocked(String key) {
+        return getMemoryLoginLockRemainSeconds(key) > 0;
+    }
+
+    /** 本地锁剩余秒数（向上取整）；到期时仅删除当前 key，避免过期数据无限滞留。 */
+    private long getMemoryLoginLockRemainSeconds(String key) {
         Long lockUntil = LOGIN_LOCK_UNTIL.get(key);
         if (lockUntil == null) {
             return 0;
         }
-        return Math.max(0, (lockUntil - System.currentTimeMillis() + 999) / 1000);
+        long remainMillis = lockUntil - System.currentTimeMillis();
+        if (remainMillis <= 0) {
+            LOGIN_LOCK_UNTIL.remove(key, lockUntil);
+            return 0;
+        }
+        return (remainMillis + 999) / 1000;
     }
 
     /**
      * 失败计数 +1，返回最新值（Redis INCR+TTL 天然淘汰；内存 merge + 容量定向清理）。
-     * N1 残留 B 修复：以「返回值」而非「开关」判定走哪条路径——Redis 启用但写入异常
-     * （incr 返回 0）时自动退回内存计数，避免「Redis 启用即防护静默归零」；故障窗口内退化，
-     * 恢复后以 Redis 计数为准。
-     * 边界说明：读锁定键失败仍按「未锁定」放行（RedisCache.isLoginLocked 既有 fail-open 语义，
-     * 与项目 SKIP 降级口径一致）——本轮只补写入/计数路径，不改读取语义。
+     * 以返回值而非开关判定计数路径：Redis 启用但写入异常（incr 返回 0）时退回内存计数；
+     * 故障窗口内退化，恢复后以 Redis 计数为准，但已写入的本地锁仍会执行到自身 TTL 到期。
      */
     private long recordLoginFail(String key) {
         if (redisCache.isEnabled()) {
@@ -419,26 +459,28 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * 写入锁定状态（Redis 锁键 TTL=锁定窗口；内存记录解锁时刻并清计数）。
+     * 写入锁定状态。Redis 写锁返回失败时必须落到同一账号的本地 TTL 锁，不能只写计数后放行；
+     * 达到阈值后清除内存失败计数，避免故障恢复后旧计数导致一次失败立即再次锁定。
      */
     private void lockAccount(String key) {
-        if (redisCache.isEnabled()) {
-            redisCache.lockLogin(key, Constants.LOGIN_LOCK_MINUTES * 60L);
-            return;
+        long lockSeconds = Constants.LOGIN_LOCK_MINUTES * 60L;
+        boolean redisLocked = redisCache.isEnabled() && redisCache.lockLogin(key, lockSeconds);
+        if (!redisLocked) {
+            if (redisCache.isEnabled()) {
+                log.warn("Redis 登录锁定不可用，写入内存 TTL 锁（key={}）", key);
+            }
+            LOGIN_LOCK_UNTIL.put(key, System.currentTimeMillis() + lockSeconds * 1000L);
+            LOGIN_TRACK_ORDER.offer(key);
+            capTrackOrder();
         }
-        LOGIN_LOCK_UNTIL.put(key, System.currentTimeMillis() + Constants.LOGIN_LOCK_MINUTES * 60_000L);
         LOGIN_FAIL_COUNT.remove(key);
-        LOGIN_TRACK_ORDER.offer(key);
-        capTrackOrder();
+        trimLoginTrack();
     }
 
-    /**
-     * 清除该账号失败计数与锁定（登录成功 / 改密 / 重置 = 解锁；Redis/内存双路径）。
-     */
+    /** 清除该账号失败计数与锁定（登录成功 / 改密 / 重置 = 解锁）；本地状态始终清理，不能遗留降级锁。 */
     private void clearLoginTrack(String key) {
         if (redisCache.isEnabled()) {
             redisCache.clearLoginTrack(key);
-            return;
         }
         LOGIN_FAIL_COUNT.remove(key);
         LOGIN_LOCK_UNTIL.remove(key);

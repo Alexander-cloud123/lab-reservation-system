@@ -12,7 +12,7 @@ import com.example.reservation.vo.UserVO;
 /**
  * 用户业务接口
  *
- * @author reservation-team
+ * @author hyr
  */
 public interface UserService {
 
@@ -22,8 +22,8 @@ public interface UserService {
     LoginVO login(LoginDTO dto);
 
     /**
-     * 退出登录：删除 Redis 中的登录会话（Redis 加分项），登出后当前 Token 立即失效；
-     * Redis 未启用/异常时由封装层降级为空操作，不影响前端清除本地登录态。
+     * 退出登录：自增 sys_user.token_version（服务端持久撤销，权威凭据）并清理 Redis 会话，
+     * 登出后当前 Token 立即失效；Redis 未启用/异常只影响单点会话与缓存，不影响撤销结果。
      */
     void logout();
 
@@ -44,12 +44,13 @@ public interface UserService {
     PageResult<UserVO> pageUsers(long page, long size, String keyword, Integer role, Integer status);
 
     /**
-     * 管理员：启用/禁用用户（禁用后该用户无法登录；禁止操作当前登录管理员自己）
+     * 管理员：启用/禁用用户（禁用后该用户无法登录且已签发 Token 立即失效；禁止操作当前登录管理员自己）
      */
     void updateUserStatus(Long id, Integer status);
 
     /**
-     * 管理员：重置用户密码为默认密码（BCrypt 存储；禁止操作当前登录管理员自己）
+     * 管理员：重置用户密码为默认密码（BCrypt 存储；重置后该用户已签发 Token 立即失效；
+     * 禁止操作当前登录管理员自己）
      */
     void resetPassword(Long id);
 
@@ -64,7 +65,7 @@ public interface UserService {
     void updateInfo(UserInfoDTO dto);
 
     /**
-     * 修改密码（R4）：验证原密码，新密码 BCrypt 加密存储
+     * 修改密码（R4）：验证原密码，新密码 BCrypt 加密存储；成功后旧 Token 立即失效
      */
     void updatePassword(PasswordDTO dto);
 }

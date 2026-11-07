@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
  *  - M4/R1：新增收藏用 sys_user 数据库行锁串行化"计数+插入"（原用户维度 Redis 互斥锁方案已替换，
  *    行锁随事务释放、无 Redis 降级语义，且无 gap-lock 死锁风险），并发超限被阻止；唯一索引冲突捕获后幂等返回。
  *
- * @author reservation-team
+ * @author hyr
  */
 @Service
 public class FavoriteServiceImpl implements FavoriteService {
@@ -78,8 +78,10 @@ public class FavoriteServiceImpl implements FavoriteService {
             return false;
         }
 
-        // 未收藏 → 新增收藏：教室必须存在且可用
-        Classroom room = classroomMapper.selectById(classroomId);
+        // 未收藏 → 新增收藏：与删除教室共用教室行锁，闭合“查到教室后、插入收藏前教室被删除”的竞态。
+        // 删除方先持教室锁再清理收藏；本路径持锁期间完成计数与插入，因此不会留下指向已删教室的隐藏收藏。
+        Classroom room = classroomMapper.selectOne(new LambdaQueryWrapper<Classroom>()
+                .eq(Classroom::getId, classroomId).last("FOR UPDATE"));
         ClassroomValidator.requireExists(room);
         // 行锁串行化后，锁内计数为最新已提交值（前一个并发请求已完成的新增在此必可见）
         Long count = favoriteMapper.selectCount(

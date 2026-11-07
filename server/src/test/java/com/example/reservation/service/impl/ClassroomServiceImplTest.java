@@ -3,9 +3,11 @@ package com.example.reservation.service.impl;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.MybatisMapperBuilderAssistant;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.example.reservation.common.BusinessException;
 import com.example.reservation.common.Constants;
 import com.example.reservation.common.UserContext;
 import com.example.reservation.config.RedisCache;
+import com.example.reservation.dto.ClassroomDTO;
 import com.example.reservation.config.RedisProperties;
 import com.example.reservation.entity.Classroom;
 import com.example.reservation.entity.Reservation;
@@ -21,6 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -32,10 +35,13 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -43,7 +49,7 @@ import static org.mockito.Mockito.when;
  * 断言策略与 FavoriteServiceImplTest 一致：方法级断言"调用了哪个 mapper 方法"，
  * 锁住修复点（存在性校验改为加锁读；详情路径按身份裁剪用途）。
  *
- * @author reservation-team
+ * @author hyr
  */
 @ExtendWith(MockitoExtension.class)
 class ClassroomServiceImplTest {
@@ -133,7 +139,52 @@ class ClassroomServiceImplTest {
         assertEquals(Boolean.TRUE, mySlot.getMine());
     }
 
+    @Test
+    @DisplayName("输入校验：超长教室名称在进入数据库前返回 400")
+    void createClassroom_rejectsOverlongName() {
+        ClassroomDTO dto = validClassroomDTO();
+        dto.setName("x".repeat(Constants.CLASSROOM_NAME_MAX_LENGTH + 1));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> classroomService.createClassroom(dto));
+
+        assertEquals(400, ex.getCode());
+        verifyNoInteractions(classroomMapper);
+    }
+
+    @Test
+    @DisplayName("输入校验：超长备注在进入数据库前返回 400")
+    void createClassroom_rejectsOverlongDescription() {
+        ClassroomDTO dto = validClassroomDTO();
+        dto.setDescription("x".repeat(Constants.CLASSROOM_DESCRIPTION_MAX_LENGTH + 1));
+
+        assertThrows(BusinessException.class, () -> classroomService.createClassroom(dto));
+        verifyNoInteractions(classroomMapper);
+    }
+
+    @Test
+    @DisplayName("Wrapper 批量启停显式更新 update_time")
+    void batchUpdateStatus_setsUpdateTime() {
+        classroomService.batchUpdateStatus(List.of(1L, 2L), Constants.CLASSROOM_STATUS_DISABLED);
+
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        ArgumentCaptor<com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Classroom>> captor =
+                ArgumentCaptor.forClass(com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper.class);
+        verify(classroomMapper).update(any(), captor.capture());
+        assertTrue(captor.getValue().getSqlSet().contains("update_time"));
+    }
+
     /* ===== 测试数据构造 ===== */
+
+    private ClassroomDTO validClassroomDTO() {
+        ClassroomDTO dto = new ClassroomDTO();
+        dto.setName("A101");
+        dto.setBuilding("信息楼");
+        dto.setRoomNo("A101");
+        dto.setType(Constants.CLASSROOM_TYPE_NORMAL);
+        dto.setCapacity(60);
+        return dto;
+    }
 
     /** 预置一条已通过预约（指定用户与用途） */
     private Reservation reservation(long id, LocalTime start, LocalTime end, long userId, String purpose) {

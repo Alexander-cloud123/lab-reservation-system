@@ -82,7 +82,7 @@ redis:
 # ===== 应用自定义配置 =====
 app:
   jwt:
-    # Token 签名密钥：默认值仅供本地开发，生产/演示环境必须通过环境变量 JWT_SECRET 注入
+    # 默认值仅用于无显式 profile 或 dev/local/test；其他 profile 由 JwtSecretGuard 强制注入独立强密钥
     secret: ${JWT_SECRET:reservation-system-jwt-secret-2026}
     expire-hours: 24
   cors:

@@ -2,6 +2,7 @@ package com.example.reservation.service.impl;
 
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.reservation.common.BusinessException;
@@ -9,9 +10,11 @@ import com.example.reservation.common.ClassroomValidator;
 import com.example.reservation.common.Constants;
 import com.example.reservation.common.PageResult;
 import com.example.reservation.common.PageValidator;
+import com.example.reservation.common.ResultCode;
 import com.example.reservation.common.TimeUtil;
 import com.example.reservation.common.UserContext;
 import com.example.reservation.config.RedisCache;
+import com.example.reservation.config.TransactionCacheInvalidator;
 import com.example.reservation.dto.AuditDTO;
 import com.example.reservation.dto.BatchAuditDTO;
 import com.example.reservation.dto.ReservationDTO;
@@ -52,7 +55,7 @@ import java.util.stream.Collectors;
  *  3. 取消时限：预约开始前 1 小时内禁止取消；
  *  4. 审核/批量审核仅限待审核(0)记录，驳回必填审核备注。
  *
- * @author reservation-team
+ * @author hyr
  */
 @Service
 public class ReservationServiceImpl implements ReservationService {
@@ -153,8 +156,7 @@ public class ReservationServiceImpl implements ReservationService {
         if (!start.isBefore(end)) {
             throw new BusinessException("开始时间必须早于结束时间");
         }
-        // H3 修复：可预约时段窗口后端强制（需求文档 1.4「每日 08:00-22:00 可预约」此前仅在统计分母体现，提交侧零校验；
-        // 现在作为后端兜底强制，前端绕过直接调用本接口同样被拒绝，杜绝"凌晨占用教室"与使用率超 100%）
+        // 可预约时段窗口后端强制（需求文档 V3.1 1.4，负责人书面确认保留并补写需求）。
         if (start.isBefore(Constants.DAILY_SLOT_START) || end.isAfter(Constants.DAILY_SLOT_END)) {
             throw new BusinessException("可预约时段为每日 " + TimeUtil.formatTime(Constants.DAILY_SLOT_START)
                     + "-" + TimeUtil.formatTime(Constants.DAILY_SLOT_END));
@@ -163,12 +165,14 @@ public class ReservationServiceImpl implements ReservationService {
         if (ChronoUnit.MINUTES.between(start, end) > Constants.MAX_RESERVATION_HOURS * 60L) {
             throw new BusinessException("单次预约时长不能超过 " + Constants.MAX_RESERVATION_HOURS + " 小时");
         }
+        // 日期与时刻取自同一个 now，避免跨午夜两次 LocalDate.now() 得到不同“今天”。
+        LocalDateTime now = LocalDateTime.now();
         // 禁止预约过去日期（与前端 disabled-date 口径一致：允许今天及以后，后端强制兜底）
-        if (reserveDate.isBefore(LocalDate.now())) {
+        if (reserveDate.isBefore(now.toLocalDate())) {
             throw new BusinessException("预约日期不能早于今天");
         }
         // M12 修复：预约日期为今天时，开始时刻必须晚于当前时刻（此前仅拦截过去日期、未拦今天已过去的时刻）
-        if (reserveDate.isEqual(LocalDate.now()) && !start.isAfter(LocalTime.now())) {
+        if (reserveDate.isEqual(now.toLocalDate()) && !start.isAfter(now.toLocalTime())) {
             throw new BusinessException("预约开始时间必须晚于当前时间");
         }
 
@@ -190,7 +194,7 @@ public class ReservationServiceImpl implements ReservationService {
         reservation.setStatus(Constants.RES_STATUS_PENDING);
         reservationMapper.insert(reservation);
         // 缓存一致性：预约提交（月度趋势按全部状态统计，随之变化），失效看板 + 教室列表缓存
-        redisCache.invalidateBusinessCaches();
+        TransactionCacheInvalidator.afterCommit(redisCache::invalidateBusinessCaches);
         return reservation.getId();
     }
 
@@ -201,10 +205,13 @@ public class ReservationServiceImpl implements ReservationService {
         if (status != null && !isValidResStatus(status)) {
             throw new BusinessException("状态参数不合法（0-待审核，1-已通过，2-已驳回，3-已取消）");
         }
-        LambdaQueryWrapper<Reservation> wrapper = new LambdaQueryWrapper<Reservation>()
-                .eq(Reservation::getUserId, UserContext.getUserId())
-                .eq(status != null, Reservation::getStatus, status)
-                .orderByDesc(Reservation::getCreateTime);
+        // 今日优先必须在分页前由数据库全局排序，不能只对当前页记录排序。
+        // 固定 CASE 表达式不含用户输入；同组仍按创建时间倒序。
+        QueryWrapper<Reservation> wrapper = new QueryWrapper<Reservation>()
+                .eq("user_id", UserContext.getUserId())
+                .eq(status != null, "status", status)
+                .orderByDesc("CASE WHEN reserve_date = CURDATE() THEN 1 ELSE 0 END")
+                .orderByDesc("create_time");
         Page<Reservation> result = reservationMapper.selectPage(new Page<>(page, size), wrapper);
         // 实体 → VO（批量预查教室信息，避免逐行 selectById 造成 N+1 查询）
         Map<Long, Classroom> roomMap = reservationConverter.batchClassroomMap(result.getRecords());
@@ -242,13 +249,15 @@ public class ReservationServiceImpl implements ReservationService {
                 .eq(Reservation::getId, id)
                 .and(w -> w.eq(Reservation::getStatus, Constants.RES_STATUS_PENDING)
                         .or().eq(Reservation::getStatus, Constants.RES_STATUS_APPROVED))
-                .set(Reservation::getStatus, Constants.RES_STATUS_CANCELED);
+                .set(Reservation::getStatus, Constants.RES_STATUS_CANCELED)
+                // Wrapper 更新不经过实体自动填充，显式维护更新时间。
+                .set(Reservation::getUpdateTime, LocalDateTime.now());
         int updated = reservationMapper.update(null, cancelWrapper);
         if (updated != 1) {
             throw new BusinessException("预约状态已变更，请刷新后重试");
         }
         // 缓存一致性：取消预约影响看板与教室今日占用，失效相关缓存
-        redisCache.invalidateBusinessCaches();
+        TransactionCacheInvalidator.afterCommit(redisCache::invalidateBusinessCaches);
     }
 
     @Override
@@ -285,10 +294,13 @@ public class ReservationServiceImpl implements ReservationService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void auditReservation(Long id, AuditDTO dto) {
+        // 服务层授权兜底：拦截器 URI 正则不是授权边界，/+1/audit 等等价数值路径也不能越权。
+        requireAdmin();
         if (id == null) {
             throw new BusinessException("预约 ID 不能为空");
         }
         validateAuditStatus(dto.getStatus());
+        validateAuditRemark(dto.getStatus(), dto.getAuditRemark());
         Reservation reservation = reservationMapper.selectById(id);
         if (reservation == null) {
             throw new BusinessException("预约不存在");
@@ -296,10 +308,6 @@ public class ReservationServiceImpl implements ReservationService {
         // 仅待审核(0)可审核
         if (reservation.getStatus() != Constants.RES_STATUS_PENDING) {
             throw new BusinessException("仅待审核状态的预约可审核");
-        }
-        // 驳回必填审核备注
-        if (dto.getStatus() == Constants.RES_STATUS_REJECTED && StrUtil.isBlank(dto.getAuditRemark())) {
-            throw new BusinessException("驳回必须填写审核备注");
         }
         // 通过前复查冲突（核心规则兜底）：防止多个重叠待审核先后被通过产生"双已通过"
         if (dto.getStatus() == Constants.RES_STATUS_APPROVED) {
@@ -330,25 +338,26 @@ public class ReservationServiceImpl implements ReservationService {
                 .set(Reservation::getAuditRemark,
                         dto.getStatus() == Constants.RES_STATUS_REJECTED ? dto.getAuditRemark().trim() : null)
                 .set(Reservation::getAuditorId, UserContext.getUserId())
-                .set(Reservation::getAuditTime, LocalDateTime.now());
+                .set(Reservation::getAuditTime, LocalDateTime.now())
+                .set(Reservation::getUpdateTime, LocalDateTime.now());
         int updated = reservationMapper.update(null, auditWrapper);
         if (updated != 1) {
             throw new BusinessException("预约状态已变更，请刷新后重试");
         }
         // 缓存一致性：审核改变预约状态（已通过/已驳回），影响看板与教室今日占用，失效相关缓存
-        redisCache.invalidateBusinessCaches();
+        TransactionCacheInvalidator.afterCommit(redisCache::invalidateBusinessCaches);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int batchAudit(BatchAuditDTO dto) {
+        // 批量审核与单条审核使用同一服务层角色边界，禁止仅依赖请求路径形态。
+        requireAdmin();
         if (dto.getIds() == null || dto.getIds().isEmpty()) {
             throw new BusinessException("预约 ID 列表不能为空");
         }
         validateAuditStatus(dto.getStatus());
-        if (dto.getStatus() == Constants.RES_STATUS_REJECTED && StrUtil.isBlank(dto.getAuditRemark())) {
-            throw new BusinessException("驳回必须填写审核备注");
-        }
+        validateAuditRemark(dto.getStatus(), dto.getAuditRemark());
         // 批量通过前逐条复查冲突（核心规则兜底）：任一条与已通过预约冲突则整批拒绝，避免产生"双已通过"
         if (dto.getStatus() == Constants.RES_STATUS_APPROVED) {
             List<Reservation> targets = reservationMapper.selectBatchIds(dto.getIds());
@@ -356,6 +365,10 @@ public class ReservationServiceImpl implements ReservationService {
             targets.stream().map(Reservation::getClassroomId).filter(Objects::nonNull).distinct().sorted()
                     .forEach(cid -> classroomMapper.selectOne(
                             new LambdaQueryWrapper<Classroom>().eq(Classroom::getId, cid).last("FOR UPDATE")));
+            // 初始 selectBatchIds 是加锁前快照；拿到教室锁后以当前读重取目标，
+            // 避免把等待锁期间已取消/已审核的记录继续纳入冲突判断。
+            targets = reservationMapper.selectList(new LambdaQueryWrapper<Reservation>()
+                    .in(Reservation::getId, dto.getIds()).last("FOR UPDATE"));
             List<Reservation> pendingTargets = targets.stream()
                     .filter(r -> r.getStatus() != null && r.getStatus() == Constants.RES_STATUS_PENDING)
                     .toList();
@@ -407,10 +420,11 @@ public class ReservationServiceImpl implements ReservationService {
                 .set(Reservation::getAuditRemark,
                         dto.getStatus() == Constants.RES_STATUS_REJECTED ? dto.getAuditRemark().trim() : null)
                 .set(Reservation::getAuditorId, UserContext.getUserId())
-                .set(Reservation::getAuditTime, LocalDateTime.now());
+                .set(Reservation::getAuditTime, LocalDateTime.now())
+                .set(Reservation::getUpdateTime, LocalDateTime.now());
         int updated = reservationMapper.update(null, wrapper);
         // 缓存一致性：批量审核改变预约状态，失效看板 + 教室列表缓存
-        redisCache.invalidateBusinessCaches();
+        TransactionCacheInvalidator.afterCommit(redisCache::invalidateBusinessCaches);
         return updated;
     }
 
@@ -484,6 +498,13 @@ public class ReservationServiceImpl implements ReservationService {
 
     /* ==================== 私有工具方法 ==================== */
 
+    /** 审核操作的服务层管理员授权，未登录与学生统一返回 403。 */
+    private void requireAdmin() {
+        if (!UserContext.isAdmin()) {
+            throw new BusinessException(ResultCode.FORBIDDEN.getCode(), ResultCode.FORBIDDEN.getMessage());
+        }
+    }
+
     /** 分页参数合法性校验（防恶意传参，公共校验器） */
     private void validatePage(long page, long size) {
         PageValidator.validate(page, size);
@@ -502,6 +523,16 @@ public class ReservationServiceImpl implements ReservationService {
         if (status == null || (!Integer.valueOf(Constants.RES_STATUS_APPROVED).equals(status)
                 && !Integer.valueOf(Constants.RES_STATUS_REJECTED).equals(status))) {
             throw new BusinessException("审核状态参数不合法（1-通过，2-驳回）");
+        }
+    }
+
+    /** 审核备注必填与长度校验，单条/批量审核共用。 */
+    private void validateAuditRemark(Integer status, String auditRemark) {
+        if (Integer.valueOf(Constants.RES_STATUS_REJECTED).equals(status) && StrUtil.isBlank(auditRemark)) {
+            throw new BusinessException("驳回必须填写审核备注");
+        }
+        if (auditRemark != null && auditRemark.trim().length() > Constants.AUDIT_REMARK_MAX_LENGTH) {
+            throw new BusinessException("审核备注过长（不超过 " + Constants.AUDIT_REMARK_MAX_LENGTH + " 字）");
         }
     }
 

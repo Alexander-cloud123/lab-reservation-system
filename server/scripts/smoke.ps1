@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-    预约管理系统 后端接口冒烟回归脚本（36 项）
+    预约管理系统 后端接口冒烟回归脚本（41 项）
 
 .DESCRIPTION
     对运行中的后端做一遍端到端接口回归：鉴权 / 权限 / 预约全生命周期 / 冲突检测 /
-    参数校验 / 看板 / 收藏 / AI 降级 / 注销，共 36 项断言。
+    参数校验 / 看板 / 收藏 / AI 降级 / 注销与会话撤销，共 41 项断言。
 
     断言口径（与 AuthAndValidationSmokeTest 一致）：
       · 鉴权、权限类错误 → HTTP 401 / 403
@@ -12,17 +12,19 @@
       · 成功           → HTTP 200 + code=200
 
     本脚本会写入并取消一条预约（留一条「已取消」记录）、toggle 一次收藏（净变化为零），
-    请仅对演示 / 测试环境执行。
+    并对 zhangsan 执行一次登出 + 一次管理员重置（密码仍是 123456，仅 token_version 自增 2），
+    用于验证「旧 Token 立即失效」；请仅对演示 / 测试环境执行。
 
 .PARAMETER Base
     后端接口根地址，默认 http://localhost:8080/api
 
 .EXAMPLE
-    powershell -ExecutionPolicy Bypass -File server/scripts/smoke.ps1
-    powershell -ExecutionPolicy Bypass -File server/scripts/smoke.ps1 -Base http://localhost:8081/api
+    pwsh -ExecutionPolicy Bypass -File server/scripts/smoke.ps1
+    pwsh -ExecutionPolicy Bypass -File server/scripts/smoke.ps1 -Base http://localhost:8081/api
 
 .NOTES
     前置条件：后端已启动；MySQL / Redis 已就绪；种子账号 admin/admin123(role=1)、zhangsan/123456(role=0) 存在。
+    推荐用 PowerShell 7（pwsh）：脚本为 UTF-8 无 BOM，Windows PowerShell 5.1 会按 ANSI 读取导致中文乱码解析失败。
 #>
 param(
     [string]$Base = 'http://localhost:8080/api'
@@ -47,11 +49,21 @@ function Call($method, $path, $token, $body) {
         $text = [System.Text.Encoding]::UTF8.GetString($resp.RawContentStream.ToArray())
         return @{ status = [int]$resp.StatusCode; body = $text }
     } catch {
-        $r = $_.Exception.Response
-        if ($r) {
-            $sr = New-Object System.IO.StreamReader($r.GetResponseStream())
-            $t = $sr.ReadToEnd()
-            return @{ status = [int]$r.StatusCode; body = $t }
+        $response = $_.Exception.Response
+        $status = $null
+        if ($response) { $status = [int]$response.StatusCode }
+        $bodyText = $null
+        # PowerShell 7：错误响应体由 ErrorDetails 携带（Response.Content 此时可能已释放）
+        if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+            $bodyText = $_.ErrorDetails.Message
+        } elseif ($response -is [System.Net.Http.HttpResponseMessage]) {
+            try { $bodyText = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult() } catch { $bodyText = $null }
+        } elseif ($response) {
+            $sr = New-Object System.IO.StreamReader($response.GetResponseStream())
+            $bodyText = $sr.ReadToEnd()
+        }
+        if ($bodyText -ne $null) {
+            return @{ status = $status; body = $bodyText }
         }
         throw
     }
@@ -218,6 +230,27 @@ $r = Call 'POST' '/user/logout' $stuToken $null
 Show '退出登录' ($r.status -eq 200) "status=$($r.status)"
 $r = Call 'GET' '/user/info' $stuToken $null
 Show '注销后 Token 失效' ($r.status -eq 401) "status=$($r.status)"
+
+# ---- 30. 登出后重新登录（新 Token 可用） ----
+$r = Call 'POST' '/user/login' $null @{ username = 'zhangsan'; password = '123456'; role = 0 }
+$b = J $r
+$stuToken2 = $b.data.token
+Show '登出后重新登录' ($r.status -eq 200 -and $stuToken2) "status=$($r.status)"
+$r = Call 'GET' '/user/info' $stuToken2 $null
+Show '重新登录后访问受保护接口' ($r.status -eq 200) "status=$($r.status)"
+
+# ---- 31. 管理员重置密码（种子学生默认密码本就是 123456，重置不改密码、只换 Token 版本号） ----
+$r = Call 'GET' '/user/manage?page=1&size=10&keyword=zhangsan' $adminToken $null
+$b = J $r
+$targetId = ($b.data.records | Where-Object { $_.username -eq 'zhangsan' } | Select-Object -First 1).id
+Show '重置前按账号查询用户' ($targetId -ne $null) "userId=$targetId"
+$r = Call 'PUT' "/user/manage/$targetId/password" $adminToken $null
+$b = J $r
+Show '管理员重置密码' ($r.status -eq 200) "status=$($r.status) msg=$($b.message)"
+
+# ---- 32. 重置后旧 Token 立即失效（token_version 已自增） ----
+$r = Call 'GET' '/user/info' $stuToken2 $null
+Show '重置后旧 Token 失效' ($r.status -eq 401) "status=$($r.status)"
 
 Write-Host ""
 Write-Host "===== 汇总 ====="

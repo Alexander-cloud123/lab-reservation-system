@@ -16,7 +16,7 @@
 
 ### 测试
 
-- 后端 **222 项**（新增 `TokenRevocationIntegrationTest`：固定 `redis.enable=false`，验证无 Redis 也能持久撤销；新增拦截器版本号 / 状态缓存用例）。新增 4 个纯逻辑测试类补齐看板与降级链：`StatsServiceImplTest`（聚合口径 / 窗口裁剪与 14h 封顶 / 排序 / 区间校验）、`ReservationConverterTest`（批量预查短路 / 三种 VO / 状态文案）、`AiParseFallbackTest`（自然语言解析与非法输入不抛异常）、`AiRecommendFallbackTest`（规则打分与推荐理由）；行覆盖率 54% → **64.7%**。
+- 后端 **262 项**（新增 `TokenRevocationIntegrationTest`：固定 `redis.enable=false`，验证无 Redis 也能持久撤销；新增拦截器版本号 / 状态缓存用例）。新增 4 个纯逻辑测试类补齐看板与降级链：`StatsServiceImplTest`（聚合口径 / 窗口裁剪与 14h 封顶 / 排序 / 区间校验）、`ReservationConverterTest`（批量预查短路 / 三种 VO / 状态文案）、`AiParseFallbackTest`（自然语言解析与非法输入不抛异常）、`AiRecommendFallbackTest`（规则打分与推荐理由）；另补 2 个业务分支覆盖类 `ReservationServiceImplCoverageTest`（参数校验/授权/导出上限/日历区间与可见性/关键词拼接）与 `ClassroomServiceImplCoverageTest`（CRUD 校验/删除保护/启停幂等/学生端缓存与占用时段/状态标签），行覆盖率 54% → **73.6%**（指令 75.1% / 分支 65.5%，ReservationServiceImpl 98.1%、ClassroomServiceImpl 99.1%）。
 - 前端 E2E **120 项 / 17 spec**，新增「会话撤销」spec；新增 Microsoft Edge 全量回归项目（`npm run test:e2e:edge`，默认脚本仍只跑 Chromium）。
 - `server/scripts/smoke.ps1` 增至 **41 项**（含重置密码后旧 Token 失效断言），并修复脚本对 PowerShell 7 错误响应的兼容性。
 
@@ -31,7 +31,7 @@
 ### 持续集成
 
 - 新增 [`stack-smoke.yml`](.github/workflows/stack-smoke.yml)：真实起 MySQL / Redis / 后端 / 前端，`smoke` job 跑 41 项接口冒烟、`e2e` job 跑 120 项 Playwright E2E；两个 job 各自持有独立 service 容器，避免冒烟写入的数据污染 E2E 基线。
-- `server-ci.yml` 增加 JaCoCo 覆盖率报告并作为 artifact 上传（`jacoco-maven-plugin 0.8.12`，指令覆盖率 65.6% / 行覆盖率 64.7%，DTO / VO / entity 等纯数据载体不计入分母）。
+- `server-ci.yml` 增加 JaCoCo 覆盖率报告并作为 artifact 上传（`jacoco-maven-plugin 0.8.12`，指令覆盖率 75.1% / 行覆盖率 73.6% / 分支 65.5%，DTO / VO / entity 等纯数据载体不计入分母）。
 
 ## [1.0.0] - 2026-10
 

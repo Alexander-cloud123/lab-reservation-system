@@ -8,7 +8,7 @@
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.10-6DB33F.svg)
 ![Vue](https://img.shields.io/badge/Vue-3.4-4FC08D.svg)
 ![Node.js](https://img.shields.io/badge/Node.js-22-339933.svg)
-![Backend Tests](https://img.shields.io/badge/backend%20tests-222-brightgreen.svg)
+![Backend Tests](https://img.shields.io/badge/backend%20tests-262-brightgreen.svg)
 ![E2E](https://img.shields.io/badge/E2E-120%20%28Chromium%20%2B%20Edge%29-brightgreen.svg)
 
 前后端分离的高校实验室/教室预约管理系统，覆盖 R1–R13 共 13 轮完整迭代。核心特点是**预约提交的「前端实时校验 + 后端二次冲突检测」双重校验机制**，以及**严格的预约状态流转**：
@@ -281,13 +281,13 @@ npm run dev                                   # 浏览器访问 http://127.0.0.1
 
 | 层次 | 规模 | 入口 |
 |------|------|------|
-| 后端单元 / 集成测试 | 34 个测试类、222 个用例（含真实 MySQL + Redis 的 `@SpringBootTest` 与并发集成测试） | `mvn -f server/pom.xml test` |
+| 后端单元 / 集成测试 | 36 个测试类、262 个用例（含真实 MySQL + Redis 的 `@SpringBootTest` 与并发集成测试） | `mvn -f server/pom.xml test` |
 | 接口冒烟回归 | 41 项（鉴权 / 权限 / 预约生命周期 / 冲突检测 / 参数校验 / 看板 / 收藏 / AI 降级 / 会话撤销） | `pwsh server/scripts/smoke.ps1` |
 | 前端 E2E | 17 个 spec、120 个用例 × Chromium + Edge | `npm run test:e2e:all` |
 | 无障碍机器代理 | 16/16 项（人工听感按负责人决定不执行） | `node scripts/a11y-acceptance.mjs` |
 
 ```powershell
-# 后端单元测试（34 个测试类；其中 4 个 @SpringBootTest 需 MySQL 在线，3 个另需 Redis；
+# 后端单元测试（36 个测试类；其中 4 个 @SpringBootTest 需 MySQL 在线，3 个另需 Redis；
 # TokenRevocationIntegrationTest 固定 redis.enable=false，用于证明“没有 Redis 也能持久撤销”）
 mvn -f server/pom.xml test
 
@@ -318,12 +318,12 @@ node scripts/capture-screens.mjs   # 输出 docs/images/*.png
 | 工作流 | 触发 | 内容 |
 |--------|------|------|
 | `web-lint.yml` | push / PR（`web/**` 变更） | `npm ci` → `npm run lint` → `npm run build` |
-| `server-ci.yml` | push / PR（`server/**`、`database/init_db.sql` 变更）+ 手动触发 | 起 MySQL 8.0 / Redis 7.0 服务容器 → 导入 `database/init_db.sql` → `mvn test`（222 项）→ 上传 JaCoCo 覆盖率报告 |
+| `server-ci.yml` | push / PR（`server/**`、`database/init_db.sql` 变更）+ 手动触发 | 起 MySQL 8.0 / Redis 7.0 服务容器 → 导入 `database/init_db.sql` → `mvn test`（262 项）→ 上传 JaCoCo 覆盖率报告 |
 | `stack-smoke.yml` | push / PR（`server/**`、`web/**`、`database/init_db.sql` 变更）+ 手动触发 | **smoke** job：打包 jar 起后端 → 跑 41 项接口冒烟；**e2e** job：独立栈 + `npm ci` + Chromium → 跑 120 项 Playwright E2E（两个 job 各自独立 MySQL / Redis，互不污染数据） |
 
 > 后端测试依赖真实 MySQL / Redis 与种子数据；CI 已按 `database/init_db.sql` 准备数据库，并已实测通过后切换为 push / PR 触发。
-> 覆盖率由 JaCoCo 在 `server-ci` 中生成并上传（指令覆盖率 65.6% / 行覆盖率 64.7%，DTO / VO / entity 等纯数据载体不计入分母）。
-> 已实测（2026-11-07 首次跑通）：`stack-smoke.yml` 的 smoke job **41/41** 通过、e2e job **120 passed（3.0 分钟）**；`server-ci.yml` **222 项测试**通过并上传 `jacoco-report`。
+> 覆盖率由 JaCoCo 在 `server-ci` 中生成并上传（指令覆盖率 75.1% / 行覆盖率 73.6% / 分支 65.5%，DTO / VO / entity 等纯数据载体不计入分母）。
+> 已实测（2026-11-07 首次跑通）：`stack-smoke.yml` 的 smoke job **41/41** 通过、e2e job **120 passed（3.0 分钟）**；`server-ci.yml` **262 项测试**通过并上传 `jacoco-report`。
 
 ## 迭代历程
 

@@ -10,8 +10,10 @@
     "lint": "eslint src --max-warnings 0",
     "lint:fix": "eslint src --fix",
     "format": "prettier --write \"src/**/*.{js,vue,css}\"",
-    "test:e2e": "playwright test",
-    "test:e2e:smoke": "playwright test e2e/specs/00-smoke.spec.js",
+    "test:e2e": "playwright test --project=chromium",
+    "test:e2e:smoke": "playwright test --project=chromium e2e/specs/00-smoke.spec.js",
+    "test:e2e:edge": "playwright test --project=edge",
+    "test:e2e:all": "playwright test",
     "test:e2e:report": "playwright show-report e2e-report/html"
   },
   "dependencies": {

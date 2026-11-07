@@ -249,6 +249,16 @@ test.describe('我的预约', () => {
     await expect(page.getByText('取消成功')).toBeVisible()
     await expect(rowBy(page, purpose).locator('.el-tag')).toHaveText('已取消')
 
+    // 无障碍 C4：确认后触发按钮被移除，焦点必须落到列表区域（role=region），不能悬空到 body
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const el = document.activeElement
+          return { onRegion: !!(el && el.classList.contains('reserve-card')), onBody: el === document.body }
+        })
+      )
+      .toEqual({ onRegion: true, onBody: false })
+
     await tryCancel(request, token, id)
   })
 

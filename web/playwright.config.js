@@ -12,6 +12,11 @@
  *   E2E_API_BASE    后端基址，默认 http://127.0.0.1:${E2E_API_PORT}（globalSetup 探活用）
  *   E2E_WEB_PORT    前端端口，默认 5173
  *
+ * 浏览器覆盖（需求文档「兼容 Chrome、Edge」）：
+ *   chromium  —— 默认项目，npm run test:e2e 只跑它（无 Edge 的机器/CI 不受影响）
+ *   edge      —— npm run test:e2e:edge；使用本机已安装的 Microsoft Edge（channel=msedge），不下载额外浏览器
+ *   npm run test:e2e:all 跑全部项目（两个项目共用同一后端与数据库，仍是串行 workers=1）
+ *
  * 串行执行（workers=1 + fullyParallel=false）：所有用例共享同一个 MySQL 库，
  * 并发会互相污染预约时段与计数断言，故强制串行。
  */
@@ -57,6 +62,11 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } }
+    },
+    {
+      // 真 Edge 必须显式 channel：devices['Desktop Edge'] 只改 UA/视口，底层仍是随包 Chromium
+      name: 'edge',
+      use: { ...devices['Desktop Edge'], channel: 'msedge', viewport: { width: 1440, height: 900 } }
     }
   ],
 

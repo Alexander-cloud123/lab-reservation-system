@@ -25,10 +25,14 @@ export function clearAuth() {
   localStorage.removeItem(AI_ENABLED_KEY)
 }
 
-/** 获取本地用户信息 */
+/** 获取本地用户信息；非对象、数组或缺少有效角色时一律视为损坏数据 */
 export function getStoredUser() {
   try {
-    return JSON.parse(localStorage.getItem(USER_KEY) || 'null')
+    const user = JSON.parse(localStorage.getItem(USER_KEY) || 'null')
+    if (!user || typeof user !== 'object' || Array.isArray(user)) {
+      return null
+    }
+    return user.role === 0 || user.role === 1 ? user : null
   } catch {
     return null
   }

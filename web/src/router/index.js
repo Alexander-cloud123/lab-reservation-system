@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { getToken, getStoredUser } from '@/utils/auth'
+import { getToken, getStoredUser, clearAuth } from '@/utils/auth'
 import { getBookingRules } from '@/api/config'
 import { setBookingRules } from '@/utils/booking'
 
@@ -124,9 +124,19 @@ const roleHome = { 0: '/student/home', 1: '/admin/home' }
  */
 let bookingRulesLoaded = false
 
-router.beforeEach((to) => {
+/** Token 与本地用户必须同时有效；残缺/损坏认证先清理，避免公开页与角色首页之间循环重定向 */
+function readValidAuth() {
   const token = getToken()
   const user = getStoredUser()
+  if (token && !user) {
+    clearAuth()
+    return { token: '', user: null }
+  }
+  return { token, user }
+}
+
+router.beforeEach((to) => {
+  const { token, user } = readValidAuth()
 
   // 公开页面（登录/注册）
   if (to.meta.public) {
@@ -169,9 +179,9 @@ window.addEventListener('popstate', () => {
   requestAnimationFrame(() => {
     const path = location.pathname
     if (path !== '/login' && path !== '/register') return
-    if (!getToken()) return
-    const user = getStoredUser()
-    const target = roleHome[user && user.role] || '/student/home'
+    const { token, user } = readValidAuth()
+    if (!token) return
+    const target = roleHome[user.role]
     if (router.currentRoute.value.fullPath === target) {
       history.replaceState({ ...history.state, current: target, replaced: true }, '', target)
     } else {

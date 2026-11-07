@@ -74,9 +74,11 @@ request.interceptors.response.use(
       return Promise.reject(error)
     }
     if (status === 401) {
-      // 后端拦截器返回的 401：清登录态并跳转
+      // 后端拦截器返回的 401：清登录态。
+      // silent 请求（如改密成功后调用登出）只清态、不弹「登录已过期」也不硬跳转，由调用方自行导航，
+      // 避免密码刚改成功又弹出误导性的过期提示。
       clearAuth()
-      redirectToLogin()
+      if (!silent) redirectToLogin()
     } else if (status === 403) {
       if (!silent) ElMessage.error('无权限访问该功能')
     } else if (!silent) {

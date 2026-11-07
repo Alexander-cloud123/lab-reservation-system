@@ -35,7 +35,13 @@
     </el-card>
 
     <!-- 快速预约弹窗（点击可预约时段发起，前端实时冲突校验 + 后端二次校验） -->
-    <el-dialog v-model="reserveVisible" title="快速预约" width="480px" :close-on-click-modal="false">
+    <el-dialog
+      v-model="reserveVisible"
+      title="快速预约"
+      width="480px"
+      :close-on-click-modal="false"
+      @close="invalidateConflict"
+    >
       <el-form ref="reserveFormRef" :model="reserveForm" :rules="reserveRules" label-width="90px">
         <el-form-item label="教室" prop="classroomId">
           <el-select v-model="reserveForm.classroomId" placeholder="请选择教室" style="width: 100%">
@@ -82,7 +88,28 @@
           />
         </el-form-item>
         <el-alert
-          v-if="conflictInfo"
+          v-if="conflictChecking"
+          type="info"
+          title="正在检测时段冲突…"
+          :closable="false"
+          show-icon
+        />
+        <el-alert
+          v-else-if="conflictError"
+          type="error"
+          :title="conflictError"
+          :closable="false"
+          show-icon
+        />
+        <el-alert
+          v-else-if="conflictDirty"
+          type="warning"
+          title="预约信息已变化，等待最新冲突检测结果"
+          :closable="false"
+          show-icon
+        />
+        <el-alert
+          v-else-if="conflictInfo"
           :type="conflictInfo.conflict ? 'error' : 'success'"
           :title="conflictInfo.reason"
           :closable="false"
@@ -94,7 +121,7 @@
         <el-button
           type="primary"
           :loading="submitting"
-          :disabled="conflictInfo && conflictInfo.conflict"
+          :disabled="conflictChecking || !!(conflictInfo && conflictInfo.conflict)"
           @click="handleSubmitReserve"
         >
           提交预约
@@ -142,12 +169,19 @@ let calendar = null
 /** 当前日历可视区间（ISO 日期，由 datesSet 维护，用于拉取区间预约） */
 let rangeStart = ''
 let rangeEnd = ''
+let eventsSeq = 0
 
 const reserveVisible = ref(false)
 const submitting = ref(false)
 const reserveFormRef = ref(null)
 const reserveForm = reactive({ classroomId: null, reserveDate: '', startTime: '', endTime: '', purpose: '' })
 const conflictInfo = ref(null)
+const conflictChecking = ref(false)
+const conflictDirty = ref(false)
+const conflictError = ref('')
+let conflictSeq = 0
+let activeConflict = null
+let checkedSnapshot = ''
 
 const detailVisible = ref(false)
 const detail = ref(null)
@@ -172,9 +206,8 @@ async function loadClassrooms() {
 
 /** 拉取当前区间预约 → 渲染色块事件 */
 async function loadEvents() {
-  if (!rangeStart || !rangeEnd) {
-    return
-  }
+  if (!rangeStart || !rangeEnd) return
+  const seq = ++eventsSeq
   loading.value = true
   try {
     const params = { startDate: rangeStart, endDate: rangeEnd }
@@ -182,13 +215,14 @@ async function loadEvents() {
       params.classroomId = selectedClassroomId.value
     }
     const res = await getCalendarReservations(params)
+    if (seq !== eventsSeq || !calendar) return
     const items = (res.data || []).map((r) => toEvent(r))
     calendar.removeAllEvents()
     items.forEach((ev) => calendar.addEvent(ev))
   } catch {
-    // 统一错误提示已由 request.js 处理
+    // 统一错误提示已由 request.js 处理；旧筛选/视图响应直接丢弃
   } finally {
-    loading.value = false
+    if (seq === eventsSeq) loading.value = false
   }
 }
 
@@ -247,7 +281,7 @@ function handleDateClick(info) {
   reserveForm.startTime = '08:00'
   reserveForm.endTime = '10:00'
   reserveForm.purpose = ''
-  conflictInfo.value = null
+  invalidateConflict()
   reserveVisible.value = true
 }
 
@@ -257,44 +291,126 @@ function handleEventClick(info) {
   detailVisible.value = true
 }
 
-/**
- * 前端实时冲突校验（双重校验第一层）：
- * 日期/教室/时段齐全时调用冲突检测接口，冲突则禁用提交并提示
- * 竞态保护：每次发请求前自增序号，仅采纳序号最新一次的响应（快速调整时段时旧响应不覆盖新结果）
- */
-let conflictSeq = 0
+function conflictSnapshot() {
+  if (!reserveForm.classroomId) return ''
+  return JSON.stringify({
+    classroomId: reserveForm.classroomId,
+    date: reserveForm.reserveDate,
+    startTime: reserveForm.startTime,
+    endTime: reserveForm.endTime
+  })
+}
+
+function invalidateConflict() {
+  conflictSeq += 1
+  activeConflict = null
+  checkedSnapshot = ''
+  conflictInfo.value = null
+  conflictChecking.value = false
+  conflictDirty.value = false
+  conflictError.value = ''
+}
+
+/** 同一快照共享检测 Promise，换教室/日期/时段后仅最新请求可写回 */
+function requestConflictCheck(snapshot = conflictSnapshot()) {
+  if (!snapshot) return Promise.resolve(null)
+  if (activeConflict && activeConflict.snapshot === snapshot) return activeConflict.promise
+  const seq = ++conflictSeq
+  const params = JSON.parse(snapshot)
+  const request = { seq, snapshot, promise: null }
+  conflictChecking.value = true
+  conflictDirty.value = true
+  conflictError.value = ''
+  conflictInfo.value = null
+  request.promise = (async () => {
+    try {
+      const res = await checkConflict(params)
+      if (seq !== conflictSeq) return null
+      const data = res.data
+      if (!data || typeof data.conflict !== 'boolean') {
+        checkedSnapshot = ''
+        conflictDirty.value = true
+        conflictError.value = '冲突检测结果无效，请重试'
+        return null
+      }
+      conflictInfo.value = data
+      checkedSnapshot = snapshot
+      conflictDirty.value = false
+      return data
+    } catch {
+      if (seq !== conflictSeq) return null
+      checkedSnapshot = ''
+      conflictInfo.value = null
+      conflictDirty.value = true
+      conflictError.value = '冲突检测失败，请重试后再提交'
+      return null
+    } finally {
+      if (seq === conflictSeq) {
+        conflictChecking.value = false
+        activeConflict = null
+      }
+    }
+  })()
+  activeConflict = request
+  return request.promise
+}
+
 watch(
   () => [reserveForm.classroomId, reserveForm.reserveDate, reserveForm.startTime, reserveForm.endTime],
-  async ([classroomId, date, start, end]) => {
+  ([classroomId, date, start, end]) => {
     if (!classroomId || !date || !start || !end) {
-      conflictInfo.value = null
+      invalidateConflict()
       return
     }
-    const seq = ++conflictSeq
-    try {
-      const res = await checkConflict({ classroomId, date, startTime: start, endTime: end })
-      if (seq !== conflictSeq) {
-        // 已有更新的请求发出，丢弃本次过期响应
-        return
-      }
-      conflictInfo.value = res.data
-    } catch {
-      if (seq !== conflictSeq) {
-        return
-      }
-      conflictInfo.value = null
+    if (start >= end) {
+      invalidateConflict()
+      conflictInfo.value = { conflict: true, reason: '开始时间必须早于结束时间' }
+      return
     }
+    const snapshot = JSON.stringify({ classroomId, date, startTime: start, endTime: end })
+    if (snapshot === checkedSnapshot && conflictInfo.value) return
+    requestConflictCheck(snapshot)
   }
 )
 
-/** 提交快速预约（后端二次冲突检测兜底） */
+/** 前端必须拿到当前快照的最新无冲突结果，后端二次校验仍保留 */
+async function ensureLatestConflict() {
+  while (reserveForm.classroomId) {
+    const check = validateBooking({
+      reserveDate: reserveForm.reserveDate,
+      startTime: reserveForm.startTime,
+      endTime: reserveForm.endTime
+    })
+    if (!check.ok) {
+      ElMessage.warning(check.message)
+      return false
+    }
+    const snapshot = conflictSnapshot()
+    if (checkedSnapshot === snapshot && conflictInfo.value && !conflictError.value) {
+      if (conflictInfo.value.conflict) {
+        ElMessage.warning(conflictInfo.value.reason || '当前时段存在冲突')
+        return false
+      }
+      return true
+    }
+    const result = await requestConflictCheck(snapshot)
+    if (snapshot !== conflictSnapshot()) continue
+    if (!result) {
+      ElMessage.error(conflictError.value || '冲突检测失败，请重试后再提交')
+      return false
+    }
+  }
+  return false
+}
+
+/** 提交快速预约（当前快照前端检测 + 后端二次冲突检测兜底） */
 async function handleSubmitReserve() {
+  if (submitting.value) return
   try {
     await reserveFormRef.value.validate()
   } catch {
     return
   }
-  // N3：预约校验统一为公共纯函数（此前该入口连「开始<结束」都没有，补齐后与其他入口同口径）
   const check = validateBooking({
     reserveDate: reserveForm.reserveDate,
     startTime: reserveForm.startTime,
@@ -306,6 +422,7 @@ async function handleSubmitReserve() {
   }
   submitting.value = true
   try {
+    if (!(await ensureLatestConflict())) return
     const res = await submitReservation({
       classroomId: reserveForm.classroomId,
       reserveDate: reserveForm.reserveDate,
@@ -315,7 +432,6 @@ async function handleSubmitReserve() {
     })
     ElMessage.success(res.message || '预约提交成功，待管理员审核')
     reserveVisible.value = false
-    // 刷新日历色块（新预约进入待审核色块）
     loadEvents()
   } catch {
     // 统一错误提示已由 request.js 处理（含后端冲突拒绝）
@@ -358,6 +474,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  eventsSeq += 1
+  invalidateConflict()
   if (calendar) {
     calendar.destroy()
     calendar = null

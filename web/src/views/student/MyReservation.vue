@@ -4,7 +4,14 @@
       <span class="page-title">我的预约</span>
       <span class="page-tip">今日预约已置顶显示 · 待审核 / 已通过可取消</span>
     </div>
-    <el-card shadow="never" class="reserve-card">
+    <el-card
+      ref="listRegionRef"
+      shadow="never"
+      class="reserve-card"
+      role="region"
+      aria-label="我的预约列表"
+      tabindex="-1"
+    >
       <!-- 状态分类查看 -->
       <el-tabs v-model="activeStatus" @tab-change="handleTabChange">
         <el-tab-pane label="全部" name="all" />
@@ -88,7 +95,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { nextTick, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
@@ -100,6 +107,8 @@ const loading = ref(false)
 const records = ref([])
 const total = ref(0)
 const activeStatus = ref('all')
+/** 列表区域（取消成功后的焦点落点，避免触发按钮被移除后焦点悬空到 body） */
+const listRegionRef = ref()
 /** 正在取消的预约 ID（R6：请求期间禁用所有取消按钮，防止快速连续点击重复提交） */
 const cancelingId = ref(null)
 
@@ -113,7 +122,7 @@ const query = reactive({
   status: undefined
 })
 
-/** 加载我的预约（R4：今日预约置顶——当日预约排到列表顶部并突出显示） */
+/** 加载我的预约（今日优先由后端在分页前全局排序，前端保持服务端页内顺序） */
 async function loadData() {
   loading.value = true
   try {
@@ -125,10 +134,7 @@ async function loadData() {
       params.status = query.status
     }
     const res = await getMyReservations(params)
-    const list = res.data.records
-    // 今日预约置顶：当日预约排前，其余保持原有顺序（sort 稳定，同组内顺序不变）
-    list.sort((a, b) => (a.reserveDate === today ? 0 : 1) - (b.reserveDate === today ? 0 : 1))
-    records.value = list
+    records.value = res.data.records
     total.value = res.data.total
   } catch {
     // 统一错误提示已由 request.js 处理
@@ -173,7 +179,14 @@ async function handleCancel(row) {
   try {
     await cancelReservation(row.id)
     ElMessage.success('取消成功')
-    loadData()
+    await loadData()
+    // 触发按钮随状态更新被移除，Element Plus 焦点复原目标已脱离 DOM（否则焦点落到 body）。
+    // 无障碍验收 C4：把焦点交给列表区域（role=region，tabindex=-1），键盘用户可在列表内继续 Tab。
+    await nextTick()
+    const region = listRegionRef.value && listRegionRef.value.$el ? listRegionRef.value.$el : listRegionRef.value
+    if (region && typeof region.focus === 'function') {
+      region.focus()
+    }
   } catch {
     // 接口报错（统一提示：如已过审核时间不可取消等）
   } finally {

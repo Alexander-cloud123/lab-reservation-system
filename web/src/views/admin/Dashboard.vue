@@ -92,6 +92,18 @@ const timeDistEl = ref(null)
 let usageChart = null
 let trendChart = null
 let timeDistChart = null
+let loadSeq = 0
+
+/** HTML tooltip 的所有动态值统一转义，静态 <br/> 仅负责保持原有换行格式 */
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[char])
+}
 
 /** 当前区间参数（YYYY-MM-DD） */
 function rangeParams() {
@@ -121,6 +133,7 @@ function handleDateRangeChange() {
 
 /** 三图数据均来自后端只读统计接口（禁止前端伪造），时间筛选统一作用三图 */
 async function loadAll() {
+  const seq = ++loadSeq
   loading.value = true
   try {
     const params = rangeParams()
@@ -129,13 +142,14 @@ async function loadAll() {
       getTrend(params),
       getTimeDistribution(params)
     ])
+    if (seq !== loadSeq) return
     renderUsageRate(usageRes.data || [])
     renderTrend(trendRes.data || [])
     renderTimeDistribution(distRes.data || [])
   } catch {
-    // 统一错误提示已由 request.js 处理
+    // 统一错误提示已由 request.js 处理；旧请求失败不影响最新筛选
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 
@@ -173,7 +187,7 @@ function renderUsageRate(list) {
           if (!item) {
             return ''
           }
-          return `${item.name}（${item.roomNo}）<br/>使用率：${item.usageRate}%<br/>占用时长：${item.approvedHours} 小时`
+          return `${escapeHtml(item.name)}（${escapeHtml(item.roomNo)}）<br/>使用率：${escapeHtml(item.usageRate)}%<br/>占用时长：${escapeHtml(item.approvedHours)} 小时`
         }
       },
       grid: { left: 48, right: 24, top: 36, bottom: 80 },
@@ -269,7 +283,7 @@ function renderTimeDistribution(list) {
     {
       tooltip: {
         trigger: 'item',
-        formatter: (p) => `${p.name}<br/>${p.value} 条（${p.percent}%）`
+        formatter: (p) => `${escapeHtml(p.name)}<br/>${escapeHtml(p.value)} 条（${escapeHtml(p.percent)}%）`
       },
       legend: { bottom: 0, type: 'scroll', fontSize: 12, textStyle: { color: CHART.axisText } },
       color: CHART.palette,
@@ -308,6 +322,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  loadSeq += 1
   window.removeEventListener('resize', handleResize)
   usageChart && usageChart.dispose()
   trendChart && trendChart.dispose()

@@ -110,6 +110,7 @@
       title="预约申请"
       width="480px"
       :close-on-click-modal="false"
+      @close="invalidateConflict"
       @closed="handleDialogClosed"
     >
       <el-form ref="reserveFormRef" :model="reserveForm" :rules="reserveRules" label-width="90px">
@@ -166,7 +167,31 @@
           class="conflict-alert"
         />
         <el-alert
-          v-if="conflictInfo"
+          v-if="conflictChecking"
+          title="正在检测时段冲突…"
+          type="info"
+          :closable="false"
+          show-icon
+          class="conflict-alert"
+        />
+        <el-alert
+          v-else-if="conflictError"
+          :title="conflictError"
+          type="error"
+          :closable="false"
+          show-icon
+          class="conflict-alert"
+        />
+        <el-alert
+          v-else-if="conflictDirty"
+          title="预约信息已变化，等待最新冲突检测结果"
+          type="warning"
+          :closable="false"
+          show-icon
+          class="conflict-alert"
+        />
+        <el-alert
+          v-else-if="conflictInfo"
           :type="conflictInfo.conflict ? 'error' : 'success'"
           :title="conflictInfo.reason"
           :closable="false"
@@ -179,7 +204,7 @@
         <el-button
           type="primary"
           :loading="submitting"
-          :disabled="conflictInfo && conflictInfo.conflict"
+          :disabled="conflictChecking || !!(conflictInfo && conflictInfo.conflict)"
           @click="handleSubmitReserve"
         >
           提交预约
@@ -190,7 +215,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, Calendar, Notebook, Cpu, School, Star, StarFilled } from '@element-plus/icons-vue'
@@ -220,6 +245,12 @@ const submitting = ref(false)
 const reserveFormRef = ref(null)
 const reserveForm = reactive({ reserveDate: '', startTime: '', endTime: '', purpose: '' })
 const conflictInfo = ref(null)
+const conflictChecking = ref(false)
+const conflictDirty = ref(false)
+const conflictError = ref('')
+let conflictSeq = 0
+let activeConflict = null
+let checkedSnapshot = ''
 /** 前端时间合理性校验提示（L9 优化：开始时间必须早于结束时间；后端仍强制兜底） */
 const timeError = ref('')
 /** 本次弹窗是否已提交成功（提交成功后关闭不再保存草稿） */
@@ -377,60 +408,133 @@ function resetReserveForm() {
   reserveForm.startTime = ''
   reserveForm.endTime = ''
   reserveForm.purpose = ''
-  conflictInfo.value = null
+  timeError.value = ''
+  invalidateConflict()
 }
 
-/**
- * 实时冲突校验（R3 前端双重校验第一层）：
- * 日期与时段齐全时调用冲突检测接口，冲突则禁用提交并提示
- * 竞态保护：每次发请求前自增序号，仅采纳序号最新一次的响应（快速调整时段时旧响应不覆盖新结果）
- */
-let conflictSeq = 0
-watch(
-  () => [reserveForm.reserveDate, reserveForm.startTime, reserveForm.endTime],
-  async ([date, start, end]) => {
-    if (!date || !start || !end) {
+function conflictSnapshot() {
+  if (!classroom.value.id) return ''
+  return JSON.stringify({
+    classroomId: classroom.value.id,
+    date: reserveForm.reserveDate,
+    startTime: reserveForm.startTime,
+    endTime: reserveForm.endTime
+  })
+}
+
+/** 任何表单失效场景都递增序号，防止旧响应覆盖新表单或关闭后的状态 */
+function invalidateConflict() {
+  conflictSeq += 1
+  activeConflict = null
+  checkedSnapshot = ''
+  conflictInfo.value = null
+  conflictChecking.value = false
+  conflictDirty.value = false
+  conflictError.value = ''
+}
+
+function requestConflictCheck(snapshot = conflictSnapshot()) {
+  if (!snapshot) return Promise.resolve(null)
+  if (activeConflict && activeConflict.snapshot === snapshot) return activeConflict.promise
+  const seq = ++conflictSeq
+  const params = JSON.parse(snapshot)
+  const request = { seq, snapshot, promise: null }
+  conflictChecking.value = true
+  conflictDirty.value = true
+  conflictError.value = ''
+  conflictInfo.value = null
+  request.promise = (async () => {
+    try {
+      const res = await checkConflict(params)
+      if (seq !== conflictSeq) return null
+      const data = res.data
+      if (!data || typeof data.conflict !== 'boolean') {
+        checkedSnapshot = ''
+        conflictDirty.value = true
+        conflictError.value = '冲突检测结果无效，请重试'
+        return null
+      }
+      conflictInfo.value = data
+      checkedSnapshot = snapshot
+      conflictDirty.value = false
+      return data
+    } catch {
+      if (seq !== conflictSeq) return null
+      checkedSnapshot = ''
       conflictInfo.value = null
+      conflictDirty.value = true
+      conflictError.value = '冲突检测失败，请重试后再提交'
+      return null
+    } finally {
+      if (seq === conflictSeq) {
+        conflictChecking.value = false
+        activeConflict = null
+      }
+    }
+  })()
+  activeConflict = request
+  return request.promise
+}
+
+/** 实时冲突校验 + 提交时等待同一 Promise，避免检测期间表单变化绕过前端门槛 */
+watch(
+  () => [classroom.value.id, reserveForm.reserveDate, reserveForm.startTime, reserveForm.endTime],
+  ([roomId, date, start, end]) => {
+    if (!roomId || !date || !start || !end) {
       timeError.value = ''
+      invalidateConflict()
       return
     }
-    // 前端时间合理性校验：开始时间必须早于结束时间（L9 优化，后端仍强制兜底）
     if (start >= end) {
-      conflictInfo.value = null
+      invalidateConflict()
       timeError.value = '开始时间必须早于结束时间'
       return
     }
     timeError.value = ''
-    const seq = ++conflictSeq
-    try {
-      const res = await checkConflict({
-        classroomId: classroom.value.id,
-        date,
-        startTime: start,
-        endTime: end
-      })
-      if (seq !== conflictSeq) {
-        // 已有更新的请求发出，丢弃本次过期响应
-        return
-      }
-      conflictInfo.value = res.data
-    } catch {
-      if (seq !== conflictSeq) {
-        return
-      }
-      conflictInfo.value = null
-    }
+    const snapshot = JSON.stringify({ classroomId: roomId, date, startTime: start, endTime: end })
+    if (snapshot === checkedSnapshot && conflictInfo.value) return
+    requestConflictCheck(snapshot)
   }
 )
 
-/** 提交预约（后端二次冲突检测兜底；成功后清除草稿） */
+/** 等待当前表单快照的最新检测；检测失败/无结果/有冲突均禁止提交 */
+async function ensureLatestConflict() {
+  while (classroom.value.id) {
+    const check = validateBooking({
+      reserveDate: reserveForm.reserveDate,
+      startTime: reserveForm.startTime,
+      endTime: reserveForm.endTime
+    })
+    if (!check.ok) {
+      ElMessage.warning(check.message)
+      return false
+    }
+    const snapshot = conflictSnapshot()
+    if (checkedSnapshot === snapshot && conflictInfo.value && !conflictError.value) {
+      if (conflictInfo.value.conflict) {
+        ElMessage.warning(conflictInfo.value.reason || '当前时段存在冲突')
+        return false
+      }
+      return true
+    }
+    const result = await requestConflictCheck(snapshot)
+    if (snapshot !== conflictSnapshot()) continue
+    if (!result) {
+      ElMessage.error(conflictError.value || '冲突检测失败，请重试后再提交')
+      return false
+    }
+  }
+  return false
+}
+
+/** 提交预约（前端确认最新冲突结果，后端二次冲突检测兜底；成功后清除草稿） */
 async function handleSubmitReserve() {
+  if (submitting.value) return
   try {
     await reserveFormRef.value.validate()
   } catch {
     return
   }
-  // N3：预约校验统一为公共纯函数（必填/开始<结束/8h/窗口/今天已过时刻；后端仍强制兜底）
   const check = validateBooking({
     reserveDate: reserveForm.reserveDate,
     startTime: reserveForm.startTime,
@@ -442,6 +546,7 @@ async function handleSubmitReserve() {
   }
   submitting.value = true
   try {
+    if (!(await ensureLatestConflict())) return
     const res = await submitReservation({
       classroomId: classroom.value.id,
       reserveDate: reserveForm.reserveDate,
@@ -479,6 +584,8 @@ onMounted(() => {
   loadDetail()
   loadFavoriteState()
 })
+
+onBeforeUnmount(invalidateConflict)
 </script>
 
 <style scoped>

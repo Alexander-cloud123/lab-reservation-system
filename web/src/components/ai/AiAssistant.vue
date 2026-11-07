@@ -27,10 +27,16 @@
           <div v-else class="chat-bubble">{{ msg.content }}</div>
         </div>
       </div>
+      <!-- 只播报最终回答，避免流式 delta 让读屏器逐字重复；视觉聊天区保持原样。 -->
+      <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ liveStatus }}</p>
       <div class="chat-footer">
         <div class="chat-input">
+          <label class="sr-only" for="ai-assistant-question">请输入预约相关问题</label>
           <el-input
+            id="ai-assistant-question"
             v-model="inputText"
+            name="ai-question"
+            autocomplete="off"
             placeholder="问我：怎么预约 / 怎么取消 / 审核要多久…"
             @keyup.enter="send"
           />
@@ -66,6 +72,7 @@ import { renderMarkdown } from '@/utils/markdown'
 const aiEnabled = ref(false)
 const drawerVisible = ref(false)
 const inputText = ref('')
+const liveStatus = ref('')
 const sending = ref(false)
 const chatBodyRef = ref(null)
 /** 最近一次回答的降级提示（后端 message，非空 = 当前为本地 FAQ 规则回答） */
@@ -104,6 +111,16 @@ function renderFinal(bubble) {
 }
 
 /**
+ * 播报用纯文本：与可见气泡**同源**（Markdown 渲染后取 textContent），去掉 ** / # / 列表序号 /
+ * 代码围栏等标记。若 live region 直接播报 Markdown 原文，读屏器会念出符号，且与可见文本不一致。
+ */
+function toPlainAnswer(markdownText) {
+  const holder = document.createElement('div')
+  holder.innerHTML = renderMarkdown(markdownText || '')
+  return (holder.textContent || '').replace(/\s+/g, ' ').trim()
+}
+
+/**
  * 探测 AI 可用性（推荐接口返回 enabled=false 时隐藏悬浮球）。
  * N5：统一走 probeAiRecommend（按 userId 缓存，与 ClassroomList 合并同一次调用；
  * 不再直接调 aiRecommend({ userId })，后端只认 UserContext）
@@ -127,6 +144,7 @@ async function send() {
     .map((m) => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content }))
   messages.value.push({ role: 'user', content: question })
   inputText.value = ''
+  liveStatus.value = ''
   // 先推入空 AI 气泡：meta/delta 到达前即有占位，delta 直接追加（打字机）
   messages.value.push({ role: 'ai', content: '', html: '', typing: true })
   const bubbleIndex = messages.value.length - 1
@@ -168,6 +186,13 @@ async function send() {
           }
         },
         onDelta: appendDelta,
+        onReset: ({ text, message }) => {
+          // 上游半截回答失败后，后端用完整本地 FAQ 全量替换，不能把两种来源拼接。
+          bubble.content = text || '暂时无法回答，请稍后重试'
+          degradedMessage = message || '上游响应中断，已切换为本地规则回答'
+          scheduleRender(bubble)
+          scrollToBottom()
+        },
         onDone: (info) => {
           // 双保险：异常时序下 meta 未带出关闭态时，按 finishReason=disabled 补关闭文案
           if (info && info.finishReason === 'disabled' && !bubble.content) {
@@ -202,6 +227,7 @@ async function send() {
     // 空气泡已被上面的 abort/兜底分支 splice 时，渲染游离对象无副作用
     renderFinal(bubble)
     bubble.typing = false
+    liveStatus.value = toPlainAnswer(bubble.content)
     sending.value = false
     activeController = null
     scrollToBottom()
@@ -248,6 +274,18 @@ function scrollToBottom() {
 </script>
 
 <style scoped>
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .ai-assistant {
   position: fixed;
   right: 24px;

@@ -23,7 +23,7 @@
         <h2 class="login-title">欢迎回来</h2>
         <p class="login-subtitle">请选择身份并登录您的账号</p>
 
-        <el-form ref="formRef" :model="form" :rules="rules" label-width="0" size="large" @keyup.enter="handleLogin">
+        <el-form ref="formRef" :model="form" :rules="rules" label-width="0" size="large" @keyup.enter="handleLogin" @validate="onFormValidate">
           <el-form-item prop="role">
             <el-radio-group v-model="form.role" class="role-group">
               <el-radio-button :value="0">学 生</el-radio-button>
@@ -31,10 +31,36 @@
             </el-radio-group>
           </el-form-item>
           <el-form-item prop="username">
-            <el-input v-model="form.username" placeholder="请输入登录账号" aria-label="登录账号" :prefix-icon="User" clearable />
+            <!-- 自定义错误渲染：带 id + role=alert，输入框用 aria-invalid/aria-describedby 与之关联，
+                 读屏器在字段上可读到错误（无障碍验收 D3 机器代理发现原实现无关联） -->
+            <template #error="{ error }">
+              <div id="login-username-error" role="alert" class="el-form-item__error">{{ error }}</div>
+            </template>
+            <el-input
+              v-model="form.username"
+              placeholder="请输入登录账号"
+              aria-label="登录账号"
+              :aria-invalid="fieldInvalid.username ? 'true' : undefined"
+              :aria-describedby="fieldInvalid.username ? 'login-username-error' : undefined"
+              :prefix-icon="User"
+              clearable
+            />
           </el-form-item>
           <el-form-item prop="password">
-            <el-input v-model="form.password" type="password" placeholder="请输入密码" aria-label="密码" :prefix-icon="Lock" show-password clearable />
+            <template #error="{ error }">
+              <div id="login-password-error" role="alert" class="el-form-item__error">{{ error }}</div>
+            </template>
+            <el-input
+              v-model="form.password"
+              type="password"
+              placeholder="请输入密码"
+              aria-label="密码"
+              :aria-invalid="fieldInvalid.password ? 'true' : undefined"
+              :aria-describedby="fieldInvalid.password ? 'login-password-error' : undefined"
+              :prefix-icon="Lock"
+              show-password
+              clearable
+            />
           </el-form-item>
           <el-form-item>
             <el-button type="primary" class="login-btn" :loading="loading" @click="handleLogin">登 录</el-button>
@@ -76,6 +102,16 @@ const form = reactive({
 const rules = {
   username: [{ required: true, message: '请输入登录账号', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
+}
+
+/** 字段校验失败态：驱动输入框 aria-invalid / aria-describedby（与错误提示元素建立关联） */
+const fieldInvalid = reactive({ username: false, password: false })
+
+/** el-form 的 validate 事件：任一字段校验后触发（prop, isValid, message） */
+function onFormValidate(prop, isValid) {
+  if (prop === 'username' || prop === 'password') {
+    fieldInvalid[prop] = !isValid
+  }
 }
 
 /**

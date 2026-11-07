@@ -195,7 +195,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import { pageManageReservations, auditReservation, batchAuditReservations } from '@/api/reservation'
@@ -227,6 +227,17 @@ const checkingIds = ref(new Set())
 const AUTO_CHECK_LIMIT = 5
 /** 自动校验并发上限（M9：小并发，避免一次性耗尽后端 RPM 额度） */
 const AUTO_CHECK_CONCURRENCY = 2
+/** 每次翻页/刷新/卸载都会作废旧流并中止连接，防止上一页结果写回新页。 */
+let complianceGeneration = 0
+let listSeq = 0
+const complianceControllers = new Map()
+
+function cancelComplianceChecks() {
+  complianceGeneration += 1
+  complianceControllers.forEach(controller => controller.abort())
+  complianceControllers.clear()
+  checkingIds.value.clear()
+}
 
 /** 获取某条记录的 AI 校验结果 */
 function complianceInfo(row) {
@@ -271,37 +282,47 @@ function checkSingle(row) {
   if (!row || row.status !== 0 || isChecking(row) || complianceInfo(row)) {
     return Promise.resolve()
   }
+  const generation = complianceGeneration
+  const controller = new AbortController()
   checkingIds.value.add(row.id)
-  return new Promise(resolve => {
-    let finished = false
-    const finish = () => {
-      if (finished) {
+  complianceControllers.set(row.id, controller)
+  let pendingResult = null
+  let finished = false
+  const finish = () => {
+    if (finished) return
+    finished = true
+    if (generation === complianceGeneration) checkingIds.value.delete(row.id)
+    if (complianceControllers.get(row.id) === controller) complianceControllers.delete(row.id)
+  }
+
+  const stream = aiComplianceCheckStream({ purpose: row.purpose }, {
+    onResult: data => {
+      if (generation === complianceGeneration) pendingResult = data
+    },
+    onDone: () => {
+      // result 后收到 done 才提交到页面，异常 EOF/超时不会留下看似成功的校验结果。
+      if (generation !== complianceGeneration || !pendingResult) {
+        finish()
         return
       }
-      finished = true
-      checkingIds.value.delete(row.id)
-      resolve()
-    }
-    aiComplianceCheckStream({ purpose: row.purpose }, {
-      onResult: data => {
-        if (!data || data.enabled === false) {
-          aiEnabled.value = false
-          return
-        }
+      const data = pendingResult
+      if (data.enabled === false) {
+        aiEnabled.value = false
+      } else {
         aiEnabled.value = true
         complianceMap.value.set(row.id, {
           compliant: data.compliant,
           reason: data.reason || '合规校验完成',
-          // 降级提示（非空 = 判定来自本地关键词规则而非模型），用于区分校验来源
           degraded: !!data.message,
           notice: data.message || ''
         })
-      },
-      onDone: finish,
-      // 校验失败静默（连接级错误/建链前校验失败），标签保持「AI 校验」可点击重试
-      onError: finish
-    })
-  })
+      }
+      finish()
+    },
+    // 校验失败静默，标签保持「AI 校验」可点击重试；主动 abort 由返回 Promise 的 finally 收尾。
+    onError: finish
+  }, controller.signal)
+  return stream.finally(finish)
 }
 
 /**
@@ -309,13 +330,14 @@ function checkSingle(row) {
  * 保留 R7「AI 校验」亮点展示，又不触发自身限流；其余行点击标签按需校验）
  */
 async function autoComplianceCheck(list) {
+  const generation = complianceGeneration
   const pending = list.filter((r) => r.status === 0).slice(0, AUTO_CHECK_LIMIT)
   if (!pending.length) {
     return
   }
   let idx = 0
   const workers = Array.from({ length: Math.min(AUTO_CHECK_CONCURRENCY, pending.length) }, async () => {
-    while (idx < pending.length) {
+    while (generation === complianceGeneration && idx < pending.length) {
       const r = pending[idx++]
       await checkSingle(r)
     }
@@ -343,6 +365,8 @@ const quickReasons = ['时间冲突', '用途不明确', '教室维护', '人数
 
 /** 加载预约列表 */
 async function loadData() {
+  const seq = ++listSeq
+  cancelComplianceChecks()
   loading.value = true
   try {
     const params = {
@@ -356,6 +380,7 @@ async function loadData() {
       params.endDate = dateRange.value[1]
     }
     const res = await pageManageReservations(params)
+    if (seq !== listSeq) return
     records.value = res.data.records
     total.value = res.data.total
     // M9：翻页/刷新时清空校验缓存与进行中标记（防 complianceMap 只增不减的持续累积）
@@ -366,7 +391,7 @@ async function loadData() {
   } catch {
     // 统一错误提示已由 request.js 处理
   } finally {
-    loading.value = false
+    if (seq === listSeq) loading.value = false
   }
 }
 
@@ -476,6 +501,10 @@ async function handleBatchAudit(status) {
 }
 
 onMounted(loadData)
+onBeforeUnmount(() => {
+  listSeq += 1
+  cancelComplianceChecks()
+})
 </script>
 
 <style scoped>

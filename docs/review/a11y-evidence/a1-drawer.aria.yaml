@@ -1,0 +1,11 @@
+- dialog "AI 预约助手":
+  - heading "AI 预约助手" [level=2]
+  - button "关闭":
+    - img
+  - paragraph: 你好，我是 AI 预约助手。可以问我如何预约教室、如何取消预约、审核流程、我的预约记录等问题。
+  - status
+  - text: 请输入预约相关问题
+  - textbox "请输入预约相关问题":
+    - /placeholder: 问我：怎么预约 / 怎么取消 / 审核要多久…
+  - button "发送"
+  - text: AI 生成，仅供参考 · 仅解答预约相关问题

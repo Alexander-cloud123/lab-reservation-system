@@ -1,12 +1,19 @@
-# 后端构建与单测（手动触发）
-#
-# 说明：后端部分单测为 @SpringBootTest，依赖真实 MySQL / Redis 与 init_db.sql 的种子数据，
-# 在 CI 环境下存在偶发不稳定，故触发方式先设为 workflow_dispatch 手动触发，避免冻结期出现红灯。
-# 待实测稳定后，可将 on.push 打开（paths: server/** 与 database/init_db.sql）。
+# 后端构建与单测（相关变更自动触发，也支持手动重跑）
+# MySQL / Redis service 与种子数据由本工作流准备，测试失败必须修复，不能以冻结期为由跳过质量门禁。
 name: Server CI
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - 'server/**'
+      - 'database/init_db.sql'
+      - '.github/workflows/server-ci.yml'
+  pull_request:
+    paths:
+      - 'server/**'
+      - 'database/init_db.sql'
+      - '.github/workflows/server-ci.yml'
 
 concurrency:
   group: server-ci-${{ github.ref }}

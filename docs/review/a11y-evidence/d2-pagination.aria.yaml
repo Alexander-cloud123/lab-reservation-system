@@ -1,0 +1,14 @@
+- text: 共 16 条
+- combobox
+- text: 10条/页
+- img
+- button "上一页" [disabled]:
+  - img
+- list:
+  - listitem "第 1 页": "1"
+  - listitem "第 2 页": "2"
+- button "下一页":
+  - img
+- text: 前往
+- spinbutton "页": "1"
+- text: 页

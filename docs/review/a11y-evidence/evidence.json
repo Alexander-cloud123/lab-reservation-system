@@ -1,0 +1,103 @@
+{
+  "generatedAt": "2026-11-07T10:50:01.782Z",
+  "web": "http://127.0.0.1:8088",
+  "api": "http://127.0.0.1:8080",
+  "results": [
+    {
+      "item": "A1",
+      "status": "pass",
+      "evidence": "抽屉标题在无障碍树=true，欢迎语存在=true，焦点进入抽屉=true（activeElement=SPAN）；关闭按钮可访问名称正常=true（i18n 原始 key 泄漏=false）",
+      "note": "机器证据=无障碍树含标题/欢迎语 + 焦点归属 + 关闭按钮名称；实际播报语句与停留位置仍需人耳确认"
+    },
+    {
+      "item": "A1b",
+      "status": "info",
+      "evidence": "抽屉容器属性：assistant-drawer el-drawer rtl open role=dialog aria-modal=true aria-label=AI 预约助手",
+      "note": "结构性信息，不是清单条目"
+    },
+    {
+      "item": "A2",
+      "status": "pass",
+      "evidence": "live region 写入序列=[\"预约教室的步骤：先在教室列表选择教室并进入详情，点击预约申请，填写日期、起止时间与用途，提交后等待管理员审核。审核通过后可在我的预约中查看。\"]（非空写入 1 次，仅为终态），role=status 节点数=1",
+      "note": "结构证据：流式 delta 不写 live region，仅 done 后写一次——「不反复打断播报」；实际听感（音色/停顿）仍建议人耳确认"
+    },
+    {
+      "item": "A3",
+      "status": "pass",
+      "evidence": "live 文本 == 可见气泡文本：true；role=status 唯一：true",
+      "note": "机器逐字比对替代「鼠标选中逐一比对」；读屏器是否重复朗读需人耳"
+    },
+    {
+      "item": "A3-markdown",
+      "status": "pass",
+      "evidence": "Markdown 回答：live 与可见文本一致=true",
+      "note": "真实模型回答常含 Markdown；live region 取 Markdown 原文会导致播报标记与可见文本不一致（真实模型回答未 mock）"
+    },
+    {
+      "item": "A4",
+      "status": "pass",
+      "evidence": "停止按钮可用=true；停止后 1.5s 内 live region 无新增写入=true；半截回答保留=true（长度 20）；最终态可再次被读到=true",
+      "note": "机器证明「停止后不再写入增量」；读屏器是否真的停止朗读/停止后能否重新读到，需人耳"
+    },
+    {
+      "item": "B1",
+      "status": "pass",
+      "evidence": "Tab 2 次后焦点落在快捷卡片；AX 快照中卡片名命中 3/3；焦点样式 outline=solid 2px rgb(20, 86, 240)，box-shadow=none",
+      "note": "机器证据=role/tabindex/焦点样式/无障碍树名称；「按钮 + 卡片名称」的实际播报需人耳"
+    },
+    {
+      "item": "B2",
+      "status": "pass",
+      "evidence": "Enter 跳转 /admin/users 成功；空格激活预约审核跳转 /admin/audits 成功；页面滚动位移=0→0（未滚动）",
+      "note": "「空格不滚动页面」为机器可测；Enter/空格与鼠标点击同路由已由 41-a11y 回归覆盖"
+    },
+    {
+      "item": "C1",
+      "status": "pass",
+      "evidence": "role=dialog aria-modal=true 可访问名称=「修改密码」；焦点在弹窗内=true（落点=弹窗容器 tabindex=-1，「修改密码原密码新密码确认密码取消修改密码」）；关闭按钮可访问名称正常=true（i18n 原始 key 泄漏=false）",
+      "note": "机器证据=role/aria-modal/可访问名称/焦点归属/关闭按钮名称；Element Plus 默认把焦点放在弹窗容器（tabindex=-1，标题 role=heading）而非首个输入框，读屏器会先播报标题与描述，属于等价的可访问模式"
+    },
+    {
+      "item": "C2",
+      "status": "pass",
+      "evidence": "Esc 关闭弹窗；焦点回到触发行=true（activeElement=DIV.settings-row clickable，text=修改密码定期修改密码，保护账号安全）",
+      "note": "焦点回位是机器可测；「无悬空焦点」的听感由该归属背书"
+    },
+    {
+      "item": "C3",
+      "status": "pass",
+      "evidence": "Tab 30 次 + Shift+Tab 8 次，焦点逃出弹窗次数=0",
+      "note": "焦点陷阱为 Element Plus 行为；机器只能证明焦点未落到弹窗外，读屏器实际读到的先后顺序需人耳"
+    },
+    {
+      "item": "D1",
+      "status": "pass",
+      "evidence": "无障碍树含表格语义(table/columnheader)=true；列名命中 4/4；快照见 d1-table.aria.yaml",
+      "note": ""
+    },
+    {
+      "item": "D2",
+      "status": "pass",
+      "evidence": "分页器存在=true；无障碍树命中可朗读名称 4/4（上一页、下一页、第 1 页、第 2 页）；按钮属性=[{\"label\":\"上一页\",\"text\":\"\",\"disabled\":true},{\"label\":\"下一页\",\"text\":\"\",\"disabled\":false}]",
+      "note": "「翻页状态变化被播报」依赖组件内部 live/aria 更新，机器只能证明按钮有可朗读名称"
+    },
+    {
+      "item": "D3",
+      "status": "pass",
+      "evidence": "错误文案出现=true（请输入登录账号[role=alert] / 请输入密码[role=alert]）；aria-invalid + aria-describedby 关联=true；aria-describedby 目标可解析=true；当前焦点=BUTTON / ",
+      "note": ""
+    },
+    {
+      "item": "D4",
+      "status": "pass",
+      "evidence": "冲突提示文本=「该时段与已通过预约 10:00-12:00 冲突」；容器 role=alert（el-alert 固定 role=alert，读屏器按警报播报）；聚焦仍在弹窗内=true（DIV）",
+      "note": "「冲突提示可被读到且焦点不丢失」的机器证据；实际播报优先级（alert 打断）需人耳"
+    },
+    {
+      "item": "C4",
+      "status": "pass",
+      "evidence": "确认框打开时焦点在框内=true（「确定取消」）；确认后焦点=DIV.el-card is-never-shadow reserve-card role=region aria-label=「我的预约列表」，悬空到 body=false；Tab 后焦点仍在列表区域=true（「全部」）",
+      "note": "机器证据=确认后焦点归属 + Tab 续走；读屏器实际播报「取消成功 / 我的预约列表」的听感仍可人工抽检"
+    }
+  ]
+}

@@ -45,11 +45,12 @@ lab-reservation-system/
 ├── server/                       # 后端工程（Spring Boot 3.2.10，唯一代码源）
 │   ├── src/main/java/            # 分层代码 + ai 独立包
 │   ├── src/test/java/            # 单元测试与并发集成测试
-│   └── scripts/smoke.ps1         # 接口冒烟回归脚本（36 项）
+│   └── scripts/                  # smoke.ps1（接口冒烟 41 项）/ ai-real-acceptance.ps1（真实模型验收）/ a11y-acceptance.mjs（无障碍机器代理）
 ├── web/                          # 前端工程（Vue 3.4 + Vite 5，唯一代码源）
 │   ├── src/                      # 页面 / 组件 / 路由 / 接口封装
 │   └── e2e/                      # Playwright E2E（specs + helpers）
 ├── database/init_db.sql          # 建库建表 + 基线数据（自包含，可重复执行）
+├── database/migrations/          # 存量库增量迁移（token_version 会话撤销列）
 ├── materials/                    # 答辩 PPT 与实训报告
 ├── docs/
 │   ├── iterations/R1~R13/        # 各轮 任务说明 / 接口清单 / 测试报告 / 启动说明
@@ -93,6 +94,26 @@ docker compose ps                             # 四条服务均应为 healthy
 
 数据库首次初始化由容器自动执行 [init_db.sql](database/init_db.sql)（仅在数据卷为空时触发，不会覆盖已有数据）；若已有历史数据卷，数据原样保留。
 
+> **已有数据卷需要执行一次迁移**：会话撤销依赖 `sys_user.token_version` 列，`init_db.sql` 只在空库执行，存量库请跑幂等迁移脚本（重复执行安全）：
+> ```powershell
+> docker compose exec -T mysql mysql -uroot -proot --default-character-set=utf8mb4 < database/migrations/20261107_add_sys_user_token_version.sql
+> ```
+> 升级后所有**升级前签发的 Token 立即失效**（新 Token 必须携带版本号），重新登录即可。
+
+启用 AI（可选，双开关缺一不可）：
+
+```powershell
+# 1. .env 中设置 AI_ENABLE=true 与 AGNES_API_KEY=<你的密钥>，然后重建后端使环境变量生效
+docker compose up -d api
+
+# 2. 打开数据库动态开关（数据卷首次初始化后 ai_enable 基线为 false，必须手动置 true）
+docker compose exec mysql mysql -uroot -proot -e "UPDATE reservation.ai_config SET config_value='true' WHERE config_key='ai_enable';"
+
+# 3. 前端重新登录，AI 入口才会出现（登录接口下发 aiEnabled，前端落盘 localStorage）
+```
+
+> 注意：`docker compose down -v`、删除数据卷或数据目录为空导致重新执行 init 后，`ai_config.ai_enable` 会回到 `false`，需重跑第 2 步；仅重启容器不受影响。
+
 ### 方式二：本地开发（后端 / 前端跑在宿主机，数据库与缓存用容器）
 
 ```powershell
@@ -103,6 +124,8 @@ docker compose ps                             # 查看健康状态
 
 # 2. 初始化数据库（仅需一次；脚本自包含 DROP+CREATE+INSERT，可重复执行）
 mysql -h 127.0.0.1 -P 3307 -uroot -proot < database/init_db.sql
+#    已有历史库（不是全新建库）时，额外执行一次幂等迁移（token_version 会话撤销列）
+mysql -h 127.0.0.1 -P 3307 -uroot -proot < database/migrations/20261107_add_sys_user_token_version.sql
 
 # 3. 启动后端（端口 8080，接口文档 http://localhost:8080/doc.html）
 #    注意：容器映射端口为 3307/6380，与配置默认值 3306/6379 不同，必须先注入环境变量
@@ -133,7 +156,7 @@ npm run dev                                   # 浏览器访问 http://127.0.0.1
 | `REDIS_PORT` | `6379` | Redis 端口 | 本机容器映射 6380，需覆盖 |
 | `REDIS_PASSWORD` | 空 | Redis 密码 | 否 |
 | `REDIS_DATABASE` | `0` | Redis 库序号 | 否 |
-| `REDIS_ENABLE` | `true` | Redis 总开关，置 `false` 时退化为纯 JWT 校验 + 直接查库 | 否 |
+| `REDIS_ENABLE` | `true` | Redis 总开关；置 `false` 后无单点会话、无缓存（登出 / 改密等撤销仍由 `token_version` 生效），启用但连接异常时会话校验 fail closed（401） | 否 |
 | `MYBATIS_LOG_IMPL` | `org.apache.ibatis.logging.stdout.StdOutImpl` | SQL 日志实现，置 `nologging` 可关闭 | 否 |
 | `KNIFE4J_ENABLE` | `true` | 接口文档开关 | 否 |
 | `AI_ENABLE` | `false` | AI 静态总开关 | 否 |
@@ -157,6 +180,8 @@ npm run dev                                   # 浏览器访问 http://127.0.0.1
 - 静态总开关：`application.yml` 中 `ai.enable`（默认 `false`，可被环境变量 `AI_ENABLE` 覆盖）。
 - 数据库开关：`ai_config` 表的 `ai_enable`。两者同为 `true` 时 AI 功能可用。
 
+> 容器化启动时数据库开关需手动打开：`init_db.sql` 基线为 `false`，重建数据卷后会再次关闭。具体命令见「快速开始 · 方式一」的**启用 AI**一节。
+
 运行时行为：
 
 - 接入国内节点 `https://api.agnes-ai.cn/v1`，模型 `agnes-3.0-flash`，密钥经 `AGNES_API_KEY` 注入，前端零接触。
@@ -172,10 +197,11 @@ npm run dev                                   # 浏览器访问 http://127.0.0.1
 ## 测试
 
 ```powershell
-# 后端单元测试（21 个测试类；其中 3 个 @SpringBootTest 需 MySQL/Redis 在线）
+# 后端单元测试（30 个测试类；其中 4 个 @SpringBootTest 需 MySQL 在线，3 个另需 Redis；
+# TokenRevocationIntegrationTest 固定 redis.enable=false，用于证明“没有 Redis 也能持久撤销”）
 mvn -f server/pom.xml test
 
-# 后端接口冒烟回归（36 项：鉴权 / 权限 / 预约生命周期 / 冲突检测 / 参数校验 / 看板 / 收藏 / AI 降级 / 注销）
+# 后端接口冒烟回归（41 项：鉴权 / 权限 / 预约生命周期 / 冲突检测 / 参数校验 / 看板 / 收藏 / AI 降级 / 注销与会话撤销）
 pwsh server/scripts/smoke.ps1
 
 # 前端规范与构建
@@ -183,20 +209,25 @@ cd web
 npm run lint
 npm run build
 
-# 前端端到端测试（16 个 spec / 118 个用例；需后端与 MySQL、Redis 在线，串行执行）
-npm run test:e2e
-npm run test:e2e:smoke      # 仅跑冒烟子集
+# 前端端到端测试（17 个 spec / 120 个用例；需后端与 MySQL、Redis 在线，串行执行）
+npm run test:e2e            # 默认只跑 Chromium
+npm run test:e2e:smoke      # 仅跑 Chromium 冒烟子集
+npm run test:e2e:edge       # 用本机 Microsoft Edge（channel=msedge）全量回归
+npm run test:e2e:all        # Chromium + Edge 全量（共用同一后端，串行）
 npm run test:e2e:report     # 打开 HTML 报告
+
+# 无障碍「读屏器清单」机器代理验收（需后端 8080 + 前端 dev server 5173；AI 全 mock，零真实模型调用）
+node scripts/a11y-acceptance.mjs   # 证据输出 docs/review/a11y-evidence/（16/16 项；人工听感按负责人决定不执行）
 ```
 
 ## 持续集成
 
 | 工作流 | 触发 | 内容 |
 |--------|------|------|
-| `web-lint.yml` | push 到 `main`（`web/**` 变更） | `npm ci` → `npm run lint` → `npm run build` |
-| `server-ci.yml` | 手动触发（`workflow_dispatch`） | 起 MySQL 8.0 / Redis 7.0 服务容器 → 导入 `database/init_db.sql` → `mvn -f server/pom.xml test` |
+| `web-lint.yml` | push / PR（`web/**` 变更） | `npm ci` → `npm run lint` → `npm run build` |
+| `server-ci.yml` | push / PR（`server/**`、`database/init_db.sql` 变更）+ 手动触发 | 起 MySQL 8.0 / Redis 7.0 服务容器 → 导入 `database/init_db.sql` → `mvn -f server/pom.xml test` |
 
-> `server-ci.yml` 暂设为手动触发：后端部分单测依赖真实 MySQL / Redis 与种子数据，待其在 CI 环境中实测稳定后再切换为 push 触发。
+> 后端测试依赖真实 MySQL / Redis 与种子数据；CI 已按 `database/init_db.sql` 准备数据库，并已实测通过后切换为 push / PR 触发。
 
 ## 迭代历程
 
@@ -228,6 +259,7 @@ npm run test:e2e:report     # 打开 HTML 报告
 | 各轮交付四件套（R1–R13） | [`docs/iterations/`](docs/iterations) |
 | QA 收口报告 | [`docs/qa/`](docs/qa) |
 | 软件审查报告与可视化 | [`docs/review/`](docs/review) |
+| 无障碍人工清单 + 机器代理记录与证据（人工听感不执行） | [`docs/无障碍人工验收清单.md`](docs/无障碍人工验收清单.md) · [`docs/review/无障碍机器代理验收记录.md`](docs/review/无障碍机器代理验收记录.md) |
 | 端到端测试报告与回归脚本 | [`docs/e2e/`](docs/e2e) |
 
 ## 交付材料

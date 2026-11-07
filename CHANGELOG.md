@@ -4,6 +4,29 @@
 
 当前交付版本为 `1.0.0`，覆盖 R1–R13 共 13 轮迭代。逐轮的完整交付文档（任务说明 / 接口清单 / 测试报告 / 启动说明）见 `docs/iterations/`。
 
+## [未发布] - 2026-11
+
+### 修复 / 安全加固
+
+- **会话撤销改为数据库版本号权威**：`sys_user` 新增 `token_version`（幂等迁移脚本 [`database/migrations/20261107_add_sys_user_token_version.sql`](database/migrations/20261107_add_sys_user_token_version.sql)）。JWT 签发时携带版本号，登出 / 改密 / 管理员重置 / 启用禁用都会原子自增，正常路径下旧 Token 下一次请求即 401——Redis 关闭、后端重启、多实例部署下同样成立（删除鉴权快照失败的异常路径见下方「文档」修正条目）。
+- 移除 Redis 侧「本地撤销标记」兜底（`RedisCache.removeToken` 的「撤销未完全确认」异常语义），改为 `invalidateSession` 只做清理；鉴权状态缓存升级为 `status|tokenVersion`。
+- Redis 启用但连接异常时鉴权 **fail closed（401）**，不再退化为仅 JWT 放行；`REDIS_ENABLE=false` 才是明确无状态模式（无单点会话，撤销仍由版本号保证）。
+- 前端 401 处理尊重 `silent`：改密后调用登出（旧 Token 已被撤销）不再误报「登录已过期」或硬跳转。
+- **无障碍缺陷修复（读屏器清单机器代理验收发现）**：AI 助手 live region 改为播报 Markdown 渲染后的纯文本（原先播报 `**`/列表序号，与可见气泡不一致）；登录页错误提示补 `aria-invalid` / `aria-describedby` 关联与 `role=alert`；补齐 Element Plus zh-cn 缺失的 `dialog.close` / `drawer.close` / `messagebox.close` 键，关闭按钮不再暴露 `el.dialog.close` 这类原始 i18n key；「我的预约」取消确认后触发按钮被移除会导致焦点悬空到 `body`，修复为确认成功后聚焦列表区域（`role=region` + `aria-label="我的预约列表"`，`13-my-reservation` 已加断言）。
+
+### 测试
+
+- 后端 **184 项**（新增 `TokenRevocationIntegrationTest`：固定 `redis.enable=false`，验证无 Redis 也能持久撤销；新增拦截器版本号 / 状态缓存用例）。
+- 前端 E2E **120 项 / 17 spec**，新增「会话撤销」spec；新增 Microsoft Edge 全量回归项目（`npm run test:e2e:edge`，默认脚本仍只跑 Chromium）。
+- `server/scripts/smoke.ps1` 增至 **41 项**（含重置密码后旧 Token 失效断言），并修复脚本对 PowerShell 7 错误响应的兼容性。
+
+### 文档
+
+- 同步 `需求设计文档.md` §2.3.2（`sys_user.token_version`）、`docs/Redis加分项接入说明.md`、`docs/演示脚本.md` 的撤销与 fail-closed 口径，并新增数据库设计图字段。
+- 新增 [`docs/无障碍人工验收清单.md`](docs/无障碍人工验收清单.md)（读屏器人工验收步骤；人工听感按项目负责人 2026-11-07 决定**不执行**，非需求项，机器代理记录见下）。
+- 新增无障碍机器代理验收：脚本 [`web/scripts/a11y-acceptance.mjs`](web/scripts/a11y-acceptance.mjs)、记录 [`docs/review/无障碍机器代理验收记录.md`](docs/review/无障碍机器代理验收记录.md) 与证据 [`docs/review/a11y-evidence/`](docs/review/a11y-evidence/)；**16 项全部有机器证据并通过**（C4 修复后由机器验证）；真实播报人工听感按负责人决定不纳入交付（本机未安装 NVDA、讲述人未运行，未执行）。
+- 修正会话撤销「立即生效」的绝对表述：补充「删除鉴权状态快照失败时，Redis 恢复后 ≤60s 旧快照窗口内旧 Token 仍可能被接受」的如实口径（故障期间仍 fail-closed 401；窗口结束后回源数据库即 401），同步 [`docs/Redis加分项接入说明.md`](docs/Redis加分项接入说明.md) §3/§4/§5/§6.2、[`docs/演示脚本.md`](docs/演示脚本.md)、`AuthInterceptor` 与 `RedisCache` 注释。
+
 ## [1.0.0] - 2026-10
 
 ### 新增

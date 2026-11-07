@@ -1,0 +1,97 @@
+{
+  "web": "http://127.0.0.1:5173",
+  "date": "2026-11-08",
+  "mouse": {
+    "purpose": "C4验收-鼠标-1794048437422",
+    "before": {
+      "tag": "BODY",
+      "cls": "",
+      "role": null,
+      "name": "",
+      "text": "高校实验室预约管理系统学生端教室列表我的预约日历总览个人中心张三张三我的预约今日预约已置顶显示 · 待审核 / 已通过可",
+      "inTable": false,
+      "inMessageBox": false,
+      "isBody": true,
+      "connected": true
+    },
+    "afterOpen": {
+      "tag": "BUTTON",
+      "cls": "el-button el-button--primary",
+      "role": null,
+      "name": "",
+      "text": "确定取消",
+      "inTable": false,
+      "inMessageBox": true,
+      "isBody": false,
+      "connected": true
+    },
+    "afterCancelThink": {
+      "tag": "BUTTON",
+      "cls": "el-button el-button--danger el-button--small is-plain",
+      "role": null,
+      "name": "",
+      "text": "取消",
+      "inTable": true,
+      "inMessageBox": false,
+      "isBody": false,
+      "connected": true
+    },
+    "afterConfirm": {
+      "tag": "DIV",
+      "cls": "el-card is-never-shadow reserve-card",
+      "role": "region",
+      "name": "我的预约列表",
+      "text": "全部待审核已通过已驳回已取消教室预约日期时段用途状态审核备注操作A101多媒体教室信息楼-A1012026-11-080",
+      "inTable": false,
+      "inMessageBox": false,
+      "isBody": false,
+      "connected": true
+    },
+    "statusTag": "已取消",
+    "cancelBtnCount": 0,
+    "announce": {
+      "cls": "el-message el-message--success",
+      "role": "alert",
+      "text": "取消成功",
+      "live": null
+    }
+  },
+  "keyboard": {
+    "purpose": "C4验收-键盘-1794048440669",
+    "before": {
+      "tag": "BUTTON",
+      "cls": "el-button el-button--danger el-button--small is-plain",
+      "role": null,
+      "name": "",
+      "text": "取消",
+      "inTable": true,
+      "inMessageBox": false,
+      "isBody": false,
+      "connected": true
+    },
+    "afterOpen": {
+      "tag": "BUTTON",
+      "cls": "el-button el-button--primary",
+      "role": null,
+      "name": "",
+      "text": "确定取消",
+      "inTable": false,
+      "inMessageBox": true,
+      "isBody": false,
+      "connected": true
+    },
+    "tabStops": [],
+    "afterConfirm": {
+      "tag": "DIV",
+      "cls": "el-card is-never-shadow reserve-card",
+      "role": "region",
+      "name": "我的预约列表",
+      "text": "全部待审核已通过已驳回已取消教室预约日期时段用途状态审核备注操作A101多媒体教室信息楼-A1012026-11-080",
+      "inTable": false,
+      "inMessageBox": false,
+      "isBody": false,
+      "connected": true
+    }
+  },
+  "boxSnapshot": "- text: 取消预约确认\n- button \"关闭\":\n  - img\n- img\n- paragraph: 确定要取消「A101多媒体教室」2026-11-08 08:00-10:00 的预约吗？取消后不可恢复。\n- button \"再想想\"\n- button \"确定取消\""
+}

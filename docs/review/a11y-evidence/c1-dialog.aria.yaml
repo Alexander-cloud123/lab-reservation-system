@@ -1,0 +1,14 @@
+- heading "修改密码" [level=2]
+- button "关闭":
+  - img
+- text: "* 原密码"
+- textbox "* 原密码":
+  - /placeholder: 请输入原密码
+- text: "* 新密码"
+- textbox "* 新密码":
+  - /placeholder: 不少于 6 位
+- text: "* 确认密码"
+- textbox "* 确认密码":
+  - /placeholder: 再次输入新密码
+- button "取消"
+- button "修改密码"

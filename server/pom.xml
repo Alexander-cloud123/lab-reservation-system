@@ -105,6 +105,36 @@
 
     <build>
         <plugins>
+            <!-- 覆盖率：test 阶段自动挂载 agent 并生成报告（server/target/site/jacoco），
+                 CI 上传为 artifact；不设 check 规则，避免把覆盖率门槛变成业务开发的阻塞项 -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.12</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                        <configuration>
+                            <!-- DTO / VO / entity 是纯数据载体，不计入覆盖率分母，避免「getter 覆盖率」虚高 -->
+                            <excludes>
+                                <exclude>com/example/reservation/dto/**</exclude>
+                                <exclude>com/example/reservation/vo/**</exclude>
+                                <exclude>com/example/reservation/entity/**</exclude>
+                            </excludes>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

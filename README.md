@@ -2,6 +2,7 @@
 
 [![Web CI](https://github.com/Alexander-cloud123/lab-reservation-system/actions/workflows/web-lint.yml/badge.svg?branch=main)](https://github.com/Alexander-cloud123/lab-reservation-system/actions/workflows/web-lint.yml)
 [![Server CI](https://github.com/Alexander-cloud123/lab-reservation-system/actions/workflows/server-ci.yml/badge.svg?branch=main)](https://github.com/Alexander-cloud123/lab-reservation-system/actions/workflows/server-ci.yml)
+[![Stack Smoke & E2E](https://github.com/Alexander-cloud123/lab-reservation-system/actions/workflows/stack-smoke.yml/badge.svg?branch=main)](https://github.com/Alexander-cloud123/lab-reservation-system/actions/workflows/stack-smoke.yml)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 ![Java](https://img.shields.io/badge/Java-21-blue.svg)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.10-6DB33F.svg)
@@ -317,9 +318,11 @@ node scripts/capture-screens.mjs   # 输出 docs/images/*.png
 | 工作流 | 触发 | 内容 |
 |--------|------|------|
 | `web-lint.yml` | push / PR（`web/**` 变更） | `npm ci` → `npm run lint` → `npm run build` |
-| `server-ci.yml` | push / PR（`server/**`、`database/init_db.sql` 变更）+ 手动触发 | 起 MySQL 8.0 / Redis 7.0 服务容器 → 导入 `database/init_db.sql` → `mvn -f server/pom.xml test` |
+| `server-ci.yml` | push / PR（`server/**`、`database/init_db.sql` 变更）+ 手动触发 | 起 MySQL 8.0 / Redis 7.0 服务容器 → 导入 `database/init_db.sql` → `mvn test`（184 项）→ 上传 JaCoCo 覆盖率报告 |
+| `stack-smoke.yml` | push / PR（`server/**`、`web/**`、`database/init_db.sql` 变更）+ 手动触发 | **smoke** job：打包 jar 起后端 → 跑 41 项接口冒烟；**e2e** job：独立栈 + `npm ci` + Chromium → 跑 120 项 Playwright E2E（两个 job 各自独立 MySQL / Redis，互不污染数据） |
 
 > 后端测试依赖真实 MySQL / Redis 与种子数据；CI 已按 `database/init_db.sql` 准备数据库，并已实测通过后切换为 push / PR 触发。
+> 覆盖率由 JaCoCo 在 `server-ci` 中生成并上传（行覆盖率约 54%，DTO / VO / entity 等纯数据载体不计入分母）。
 
 ## 迭代历程
 

@@ -76,3 +76,11 @@ jobs:
 
       - name: Build and test
         run: mvn -B -f server/pom.xml test
+
+      - name: Upload JaCoCo coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: server/target/site/jacoco
+          retention-days: 7

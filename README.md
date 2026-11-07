@@ -323,6 +323,7 @@ node scripts/capture-screens.mjs   # 输出 docs/images/*.png
 
 > 后端测试依赖真实 MySQL / Redis 与种子数据；CI 已按 `database/init_db.sql` 准备数据库，并已实测通过后切换为 push / PR 触发。
 > 覆盖率由 JaCoCo 在 `server-ci` 中生成并上传（行覆盖率约 54%，DTO / VO / entity 等纯数据载体不计入分母）。
+> 已实测（2026-11-07 首次跑通）：`stack-smoke.yml` 的 smoke job **41/41** 通过、e2e job **120 passed（3.0 分钟）**；`server-ci.yml` **184 项测试**通过并上传 `jacoco-report`。
 
 ## 迭代历程
 

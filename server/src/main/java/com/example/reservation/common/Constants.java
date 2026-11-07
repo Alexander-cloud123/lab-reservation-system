@@ -5,7 +5,7 @@ import java.time.LocalTime;
 /**
  * 系统常量类（魔法值统一收敛，禁止散落硬编码）
  *
- * @author reservation-team
+ * @author hyr
  */
 public final class Constants {
 
@@ -76,10 +76,19 @@ public final class Constants {
     /** 取消预约时限：预约开始前 N 小时内禁止取消（需求文档 1.4：不足 1 小时不可取消） */
     public static final int RESERVATION_CANCEL_HOURS = 1;
 
-    /** 预约用途长度上限（R4：与 reservation.purpose VARCHAR(255) 对齐，防直调接口触发数据库超长） */
+    /** 预约用途长度上限（与 reservation.purpose VARCHAR(255) 对齐） */
     public static final int PURPOSE_MAX_LENGTH = 255;
+    /** 审核备注长度上限（与 reservation.audit_remark VARCHAR(255) 对齐） */
+    public static final int AUDIT_REMARK_MAX_LENGTH = 255;
 
-    /* ===== 可预约时段窗口（H3 修复：提交侧强制校验 + 统计侧同口径裁剪，需求文档 1.4 每日 08:00-22:00）===== */
+    /** 教室字段长度上限（与数据库字段及现有表单一致，服务端兜底） */
+    public static final int CLASSROOM_NAME_MAX_LENGTH = 50;
+    public static final int CLASSROOM_BUILDING_MAX_LENGTH = 30;
+    public static final int CLASSROOM_ROOM_NO_MAX_LENGTH = 20;
+    public static final int CLASSROOM_EQUIPMENT_MAX_LENGTH = 255;
+    public static final int CLASSROOM_DESCRIPTION_MAX_LENGTH = 255;
+
+    /* ===== 可预约时段窗口（需求文档 V3.1 1.4，负责人书面确认保留并补写需求）===== */
     /** 每日可预约窗口左边界（含）：08:00，提交预约时强制 startTime ≥ 该时刻 */
     public static final LocalTime DAILY_SLOT_START = LocalTime.of(8, 0);
     /** 每日可预约窗口右边界（含）：22:00，提交预约时强制 endTime ≤ 该时刻 */

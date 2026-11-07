@@ -32,8 +32,8 @@ export function getActiveBookingRules() {
 
 /**
  * 校验一次预约提交的日期与时段组合。
- * 依次校验：① 三个字段必填 → ② 开始 < 结束 → ③ 结束-开始 ≤ 单次时长上限 →
- * ④ 时间落在可预约窗口内 → ⑤ 若 reserveDate 为「今天」，开始时间必须晚于 now。
+ * 依次校验：① 三个字段必填 → ② 过去日期拒绝 → ③ 开始 < 结束 → ④ 结束-开始 ≤ 单次时长上限 →
+ * ⑤ 时间落在可预约窗口内 → ⑥ 若 reserveDate 为「今天」，开始时间必须晚于 now。
  *
  * @param {{ reserveDate: string, startTime: string, endTime: string, now?: Date }} param
  *   reserveDate 形如 YYYY-MM-DD；startTime / endTime 形如 HH:mm；now 默认当前时间（可注入以便测试）
@@ -44,22 +44,27 @@ export function validateBooking({ reserveDate, startTime, endTime, now = new Dat
   if (!reserveDate || !startTime || !endTime) {
     return { ok: false, message: '请选择预约日期与开始、结束时间' }
   }
-  // ② 开始 < 结束（HH:mm 定宽字符串比较与数值比较等价）
+  // ② 过去日期整天拒绝（YYYY-MM-DD 定宽字符串可按字典序比较）
+  const today = formatDate(now)
+  if (reserveDate < today) {
+    return { ok: false, message: '预约日期已过，请选择今天或未来日期' }
+  }
+  // ③ 开始 < 结束（HH:mm 定宽字符串比较与数值比较等价）
   if (startTime >= endTime) {
     return { ok: false, message: '开始时间必须早于结束时间' }
   }
-  // ③ 单次时长上限
+  // ④ 单次时长上限
   const startMin = toMinutes(startTime)
   const endMin = toMinutes(endTime)
   if (endMin - startMin > rules.maxReservationHours * 60) {
     return { ok: false, message: `单次预约时长不能超过 ${rules.maxReservationHours} 小时` }
   }
-  // ④ 可预约窗口
+  // ⑤ 可预约窗口（保留后端下发的 08:00-22:00 规则）
   if (startTime < rules.slotStart || endTime > rules.slotEnd) {
     return { ok: false, message: `可预约时段为 ${rules.slotStart}-${rules.slotEnd}` }
   }
-  // ⑤ 今天已过时刻（reserveDate 为今天时，开始时间必须晚于当前时刻）
-  if (reserveDate === formatDate(now)) {
+  // ⑥ 今天已过时刻（reserveDate 为今天时，开始时间必须晚于当前时刻）
+  if (reserveDate === today) {
     const nowMin = now.getHours() * 60 + now.getMinutes()
     if (startMin <= nowMin) {
       return { ok: false, message: '该时刻已过，请选择今天稍后的时间' }

@@ -11,7 +11,7 @@ import java.time.format.DateTimeParseException;
  * 统一处理前端传入的日期（yyyy-MM-dd）与时间（HH:mm / HH:mm:ss），
  * 非法格式统一抛出 400 业务异常，禁止魔法格式散落
  *
- * @author reservation-team
+ * @author hyr
  */
 public final class TimeUtil {
 
@@ -32,7 +32,9 @@ public final class TimeUtil {
      */
     public static LocalDate parseDate(String date) {
         try {
-            return LocalDate.parse(date, DateTimeFormatter.ofPattern(DATE_PATTERN));
+            // ISO_LOCAL_DATE 使用 STRICT 解析，拒绝 2026-02-30 等不存在的日期，
+            // 避免 SMART 模式将其静默归一化为月末后按另一天落库。
+            return LocalDate.parse(date, DateTimeFormatter.ISO_LOCAL_DATE);
         } catch (DateTimeParseException e) {
             throw new BusinessException("日期格式不正确，应为 yyyy-MM-dd");
         }

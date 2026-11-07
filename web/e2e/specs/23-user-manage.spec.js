@@ -132,10 +132,14 @@ test.describe('管理端-用户管理（UserManage）', () => {
     await expect(page.locator('.el-pager li.is-active')).toHaveText('2')
     expect(await page.locator('tr.el-table__row').count(), '第 2 页应有数据').toBe(Math.min(total - 10, 10))
 
-    // 每页 20 条：EP 切换每页条数不会主动回到第 1 页（仅在页码越界时才夹紧），需显式回第 1 页
-    await setPageSize(page, '20条/页')
+    // 每页 20 条：先显式回第 1 页，再切每页条数。
+    // 顺序反过来的竞态：在第 2 页切到 20 条/页时，EP 会因页码越界把页码夹紧到 1，
+    // 但此时在途请求仍按「第 2 页 + 20 条」返回空数据，UI 不再自动重发请求 → 表格持续 0 行。
     await page.locator('.el-pager li').first().click()
     await expect(page.locator('.el-pager li.is-active')).toHaveText('1')
+    await expect(page.locator('tr.el-table__row')).toHaveCount(Math.min(await readTotal(page), 10))
+
+    await setPageSize(page, '20条/页')
     await expect(page.locator('tr.el-table__row')).toHaveCount(Math.min(await readTotal(page), 20))
   })
 })

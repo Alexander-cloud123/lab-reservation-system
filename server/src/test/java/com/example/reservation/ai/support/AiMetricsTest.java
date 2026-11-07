@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * AiMetrics 无外部依赖，直接 new 即可断言；不涉及 Spring 上下文。
  *
- * @author reservation-team
+ * @author hyr
  */
 class AiMetricsTest {
 

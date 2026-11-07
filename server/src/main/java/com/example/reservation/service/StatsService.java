@@ -11,7 +11,7 @@ import java.util.List;
  * 统计业务接口（R5 数据看板）
  * 全部为只读统计，口径见各方法注释；图表数据必须来自本接口，禁止前端伪造
  *
- * @author reservation-team
+ * @author hyr
  */
 public interface StatsService {
 

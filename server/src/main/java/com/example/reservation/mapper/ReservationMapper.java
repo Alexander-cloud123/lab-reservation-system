@@ -7,7 +7,7 @@ import org.apache.ibatis.annotations.Mapper;
 /**
  * 预约 Mapper
  *
- * @author reservation-team
+ * @author hyr
  */
 @Mapper
 public interface ReservationMapper extends BaseMapper<Reservation> {

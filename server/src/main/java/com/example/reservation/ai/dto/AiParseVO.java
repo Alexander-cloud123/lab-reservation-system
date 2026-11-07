@@ -8,7 +8,7 @@ import lombok.Data;
  * 结构化参数与 Prompt 模板输出约定一致：date/startTime/endTime/capacity/roomType/purpose
  * 识别失败时 error 字段返回「无法解析」
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class AiParseVO {

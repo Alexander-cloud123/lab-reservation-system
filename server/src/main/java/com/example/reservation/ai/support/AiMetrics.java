@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * 说明：计数器为「进程内累加」，应用重启即清零；只提供快照，不提供重置接口（避免被误当作业务数据篡改）。
  *
- * @author reservation-team
+ * @author hyr
  */
 @Component
 public class AiMetrics {

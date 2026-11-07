@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Configuration;
 /**
  * MyBatis-Plus 配置：分页插件（预约列表/教室列表分页使用）
  *
- * @author reservation-team
+ * @author hyr
  */
 @Configuration
 public class MybatisPlusConfig {

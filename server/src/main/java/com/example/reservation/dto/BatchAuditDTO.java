@@ -8,7 +8,7 @@ import java.util.List;
  * 批量审核请求参数（R3）
  * 规则：仅待审核(0)记录可参与；批量驳回(2)必须填写审核备注 auditRemark
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class BatchAuditDTO {

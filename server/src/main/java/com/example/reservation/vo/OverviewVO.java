@@ -13,7 +13,7 @@ import lombok.Data;
  *   <li>用户总数 = 用户表全部记录数（含管理员与已禁用账号，「总数」口径）。</li>
  * </ol>
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class OverviewVO {

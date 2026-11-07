@@ -5,7 +5,7 @@ import com.example.reservation.entity.Classroom;
 /**
  * 教室存在性校验（原 9 处重复实现收敛；错误文案与既有实现逐字一致）
  *
- * @author reservation-team
+ * @author hyr
  */
 public final class ClassroomValidator {
 

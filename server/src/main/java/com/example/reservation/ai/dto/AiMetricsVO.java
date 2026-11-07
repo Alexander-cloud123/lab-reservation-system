@@ -10,7 +10,7 @@ import java.util.Map;
  * 仅回传原始计数，不提供任何派生百分比（样本量小时百分比易误导）；
  * 计数器为进程内累加，应用重启即清零（startedAt 标明本次统计起点）。
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class AiMetricsVO {

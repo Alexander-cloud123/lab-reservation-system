@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 /**
  * 用户信息视图对象（脱敏：不含 password 字段）
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class UserVO {

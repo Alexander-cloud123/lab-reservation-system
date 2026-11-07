@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
  * 管理端预约视图对象（R3：预约审核全量查询）
  * 在预约展示字段基础上追加用户信息与审核信息
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 @EqualsAndHashCode(callSuper = true)

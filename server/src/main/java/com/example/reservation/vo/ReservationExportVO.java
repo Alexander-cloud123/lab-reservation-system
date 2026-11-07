@@ -8,7 +8,7 @@ import lombok.Data;
  * 仅含展示字段（白名单），不含 password 等敏感信息；
  * 时间字段统一输出为字符串，避免 EasyExcel 日期格式歧义
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class ReservationExportVO {

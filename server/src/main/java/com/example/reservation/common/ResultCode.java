@@ -6,7 +6,7 @@ import lombok.Getter;
 /**
  * 统一返回码枚举（语义化错误码，spec.md 2.5）
  *
- * @author reservation-team
+ * @author hyr
  */
 @Getter
 @AllArgsConstructor

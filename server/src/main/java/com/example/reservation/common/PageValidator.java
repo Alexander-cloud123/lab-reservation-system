@@ -4,7 +4,7 @@ package com.example.reservation.common;
  * 分页参数校验（原 4 处重复实现收敛）
  * 判定条件与错误文案与既有实现逐字一致（ClassroomServiceImpl ×2、ReservationServiceImpl、UserServiceImpl）
  *
- * @author reservation-team
+ * @author hyr
  */
 public final class PageValidator {
 

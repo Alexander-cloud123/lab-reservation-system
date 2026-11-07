@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  * AI 配置实体（ai_config）
  * 存储合规关键词、Prompt 模板等配置，避免硬编码，可动态调整（第 7 轮 AI 模块使用）
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 @TableName("ai_config")

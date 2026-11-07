@@ -10,7 +10,7 @@ import java.util.function.Function;
 /**
  * 通用分页返回结构（spec.md 2.5：分页数据统一结构 { total, records }）
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class PageResult<T> implements Serializable {

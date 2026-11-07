@@ -10,7 +10,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 /**
  * Web MVC 配置：注册鉴权拦截器 + 跨域支持
  *
- * @author reservation-team
+ * @author hyr
  */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {

@@ -37,7 +37,7 @@ import java.util.List;
  * 学生接口：conflict / 提交 / mine / cancel（登录即可访问）；
  * 管理员接口：manage（拦截器前缀校验）/ audit / batch-audit（拦截器精确路径校验），学生 Token 访问返回 403
  *
- * @author reservation-team
+ * @author hyr
  */
 @Tag(name = "预约模块", description = "冲突检测、提交预约、我的预约、取消、管理员审核与批量审核")
 @RestController

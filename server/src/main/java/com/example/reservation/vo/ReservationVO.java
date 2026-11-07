@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
  * 预约视图对象（R3：我的预约 / 学生端展示）
  * 附带关联教室展示字段（名称/楼栋/编号），不含敏感信息
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class ReservationVO {

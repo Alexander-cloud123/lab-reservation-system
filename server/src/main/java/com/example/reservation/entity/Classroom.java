@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  * 教室实体（classroom）
  * type：1-普通教室，2-实验室，3-机房；status：0-停用，1-可用
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 @TableName("classroom")

@@ -8,7 +8,7 @@ import com.example.reservation.ai.support.StructuredStreamSink;
  * 口语化描述 → 结构化预约参数（date/startTime/endTime/capacity/roomType/purpose）
  * 识别失败返回 error=「无法解析」，由前端引导用户重新描述或手动填写
  *
- * @author reservation-team
+ * @author hyr
  */
 public interface AiParseService {
 

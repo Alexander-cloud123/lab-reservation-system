@@ -10,7 +10,7 @@ import java.util.List;
 /**
  * 教室业务接口（R2：管理端教室资源管理；R3：学生端教室浏览）
  *
- * @author reservation-team
+ * @author hyr
  */
 public interface ClassroomService {
 

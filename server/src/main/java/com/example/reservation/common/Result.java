@@ -9,7 +9,7 @@ import java.io.Serializable;
  * 约定：{ "code": 200, "message": "操作成功", "data": {} }
  * code=200 成功；4xx 参数/鉴权错误；5xx 系统异常
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class Result<T> implements Serializable {

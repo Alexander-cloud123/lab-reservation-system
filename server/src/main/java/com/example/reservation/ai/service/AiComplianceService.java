@@ -8,7 +8,7 @@ import com.example.reservation.ai.support.StructuredStreamSink;
  * 输入预约用途 → 合规结果（compliant/reason），辅助管理员审核；
  * 只提示不改状态：审核动作仍由管理员手动执行（需求文档 1.4 AI 业务规则 2）
  *
- * @author reservation-team
+ * @author hyr
  */
 public interface AiComplianceService {
 

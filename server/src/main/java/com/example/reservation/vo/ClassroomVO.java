@@ -8,7 +8,7 @@ import java.util.List;
  * 学生端教室视图对象（R3 教室浏览）
  * 含实时状态标签与指定日期已通过预约占用时段
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class ClassroomVO {

@@ -7,7 +7,7 @@ import lombok.Data;
  * 预约智能问答结果 VO（POST /api/ai/chat）
  * 场景绝对限定：仅解答预约/教室/个人记录相关问题，无关问题返回预设话术
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class AiChatVO {

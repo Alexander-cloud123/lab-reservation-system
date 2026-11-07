@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 教室模块控制器（R2：管理端教室资源管理）
  * 管理员专属接口，拦截器按 /api/classroom/manage 前缀校验角色，学生 Token 访问返回 403
  *
- * @author reservation-team
+ * @author hyr
  */
 @Tag(name = "教室模块", description = "管理端教室资源管理（分页搜索/新增/编辑/删除/状态/批量）")
 @RestController

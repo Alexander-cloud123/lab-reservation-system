@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 路径 /api/classroom/list、/api/classroom/{id}，学生/管理员登录均可访问；
  * 与管理员专属接口 /api/classroom/manage 前缀区分（拦截器仅对 manage 前缀校验角色）
  *
- * @author reservation-team
+ * @author hyr
  */
 @Tag(name = "教室模块（学生端）", description = "教室浏览：分页列表（实时状态标签/日期筛选）、详情（时段占用）")
 @RestController

@@ -6,7 +6,7 @@ import lombok.Data;
 /**
  * 登录成功返回：Token + 用户信息 + AI 开关
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 @AllArgsConstructor

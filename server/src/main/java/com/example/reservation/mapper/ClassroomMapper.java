@@ -7,7 +7,7 @@ import org.apache.ibatis.annotations.Mapper;
 /**
  * 教室 Mapper
  *
- * @author reservation-team
+ * @author hyr
  */
 @Mapper
 public interface ClassroomMapper extends BaseMapper<Classroom> {

@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
  * 由后端 Constants 派生后下发，替代前端 booking.js 中手工镜像的
  * SLOT_START / SLOT_END / MAX_RESERVATION_HOURS，消除两处同步的隐性维护成本
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 @NoArgsConstructor

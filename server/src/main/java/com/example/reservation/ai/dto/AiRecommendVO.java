@@ -9,7 +9,7 @@ import java.util.List;
  * 智能教室推荐结果 VO（POST /api/ai/recommend）
  * enabled=false 表示 AI 未启用（双开关任一关闭），前端据此隐藏/禁用 AI 入口
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class AiRecommendVO {

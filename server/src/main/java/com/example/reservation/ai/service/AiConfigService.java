@@ -27,7 +27,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *  - TTL 到期后重新查库，因此「改 ai_config 免重启即生效」的演示卖点仍然成立，代价是最多延迟一个 TTL；
  *  - 缓存对象本身非 null（内部 value 允许为 null），可直接放入 ConcurrentHashMap。
  *
- * @author reservation-team
+ * @author hyr
  */
 @Service
 public class AiConfigService {

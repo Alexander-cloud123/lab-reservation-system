@@ -21,7 +21,7 @@ import java.util.List;
  * 权限：/api/stats 前缀在 Constants.ADMIN_API_PREFIXES 内，拦截器自动校验管理员角色；
  * 未登录访问返回 401，学生 Token 访问返回 403
  *
- * @author reservation-team
+ * @author hyr
  */
 @Tag(name = "统计模块", description = "数据看板：教室使用率排行 / 月度预约趋势 / 热门时段分布（管理员）")
 @RestController

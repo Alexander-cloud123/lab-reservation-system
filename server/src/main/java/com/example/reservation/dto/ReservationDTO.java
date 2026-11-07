@@ -6,7 +6,7 @@ import lombok.Data;
  * 提交预约请求参数（R3）
  * 校验：教室/日期/时段/用途必填，开始 < 结束；后端二次冲突检测兜底
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class ReservationDTO {

@@ -15,7 +15,7 @@ import java.util.List;
 /**
  * 预约业务接口（R3 预约核心）
  *
- * @author reservation-team
+ * @author hyr
  */
 public interface ReservationService {
 

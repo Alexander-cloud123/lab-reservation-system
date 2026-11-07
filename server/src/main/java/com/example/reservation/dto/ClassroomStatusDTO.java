@@ -5,7 +5,7 @@ import lombok.Data;
 /**
  * 教室启用/停用请求参数
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class ClassroomStatusDTO {

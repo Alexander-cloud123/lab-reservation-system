@@ -9,7 +9,7 @@ import java.time.LocalDate;
  * 月/周视图色块数据：预约时间段 + 状态 + 教室展示字段；
  * 状态与 R3/R4 常量一致（0-待审核，1-已通过，2-已驳回，3-已取消）
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class CalendarVO {

@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
  *  - 不一致：WARN 提示 Prompt 缺少顶层对象示例，可能引发降级；
  *  - 归属报告：INFO 汇总「已纳入 ai_config」与「仍为内置」的 Prompt 清单（Prompt 归属不一致的现状可见化）。
  *
- * @author reservation-team
+ * @author hyr
  */
 @Slf4j
 @Component

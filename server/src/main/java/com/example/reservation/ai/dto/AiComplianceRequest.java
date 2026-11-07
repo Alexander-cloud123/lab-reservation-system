@@ -5,7 +5,7 @@ import lombok.Data;
 /**
  * 预约合规校验请求（POST /api/ai/compliance-check，需求文档 2.5）
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class AiComplianceRequest {

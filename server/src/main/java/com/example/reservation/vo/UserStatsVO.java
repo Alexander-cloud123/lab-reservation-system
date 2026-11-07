@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
  * 审核通过率 = 已通过 /（已通过 + 已驳回）× 100（保留一位小数，无审核记录为 0）、
  * 最近一次预约时间（按预约创建时间取最新）
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class UserStatsVO {

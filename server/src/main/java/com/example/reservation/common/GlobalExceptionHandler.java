@@ -12,7 +12,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
  * 全局异常处理器
  * 统一拦截业务异常与系统异常，转换为 Result 结构，禁止将异常堆栈直接返回前端
  *
- * @author reservation-team
+ * @author hyr
  */
 @Slf4j
 @RestControllerAdvice

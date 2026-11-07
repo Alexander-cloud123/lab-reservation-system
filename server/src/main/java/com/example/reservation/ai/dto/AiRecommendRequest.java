@@ -5,7 +5,7 @@ import lombok.Data;
 /**
  * 智能教室推荐请求（POST /api/ai/recommend，需求文档 2.5）
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class AiRecommendRequest {

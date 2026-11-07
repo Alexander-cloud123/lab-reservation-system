@@ -6,7 +6,7 @@ import lombok.Data;
  * 多轮对话历史消息（R13-3，POST /api/ai/chat 与 /api/ai/chat?stream=true 的可选字段 history 元素）
  * 仅承载会话内上下文：不落库、不建表，刷新即清空；后端会做角色白名单、条数与长度二次裁剪。
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class AiChatHistoryMessage {

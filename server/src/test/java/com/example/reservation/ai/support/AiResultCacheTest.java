@@ -32,7 +32,7 @@ import static org.mockito.Mockito.when;
  *  2. {@link AiInvoker} 中的缓存编排——命中即短路（不触上游）、仅成功分支写缓存、降级分支不写缓存。
  * 全程 Mockito 打桩，不起 Spring 上下文、不消耗上游额度。
  *
- * @author reservation-team
+ * @author hyr
  */
 class AiResultCacheTest {
 

@@ -7,7 +7,7 @@ import lombok.Data;
  * 口径：使用率 = 区间内该教室【已通过】预约占用小时数 ÷（区间天数 × 每日可预约时长 14h）× 100，
  * 保留 1 位小数；无已通过预约的教室使用率为 0（仍参与排行展示）
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class UsageRateVO {

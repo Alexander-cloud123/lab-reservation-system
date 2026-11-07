@@ -26,7 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *  - 学生 Token 访问管理员专属接口 → HTTP 403 + code=403
  *  - 管理员分页参数非法 → 业务校验 400（项目约定：业务错误 HTTP 200 + 响应体 code 表达语义）
  *
- * @author reservation-team
+ * @author hyr
  */
 @SpringBootTest
 @AutoConfigureMockMvc

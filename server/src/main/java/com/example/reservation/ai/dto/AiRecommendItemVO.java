@@ -5,7 +5,7 @@ import lombok.Data;
 /**
  * 智能推荐单条教室项（含推荐理由，一句话）
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class AiRecommendItemVO {

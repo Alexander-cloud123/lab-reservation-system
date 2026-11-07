@@ -7,7 +7,7 @@ import org.apache.ibatis.annotations.Mapper;
 /**
  * AI 配置 Mapper
  *
- * @author reservation-team
+ * @author hyr
  */
 @Mapper
 public interface AiConfigMapper extends BaseMapper<AiConfig> {

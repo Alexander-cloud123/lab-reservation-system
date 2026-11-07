@@ -6,7 +6,7 @@ import lombok.Data;
  * 教室新增/编辑请求参数（编辑时携带 id）
  * 校验规则（spec.md 7 节 R2）：名称/楼栋/编号/类型/容量必填，容量 > 0
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class ClassroomDTO {

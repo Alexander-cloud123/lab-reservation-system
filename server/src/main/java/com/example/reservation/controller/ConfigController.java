@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>权限：登录即可访问（路径不在管理员专属前缀内，拦截器仅校验 Token 有效性）。
  *
- * @author reservation-team
+ * @author hyr
  */
 @Tag(name = "系统配置", description = "前端所需业务规则下发（只读）")
 @RestController

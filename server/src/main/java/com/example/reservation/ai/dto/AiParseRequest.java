@@ -5,7 +5,7 @@ import lombok.Data;
 /**
  * 自然语言预约解析请求（POST /api/ai/parse-reservation，需求文档 2.5）
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class AiParseRequest {

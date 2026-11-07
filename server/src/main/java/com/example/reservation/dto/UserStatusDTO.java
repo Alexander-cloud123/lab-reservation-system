@@ -5,7 +5,7 @@ import lombok.Data;
 /**
  * 用户启用/禁用请求参数
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class UserStatusDTO {

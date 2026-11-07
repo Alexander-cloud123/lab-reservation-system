@@ -7,7 +7,7 @@ import java.util.List;
 /**
  * 预约智能问答请求（POST /api/ai/chat，需求文档 2.5；R13-3 增加可选 history 多轮上下文）
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class AiChatRequest {

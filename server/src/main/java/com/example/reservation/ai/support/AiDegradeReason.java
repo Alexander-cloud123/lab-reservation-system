@@ -7,7 +7,7 @@ package com.example.reservation.ai.support;
  *  - AgnesClient 负责记录「未拿到模型输出」的失败类桶：限流、无密钥、服务异常；
  *  - 4 个业务 Service 负责记录「模型已返回但结构不合法」的 {@link #OUTPUT_INVALID}。
  *
- * @author reservation-team
+ * @author hyr
  */
 public enum AiDegradeReason {
 

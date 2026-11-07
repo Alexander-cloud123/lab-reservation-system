@@ -6,7 +6,7 @@ import lombok.Data;
  * 修改密码请求体（R4 个人中心）
  * 必须验证原密码，新密码 BCrypt 加密存储
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class PasswordDTO {

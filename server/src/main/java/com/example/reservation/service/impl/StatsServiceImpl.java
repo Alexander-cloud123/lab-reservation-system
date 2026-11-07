@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
  *  3. 时段分布 = 按开始时间分桶（08-10/10-12/14-16/16-18/19-21/其他）统计【已通过】预约占比。
  * 日期区间缺省逻辑：全缺省 = 近 30 天；仅一个缺省 = 以另一个为基准补 29 天；跨度上限 366 天。
  *
- * @author reservation-team
+ * @author hyr
  */
 @Service
 public class StatsServiceImpl implements StatsService {

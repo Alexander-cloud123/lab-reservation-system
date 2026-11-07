@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
  * 我的收藏视图对象（R4 收藏全链路 / 个人中心常用教室快捷入口）
  * 附带教室展示字段，便于前端直接渲染
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class FavoriteVO {

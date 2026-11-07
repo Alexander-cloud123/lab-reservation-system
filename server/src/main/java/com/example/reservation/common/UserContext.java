@@ -4,7 +4,7 @@ package com.example.reservation.common;
  * 当前登录用户上下文（ThreadLocal）
  * 由鉴权拦截器在请求进入时写入，请求结束后清除，避免线程复用导致的数据串扰
  *
- * @author reservation-team
+ * @author hyr
  */
 public class UserContext {
 

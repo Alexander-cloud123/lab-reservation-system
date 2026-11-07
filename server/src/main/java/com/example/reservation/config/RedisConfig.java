@@ -17,7 +17,7 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
  *    application.yml 的 spring.jackson.* 现已对全站（含 Redis 缓存读写）真实生效。
  * 使用 Spring Boot 默认 Lettuce 客户端，禁止引入 Redisson 等额外组件（AGENTS.md 第 7 节红线）。
  *
- * @author reservation-team
+ * @author hyr
  */
 @Configuration
 public class RedisConfig {

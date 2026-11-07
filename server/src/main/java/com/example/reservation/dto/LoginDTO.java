@@ -5,7 +5,7 @@ import lombok.Data;
 /**
  * 登录请求参数
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class LoginDTO {

@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 /**
  * 高校实验室预约管理系统 - 启动类
  *
- * @author reservation-team
+ * @author hyr
  */
 @SpringBootApplication
 @MapperScan("com.example.reservation.mapper")

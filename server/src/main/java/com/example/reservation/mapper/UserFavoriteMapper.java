@@ -7,7 +7,7 @@ import org.apache.ibatis.annotations.Mapper;
 /**
  * 用户收藏 Mapper
  *
- * @author reservation-team
+ * @author hyr
  */
 @Mapper
 public interface UserFavoriteMapper extends BaseMapper<UserFavorite> {

@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
  * 由 ReservationServiceImpl 的私有转换方法外移而来（代码质量重构轮），行为不变：
  * 批量预查教室/用户信息，避免逐行 selectById 造成 N+1 查询
  *
- * @author reservation-team
+ * @author hyr
  */
 @Component
 public class ReservationConverter {

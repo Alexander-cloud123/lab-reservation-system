@@ -7,7 +7,7 @@ import lombok.Data;
  * 口径：按预约开始时间分桶（08:00-10:00 / 10:00-12:00 / 14:00-16:00 / 16:00-18:00 / 19:00-21:00 / 其他），
  * 统计区间内【已通过】预约条数及占比（%，保留 1 位小数，总和约 100）
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class TimeDistributionVO {

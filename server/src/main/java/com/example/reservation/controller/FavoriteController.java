@@ -18,7 +18,7 @@ import java.util.List;
  * 收藏模块控制器（R4 收藏全链路）
  * 路径 /api/favorite/*：学生/管理员登录均可访问；未登录返回 401（拦截器统一校验）
  *
- * @author reservation-team
+ * @author hyr
  */
 @Tag(name = "收藏模块", description = "教室收藏/取消收藏（toggle）、我的收藏列表（上限 10 间）")
 @RestController

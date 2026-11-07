@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
  * 字段与 spec.md 2.3 模板一致：enable / base-url / api-key / model / timeout-seconds / max-tokens / rpm-limit
  * 密钥仅从环境变量 AGNES_API_KEY 注入（application.yml 中 ${AGNES_API_KEY:}），禁止硬编码
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 @Component

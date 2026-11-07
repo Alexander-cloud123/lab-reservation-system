@@ -11,7 +11,7 @@ package com.example.reservation.ai.support;
  * @param totalTokens      合计 token 数（上游未给出时按输入+输出兜底）
  * @param finishReason     结束原因：stop（正常结束）/ length（触达 max_tokens 被截断）/
  *                         content_filter（内容策略拦截），缺失为 null
- * @author reservation-team
+ * @author hyr
  */
 public record AiUsage(long promptTokens, long completionTokens, long totalTokens, String finishReason) {
 

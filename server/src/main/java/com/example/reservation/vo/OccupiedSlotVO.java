@@ -6,7 +6,7 @@ import lombok.Data;
  * 预约时段占用信息（教室详情/列表指定日期占用展示）
  * 时段为已通过(1)预约的占用区间
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class OccupiedSlotVO {

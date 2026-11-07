@@ -11,7 +11,7 @@ import java.util.List;
  * 场景绝对限定（需求文档 1.4 AI 业务规则 1）：仅解答预约/教室/个人记录相关问题，
  * 无关问题统一返回预设话术；个人数据通过检索增强注入上下文
  *
- * @author reservation-team
+ * @author hyr
  */
 public interface AiChatService {
 

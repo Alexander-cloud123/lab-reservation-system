@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
  * MyBatis-Plus 字段自动填充
  * create_time / update_time 由后端统一填充，不依赖数据库默认值
  *
- * @author reservation-team
+ * @author hyr
  */
 @Component
 public class MyMetaObjectHandler implements MetaObjectHandler {

@@ -7,7 +7,7 @@ import java.util.List;
 /**
  * 收藏业务接口（R4 收藏全链路）
  *
- * @author reservation-team
+ * @author hyr
  */
 public interface FavoriteService {
 

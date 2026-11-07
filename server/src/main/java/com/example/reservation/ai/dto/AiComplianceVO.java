@@ -7,7 +7,7 @@ import lombok.Data;
  * 预约合规校验结果 VO（POST /api/ai/compliance-check）
  * 只提示不改状态：前端仅用于辅助管理员审核，审核动作仍由管理员手动执行
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class AiComplianceVO {

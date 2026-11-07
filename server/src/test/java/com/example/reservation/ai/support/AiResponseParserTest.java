@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * 覆盖：完整响应 / usage 缺失 / total 缺失兜底 / finish_reason=length / 空 choices / 内容缺失 / 非 JSON / 空白输入。
  * 全部为纯单测（自行注入 ObjectMapper，不起 Spring 上下文、不消耗上游额度）。
  *
- * @author reservation-team
+ * @author hyr
  */
 class AiResponseParserTest {
 

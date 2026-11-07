@@ -6,7 +6,7 @@ import lombok.Data;
  * 修改个人信息请求体（R4 个人中心）
  * 仅允许修改：姓名 / 学号 / 邮箱 / 手机号；禁止修改密码字段（密码走独立接口）
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class UserInfoDTO {

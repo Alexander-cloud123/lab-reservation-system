@@ -7,7 +7,7 @@ import lombok.Data;
  * 口径：按预约日期（reserve_date）归属自然月，统计区间内【全部状态】预约条数；
  * 仅返回区间内有数据的月份，按月份升序
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class TrendVO {

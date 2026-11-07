@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * 只读不写：仅回传进程内计数器快照，不提供重置/写入能力。
  *
- * @author reservation-team
+ * @author hyr
  */
 @Tag(name = "AI 运行指标", description = "AI 模块进程内运行指标快照（只读，管理员专属）")
 @RestController

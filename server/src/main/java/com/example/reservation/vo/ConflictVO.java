@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 /**
  * 冲突检测结果（R3 预约核心）
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 @NoArgsConstructor

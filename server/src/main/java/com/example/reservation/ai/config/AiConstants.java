@@ -4,7 +4,7 @@ package com.example.reservation.ai.config;
  * AI 模块常量（R7：魔法值统一收敛，禁止散落硬编码）
  * 覆盖 ai_config 配置键、AI 开关消息、降级引擎话术等
  *
- * @author reservation-team
+ * @author hyr
  */
 public final class AiConstants {
 

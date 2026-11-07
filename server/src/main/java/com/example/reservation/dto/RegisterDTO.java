@@ -6,7 +6,7 @@ import lombok.Data;
  * 学生注册请求参数
  * 校验规则：账号唯一、两次密码一致、密码长度 ≥ 6、学生角色必填学号
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class RegisterDTO {

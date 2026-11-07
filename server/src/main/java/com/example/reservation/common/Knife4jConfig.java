@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Configuration;
 /**
  * Knife4j / OpenAPI 3 文档配置
  *
- * @author reservation-team
+ * @author hyr
  */
 @Configuration
 public class Knife4jConfig {

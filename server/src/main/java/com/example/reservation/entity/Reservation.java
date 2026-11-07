@@ -15,7 +15,7 @@ import java.time.LocalTime;
  * 预约实体（reservation）
  * 状态流转（禁止简化）：待审核0 → 已通过1/已驳回2；待审核0/已通过1 → 已取消3
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 @TableName("reservation")

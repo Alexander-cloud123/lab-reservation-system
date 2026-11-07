@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  * 用户收藏实体（user_favorite）
  * user_id + classroom_id 唯一索引，防止重复收藏；每人最多收藏 10 间教室（业务层校验）
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 @TableName("user_favorite")

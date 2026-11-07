@@ -28,7 +28,7 @@ import java.util.function.Function;
  *  - 结果缓存由本模板统一编排：命中即直接返回（不产生上游调用），**仅成功分支写入缓存**，
  *    降级分支永不写——从模板层杜绝「把本地规则结果固化成模型结果」。
  *
- * @author reservation-team
+ * @author hyr
  */
 @Slf4j
 @Component

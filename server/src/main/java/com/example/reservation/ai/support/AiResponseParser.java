@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
  *
  * 容错原则（与降级链一致）：任何畸形/非 JSON 响应体一律返回「空内容 + 空用量」，绝不抛异常。
  *
- * @author reservation-team
+ * @author hyr
  */
 @Slf4j
 @Component

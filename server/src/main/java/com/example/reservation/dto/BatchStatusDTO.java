@@ -7,7 +7,7 @@ import java.util.List;
 /**
  * 教室批量启用/停用请求参数
  *
- * @author reservation-team
+ * @author hyr
  */
 @Data
 public class BatchStatusDTO {

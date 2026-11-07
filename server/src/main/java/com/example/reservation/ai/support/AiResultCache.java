@@ -13,14 +13,14 @@ import org.springframework.stereotype.Component;
  * 而合规校验、推荐、问答存在大量重复输入，每次都打上游属白耗额度。
  *
  * Key 形态：{@code cache:ai:{namespace}:{version}:{fingerprint}}（与既有 cache:stats: / cache:classroom:list: 同族命名）
- *  - {@code version} 由调用方拼装「Prompt 版本 + 生效模型（+ 合规关键词库）」的短哈希，
+ *  - {@code version} 由调用方拼装「Prompt 版本 + 生效模型（+ 合规关键词库）」的完整 SHA-256，
  *    配置一变 Key 即变，旧缓存自然不再命中——因此无需挂代次失效；
- *  - {@code fingerprint} 为输入指纹（compliance 用 purpose；recommend 用 userId+目标日期；chat 用 userId+问题）。
+ *  - {@code fingerprint} 为完整 SHA-256 输入指纹；个人问答另在 namespace 中保留 literal userId，形成双重隔离。
  *
  * 降级纪律：读写一律委托 {@link RedisCache}，其已实现「redis.enable=false 或 Redis 异常时读回源、写空转、绝不抛异常」，
  * 且反序列化失败时顺手清除脏 Key——AI 链路不得因缓存故障而阻断。
  *
- * @author reservation-team
+ * @author hyr
  */
 @Slf4j
 @Component

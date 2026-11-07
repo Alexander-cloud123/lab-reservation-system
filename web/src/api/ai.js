@@ -39,96 +39,158 @@ export function aiComplianceCheck(data) {
  * @param {AbortSignal} [signal] 抽屉关闭/组件卸载/停止生成/重复发送时中断
  */
 export async function ssePost(path, body, handlers = {}, signal) {
-  let response
+  const controller = new AbortController()
+  const timeoutMs = 60000
+  let timeoutId = null
+  let reader = null
+  let responseReceived = false
+  let timedOut = false
+  let terminal = ''
+
+  /** 成功/失败/取消共用唯一终态闸门；主动取消保持既有静默语义，其余终态最多回调一次 */
+  const finish = (type, payload) => {
+    if (terminal) return
+    terminal = type
+    if (type === 'done' && handlers.done) handlers.done(payload)
+    if (type === 'error' && handlers.error) handlers.error(payload)
+  }
+  const fail = (message) => finish('error', { message })
+  const finishAborted = () => {
+    if (timedOut) {
+      fail('请求超时，请稍后重试')
+    } else {
+      finish('abort')
+    }
+  }
+  const onExternalAbort = () => controller.abort()
+  if (signal) {
+    if (signal.aborted) {
+      onExternalAbort()
+    } else {
+      signal.addEventListener('abort', onExternalAbort, { once: true })
+    }
+  }
+
+  // 包装终态事件；reset 等未来事件仍按事件名透传给调用方，不改变现有协议
+  const streamHandlers = {
+    ...handlers,
+    done: data => finish('done', data),
+    error: data => fail((data && data.message) || '服务暂时不可用，请稍后再试')
+  }
+
   try {
-    response = await fetch(`/api${path}?stream=true`, {
+    if (controller.signal.aborted) {
+      finishAborted()
+      return
+    }
+    // 绝对超时从建链前开始，覆盖响应头等待、错误体读取和整个读流过程
+    timeoutId = setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, timeoutMs)
+
+    const token = getToken()
+    const response = await fetch(`/api${path}?stream=true`, {
       method: 'POST',
       headers: {
         ...(body ? { 'Content-Type': 'application/json' } : {}),
-        ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {})
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
       },
       // 无入参接口（如推荐）不带请求体，避免向后端发送无意义的空 JSON
       body: body ? JSON.stringify(body) : undefined,
-      signal
+      signal: controller.signal
     })
-  } catch (e) {
-    // 主动中断静默；其余网络错误交调用方显示兜底文案
-    if (e.name !== 'AbortError') {
-      handlers.error && handlers.error({ message: '网络异常，请稍后重试' })
-    }
-    return
-  }
-
-  if (!response.ok) {
-    if (response.status === 401) {
-      clearAuth()
-      redirectToLogin()
+    responseReceived = true
+    if (controller.signal.aborted) {
+      finishAborted()
       return
     }
-    let message = '服务暂时不可用，请稍后再试'
-    try {
-      const errBody = await response.json()
-      message = errBody.message || message
-    } catch {
-      // 非 JSON 错误体（如网关 HTML）：使用默认文案
-    }
-    handlers.error && handlers.error({ message })
-    return
-  }
 
-  if (!response.body) {
-    handlers.error && handlers.error({ message: '服务暂时不可用，请稍后再试' })
-    return
-  }
-
-  // 入参校验失败/全局异常发生在 SSE 建链前，后端按非流式口径回 Result JSON（HTTP 200，application/json）；
-  // 此时不能按 SSE 帧解析（JSON 无 event:/data: 行会被静默丢弃，调用方将永久 loading），
-  // 须显式识别 content-type 并把 message 走 error 终态回调
-  const contentType = response.headers.get('content-type') || ''
-  if (contentType.indexOf('text/event-stream') === -1) {
-    let message = '服务暂时不可用，请稍后再试'
-    try {
-      const body = await response.json()
-      message = body.message || message
-    } catch {
-      // 非 JSON 响应体：使用默认文案
-    }
-    handlers.error && handlers.error({ message })
-    return
-  }
-
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder('utf-8')
-  let buffer = ''
-
-  const pump = async () => {
-    const { done, value } = await reader.read()
-    if (done) {
+    if (!response.ok) {
+      if (response.status === 401) {
+        clearAuth()
+        redirectToLogin()
+        fail('登录已过期，请重新登录')
+        return
+      }
+      let message = '服务暂时不可用，请稍后再试'
+      try {
+        const errBody = await response.json()
+        message = errBody.message || message
+      } catch {
+        // 非 JSON 错误体（如网关 HTML）：使用默认文案；取消/超时由外层统一收尾
+      }
+      if (controller.signal.aborted) {
+        finishAborted()
+      } else {
+        fail(message)
+      }
       return
     }
-    // SSE 事件以空行分隔；统一归一为 LF 后按 \n\n 切帧（后端 SseEmitter 只发 LF，归一仅为防御网关/代理改写）
-    buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
-    let sep
-    while ((sep = buffer.indexOf('\n\n')) !== -1) {
-      const rawFrame = buffer.slice(0, sep)
-      buffer = buffer.slice(sep + 2)
-      dispatchFrame(rawFrame, handlers)
-    }
-    return pump()
-  }
 
-  try {
-    await pump()
-  } catch (e) {
-    if (e.name !== 'AbortError') {
-      handlers.error && handlers.error({ message: '服务暂时不可用，请稍后再试' })
+    if (!response.body) {
+      fail('服务暂时不可用，请稍后再试')
+      return
+    }
+
+    // 建链前的入参校验/全局异常可能返回 HTTP 200 + Result JSON，必须作为错误终态而非静默等待 EOF
+    const contentType = response.headers.get('content-type') || ''
+    if (contentType.indexOf('text/event-stream') === -1) {
+      let message = '服务暂时不可用，请稍后再试'
+      try {
+        const result = await response.json()
+        message = result.message || message
+      } catch {
+        // 非 JSON 响应体：使用默认文案；取消/超时由外层统一收尾
+      }
+      if (controller.signal.aborted) {
+        finishAborted()
+      } else {
+        fail(message)
+      }
+      return
+    }
+
+    reader = response.body.getReader()
+    const decoder = new TextDecoder('utf-8')
+    let buffer = ''
+
+    while (!terminal) {
+      const { done, value } = await reader.read()
+      if (done) {
+        // 兼容末帧缺少末尾空行；仍未收到 done/error 的 EOF 明确按失败处理，避免调用方永久等待
+        buffer += decoder.decode().replace(/\r\n/g, '\n')
+        if (buffer.trim()) dispatchFrame(buffer, streamHandlers)
+        if (!terminal) fail('连接意外结束，请稍后重试')
+        break
+      }
+
+      // SSE 事件以空行分隔；统一归一为 LF 后切帧（防御网关/代理改写 CRLF）
+      buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
+      let sep
+      while (!terminal && (sep = buffer.indexOf('\n\n')) !== -1) {
+        const rawFrame = buffer.slice(0, sep)
+        buffer = buffer.slice(sep + 2)
+        dispatchFrame(rawFrame, streamHandlers)
+      }
+    }
+  } catch {
+    if (controller.signal.aborted) {
+      finishAborted()
+    } else {
+      fail(responseReceived ? '服务暂时不可用，请稍后再试' : '网络异常，请稍后重试')
     }
   } finally {
-    // 出错/中断后主动释放连接；正常读完 cancel 已完成流无副作用，自身异常吞掉
-    try {
-      await reader.cancel()
-    } catch {
-      // 忽略释放异常
+    if (timeoutId !== null) clearTimeout(timeoutId)
+    if (signal) signal.removeEventListener('abort', onExternalAbort)
+    if (reader) {
+      // 释放连接不等待 Promise：异常流若让 cancel 永久 pending，也不能突破 60 秒绝对终态约束。
+      try {
+        const cancellation = reader.cancel()
+        if (cancellation && typeof cancellation.catch === 'function') cancellation.catch(() => {})
+      } catch {
+        // 忽略释放异常，不覆盖已经确定的唯一终态
+      }
     }
   }
 }
@@ -207,18 +269,19 @@ export function aiComplianceCheckStream(data, handlers, signal) {
  *
  * @param {{question:string, history?:Array<{role:string,content:string}>}} data 请求体；
  *        history 为会话内历史（R13-3，按时间正序、不含当前问题），空数组/缺省退化为单轮
- * @param {{onMeta?:Function,onDelta?:Function,onDone?:Function,onError?:Function}} handlers 事件回调
- *        onMeta({enabled,degraded,message}) / onDelta(text) / onDone({finishReason}) / onError(message)
+ * @param {{onMeta?:Function,onDelta?:Function,onReset?:Function,onDone?:Function,onError?:Function}} handlers 事件回调
+ *        onMeta({enabled,degraded,message}) / onDelta(text) / onReset({text,message}) / onDone({finishReason}) / onError(message)
  * @param {AbortSignal} signal 抽屉关闭/组件卸载/停止生成/重复发送时中断
  */
 export function aiChatStream({ question, history }, handlers, signal) {
-  const { onMeta, onDelta, onDone, onError } = handlers || {}
+  const { onMeta, onDelta, onReset, onDone, onError } = handlers || {}
   return ssePost('/ai/chat',
     // 空历史不带字段：后端缺省即单轮，请求体保持最小
     { question, history: history && history.length ? history : undefined },
     {
       meta: d => onMeta && onMeta(d),
       delta: d => onDelta && onDelta(d.text || ''),
+      reset: d => onReset && onReset({ text: d.text || '', message: d.message || '' }),
       done: d => onDone && onDone(d),
       error: d => onError && onError(d.message || '服务暂时不可用，请稍后再试')
     },

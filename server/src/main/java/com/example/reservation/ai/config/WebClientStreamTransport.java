@@ -1,5 +1,6 @@
 package com.example.reservation.ai.config;
 
+import com.example.reservation.ai.support.AiRequestDeadline;
 import com.example.reservation.ai.support.StreamExchange;
 import com.example.reservation.ai.support.StreamTransport;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -66,6 +67,9 @@ public class WebClientStreamTransport implements StreamTransport {
         AtomicBoolean cancelled = new AtomicBoolean(false);
         AtomicReference<Disposable> subscriptionRef = new AtomicReference<>();
         CountDownLatch done = new CountDownLatch(1);
+        // 帧超时与桥接等待都只能消费当前请求的剩余预算，不能在传输层追加新的 60/90 秒。
+        Duration effectiveFrameTimeout = AiRequestDeadline.remainingOrDefault(frameTimeout);
+        Duration awaitBudget = AiRequestDeadline.remainingOrDefault(frameTimeout.plus(AWAIT_GRACE));
 
         // exchangeToFlux：在收到响应头时判定状态；2xx 才回调 onReady 并展开 SSE 帧流
         Flux<String> frameFlux = webClient.post()
@@ -83,7 +87,7 @@ public class WebClientStreamTransport implements StreamTransport {
                     return response.bodyToFlux(String.class);
                 })
                 // 帧间超时：相邻 data 帧（含首帧）间隔上限；上游挂死时按传输异常降级，不占死线程
-                .timeout(frameTimeout);
+                .timeout(effectiveFrameTimeout);
 
         Disposable subscription = frameFlux.subscribe(
                 frame -> {
@@ -110,9 +114,13 @@ public class WebClientStreamTransport implements StreamTransport {
                 },
                 done::countDown);
         subscriptionRef.set(subscription);
+        // subscribe 可能同步回调并在引用写入前失败；补查 closed 标志，确保这种竞态也取消上游。
+        if (cancelled.get()) {
+            subscription.dispose();
+        }
 
         try {
-            boolean finished = done.await(frameTimeout.plus(AWAIT_GRACE).toMillis(), TimeUnit.MILLISECONDS);
+            boolean finished = done.await(awaitBudget.toMillis(), TimeUnit.MILLISECONDS);
             if (!finished) {
                 // 纯兜底：帧间超时已应先触发；理论不可达，防 reactor/JDK 异常时序导致桥接线程永久挂住
                 log.warn("上游流式桥接等待兜底超时，主动取消订阅：{}", url);

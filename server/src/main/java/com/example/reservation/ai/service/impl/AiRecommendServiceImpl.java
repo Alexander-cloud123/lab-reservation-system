@@ -46,7 +46,7 @@ import java.util.stream.Collectors;
  * 调用失败/非法输出自动降级为规则打分排序（空闲度 > 楼栋偏好 > 类型偏好 > 容量匹配）
  * 只读不写：AI 仅查询数据、给出建议，不执行任何业务操作
  *
- * @author reservation-team
+ * @author hyr
  */
 @Slf4j
 @Service
@@ -150,7 +150,7 @@ public class AiRecommendServiceImpl implements AiRecommendService {
         String cacheKey = aiResultCache.buildKey(
                 AiConstants.AI_CACHE_NS_RECOMMEND,
                 AiPrompts.versionOf(AiPrompts.RECOMMEND) + "-" + aiConfigService.getEffectiveModel(),
-                AiHash.sha256Prefix8(userId + ":" + targetDate));
+                AiHash.sha256(userId + ":" + targetDate));
         // M7 修复：传入当前用户 ID，限流按用户维度隔离；R13-5：缓存未命中时先执行 beforeUpstreamCall（phase）
         return aiInvoker.invoke("推荐", userId, AiPrompts.RECOMMEND, List.of(), userMessage,
                 content -> parseModelTop(content, candidates),
@@ -307,7 +307,8 @@ public class AiRecommendServiceImpl implements AiRecommendService {
      *   ② 顶层数组 [{...}]
      *   ③ 单个推荐对象 {"classroomId":N,"reason":"..."}
      * 另兼容 ```json 代码块包裹与前后夹带说明文字。
-     * 校验：classroomId 必须来自候选集合、最多 3 间、去重；非法返回 null（触发降级）
+     * 校验：classroomId 必须来自候选集合、去重，且数量必须达到 min(3, 候选数)；
+     * 不足 Top3、无效 ID、重复 ID 均返回 null，由本地规则重新生成完整结果。
      */
     private List<AiRecommendItemVO> parseModelTop(String content, List<AiRecommendFallback.RecommendCandidate> candidates) {
         try {
@@ -326,7 +327,8 @@ public class AiRecommendServiceImpl implements AiRecommendService {
                 if (result.size() >= AiConstants.RECOMMEND_TOP_COUNT) {
                     break;
                 }
-                if (!node.hasNonNull("classroomId") || !node.get("classroomId").canConvertToLong()) {
+                if (!node.hasNonNull("classroomId") || !node.get("classroomId").isIntegralNumber()
+                        || !node.get("classroomId").canConvertToLong()) {
                     return null;
                 }
                 long id = node.get("classroomId").asLong();
@@ -341,13 +343,13 @@ public class AiRecommendServiceImpl implements AiRecommendService {
                 item.setRoomNo(c.getRoomNo());
                 item.setType(c.getType());
                 item.setCapacity(c.getCapacity());
-                item.setReason(node.hasNonNull("reason") ? node.get("reason").asText() : "综合匹配度较高");
+                String reason = node.hasNonNull("reason") && node.get("reason").isTextual()
+                        ? node.get("reason").asText().trim() : "";
+                item.setReason(reason.isEmpty() ? "综合匹配度较高" : reason);
                 result.add(item);
             }
-            if (result.isEmpty()) {
-                return null;
-            }
-            return result;
+            int expectedCount = Math.min(AiConstants.RECOMMEND_TOP_COUNT, candidates.size());
+            return result.size() == expectedCount ? result : null;
         } catch (Exception e) {
             log.warn("推荐模型输出 JSON 解析失败：{}", e.getMessage());
             return null;

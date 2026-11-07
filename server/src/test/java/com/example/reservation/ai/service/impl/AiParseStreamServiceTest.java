@@ -183,12 +183,12 @@ class AiParseStreamServiceTest {
     @Test
     @DisplayName("非流式回归：parse() 仍返回同构 VO（enabled=true），prompt 取自定义模板时追加今日日期上下文")
     void nonStreamParseStillWorks() {
-        stubUpstreamOk("{\"date\":\"" + LocalDate.now() + "\",\"startTime\":\"08:00\",\"endTime\":\"09:00\"}");
+        stubUpstreamOk("{\"date\":\"" + LocalDate.now().plusDays(1) + "\",\"startTime\":\"08:00\",\"endTime\":\"09:00\"}");
         when(aiConfigService.getPromptParse()).thenReturn("自定义解析模板");
         // 非流式从 UserContext 取当前用户（请求线程语义），用后必须清理避免线程复用串扰
         com.example.reservation.common.UserContext.set(7L, "tester", 0);
         try {
-            AiParseVO vo = service.parse("今天八点到九点");
+            AiParseVO vo = service.parse("明天八点到九点");
 
             assertTrue(vo.isEnabled());
             assertEquals("08:00", vo.getStartTime());

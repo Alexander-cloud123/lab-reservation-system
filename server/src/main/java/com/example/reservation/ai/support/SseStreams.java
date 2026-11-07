@@ -5,6 +5,7 @@ import org.springframework.core.task.TaskRejectedException;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
@@ -51,7 +52,16 @@ public final class SseStreams {
             long timeoutMs, ThreadPoolTaskExecutor executor, String label, Long userId,
             Function<SseEmitter, S> sinkFactory, SseTask<S> task,
             String timeoutMessage, String rejectedMessage, String errorMessage) {
-        SseEmitter emitter = new SseEmitter(timeoutMs);
+        return start(AiRequestDeadline.of(Duration.ofMillis(timeoutMs)), executor, label, userId,
+                sinkFactory, task, timeoutMessage, rejectedMessage, errorMessage);
+    }
+
+    /** 使用请求入口创建的绝对 deadline；SSE、排队和上游共享同一剩余预算 */
+    public static <S extends AiStreamSink> SseEmitter start(
+            AiRequestDeadline deadline, ThreadPoolTaskExecutor executor, String label, Long userId,
+            Function<SseEmitter, S> sinkFactory, SseTask<S> task,
+            String timeoutMessage, String rejectedMessage, String errorMessage) {
+        SseEmitter emitter = new SseEmitter(deadline.emitterTimeoutMillis());
         S sink = sinkFactory.apply(emitter);
         final AtomicBoolean finished = new AtomicBoolean(false);
 
@@ -68,11 +78,18 @@ public final class SseStreams {
 
         try {
             executor.execute(() -> {
-                // 排队期间已超时/出错：连接已死，跳过全部业务与上游调用，避免白耗模型配额
+                // 排队期间已超时/出错：跳过全部业务与上游调用，避免白耗模型配额
                 if (finished.get()) {
                     return;
                 }
-                try {
+                if (deadline.isExpired()) {
+                    if (finished.compareAndSet(false, true)) {
+                        safeSendError(sink, timeoutMessage);
+                        tryComplete(emitter);
+                    }
+                    return;
+                }
+                try (AiRequestDeadline.Scope ignored = deadline.open()) {
                     task.run(sink);
                 } catch (Exception e) {
                     if (finished.get()) {

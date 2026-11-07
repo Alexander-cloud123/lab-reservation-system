@@ -12,6 +12,7 @@ import com.example.reservation.ai.support.AiParseFallback;
 import com.example.reservation.ai.support.StructuredStreamEvents;
 import com.example.reservation.ai.support.StructuredStreamSink;
 import com.example.reservation.common.BusinessException;
+import com.example.reservation.common.Constants;
 import com.example.reservation.common.TimeUtil;
 import com.example.reservation.common.UserContext;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -28,7 +30,7 @@ import java.util.List;
  * 自然语言预约解析实现（R7）
  * Prompt 模板来自 ai_config.prompt_parse；调用失败/非法输出自动降级为本地规则模拟
  *
- * @author reservation-team
+ * @author hyr
  */
 @Slf4j
 @Service
@@ -140,37 +142,53 @@ public class AiParseServiceImpl implements AiParseService {
                 vo.setError(AiConstants.PARSE_ERROR);
                 return vo;
             }
-            if (!root.hasNonNull("date") || !root.hasNonNull("startTime") || !root.hasNonNull("endTime")) {
+            if (!isTextual(root, "date") || !isTextual(root, "startTime") || !isTextual(root, "endTime")) {
                 return null;
             }
+            LocalDate date = TimeUtil.parseDate(root.get("date").asText());
+            LocalTime start = TimeUtil.parseTime(root.get("startTime").asText());
+            LocalTime end = TimeUtil.parseTime(root.get("endTime").asText());
+            // 语义校验：开始严格早于结束，且预约开始不能已经过去
+            if (!start.isBefore(end) || LocalDateTime.of(date, start).isBefore(LocalDateTime.now())) {
+                return null;
+            }
+
             AiParseVO vo = new AiParseVO();
-            vo.setDate(TimeUtil.parseDate(root.get("date").asText()).toString());
-            vo.setStartTime(LocalTime.parse(root.get("startTime").asText()).toString());
-            vo.setEndTime(LocalTime.parse(root.get("endTime").asText()).toString());
-            if (root.hasNonNull("capacity") && root.get("capacity").canConvertToInt()) {
-                vo.setCapacity(root.get("capacity").asInt());
+            vo.setDate(date.toString());
+            vo.setStartTime(TimeUtil.formatTime(start));
+            vo.setEndTime(TimeUtil.formatTime(end));
+            if (root.hasNonNull("capacity")) {
+                JsonNode capacity = root.get("capacity");
+                if (!capacity.isIntegralNumber() || !capacity.canConvertToInt() || capacity.asInt() <= 0) {
+                    return null;
+                }
+                vo.setCapacity(capacity.asInt());
             }
             if (root.hasNonNull("roomType")) {
-                String roomType = root.get("roomType").asText();
-                // 类型文案合法性校验（普通教室|实验室|机房）
-                if (isValidRoomType(roomType)) {
-                    vo.setRoomType(roomType);
+                if (!root.get("roomType").isTextual() || !isValidRoomType(root.get("roomType").asText())) {
+                    return null;
                 }
+                vo.setRoomType(root.get("roomType").asText());
             }
             if (root.hasNonNull("purpose")) {
-                vo.setPurpose(root.get("purpose").asText());
-            }
-            // 日期/时段缺失或非法已在上方拦截；校验起止先后
-            if (vo.getStartTime() != null && vo.getEndTime() != null
-                    && !vo.getEndTime().equals(vo.getStartTime())
-                    && vo.getEndTime().compareTo(vo.getStartTime()) < 0) {
-                return null;
+                if (!root.get("purpose").isTextual()) {
+                    return null;
+                }
+                String purpose = root.get("purpose").asText().trim();
+                if (purpose.isEmpty() || purpose.length() > Constants.PURPOSE_MAX_LENGTH) {
+                    return null;
+                }
+                vo.setPurpose(purpose);
             }
             return vo;
         } catch (Exception e) {
             log.warn("解析模型输出 JSON 解析失败：{}", e.getMessage());
             return null;
         }
+    }
+
+    private boolean isTextual(JsonNode root, String field) {
+        return root.hasNonNull(field) && root.get(field).isTextual();
     }
 
     /** 教室类型文案合法性（普通教室/实验室/机房） */

@@ -29,7 +29,7 @@ import java.util.List;
  * Prompt 模板来自 ai_config.prompt_compliance；降级模式使用 ai_config.compliance_keywords 关键词规则判定
  * 只提示不改状态：AI 不执行审核，审核动作仍由管理员手动执行
  *
- * @author reservation-team
+ * @author hyr
  */
 @Slf4j
 @Service
@@ -113,10 +113,10 @@ public class AiComplianceServiceImpl implements AiComplianceService {
         // 结果缓存：purpose → 结论为纯函数，Key 不含用户（管理员间可共享同一结论）；
         // 版本段并入 Prompt 版本 + 违规关键词库 + 生效模型，任一配置变化即换 Key，旧缓存自动失效
         String cacheVersion = AiPrompts.versionOf(system)
-                + "-" + AiHash.sha256Prefix8(String.join(",", aiConfigService.getComplianceKeywordList()))
+                + "-" + AiHash.sha256(String.join(",", aiConfigService.getComplianceKeywordList()))
                 + "-" + aiConfigService.getEffectiveModel();
         String cacheKey = aiResultCache.buildKey(
-                AiConstants.AI_CACHE_NS_COMPLIANCE, cacheVersion, AiHash.sha256Prefix8(purpose));
+                AiConstants.AI_CACHE_NS_COMPLIANCE, cacheVersion, AiHash.sha256(purpose));
         // M7 修复：传入当前用户 ID，限流按用户维度隔离；失败/非法输出统一由 AiInvoker 降级
         // R13-5：缓存未命中时先执行 beforeUpstreamCall（phase）
         return aiInvoker.invoke("合规", userId, system, List.of(), purpose,

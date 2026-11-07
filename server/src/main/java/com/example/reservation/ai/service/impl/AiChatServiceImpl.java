@@ -44,7 +44,7 @@ import java.util.stream.Collectors;
  * 场景绝对限定（需求文档 1.4 AI 业务规则 1）：仅解答预约/教室/个人记录相关问题，
  * 无关问题统一返回预设话术；个人数据通过检索增强注入上下文（最近预约 + 用户概况）
  *
- * @author reservation-team
+ * @author hyr
  */
 @Slf4j
 @Service
@@ -94,6 +94,19 @@ public class AiChatServiceImpl implements AiChatService {
     /** R13-3 历史中 assistant 消息最大长度（防止长答案回灌放大 token） */
     private static final int HISTORY_ASSISTANT_MAX_LENGTH = 500;
 
+    /** 预约场景词： deterministic 场景闸门，不依赖模型 Prompt 拒答 */
+    private static final List<String> SCENE_KEYWORDS = List.of(
+            "预约", "预定", "取消", "审核", "驳回", "教室", "实验室", "机房", "冲突", "时段",
+            "我的记录", "个人记录", "楼栋", "容量", "设备", "空闲", "审批", "房间", "借用");
+
+    /** 明显无关主题：即使历史属于预约场景，也不能借“继续/那个”等追问绕过场景闸门 */
+    private static final List<String> OUT_OF_SCOPE_TOPICS = List.of(
+            "天气", "美食", "菜谱", "电影", "音乐", "游戏", "股票", "星座", "笑话", "旅游", "体育");
+
+    /** 无领域词的短追问：仅在已有预约场景历史时允许继续 */
+    private static final List<String> FOLLOW_UP_MARKERS = List.of(
+            "继续", "那", "它", "这个", "那个", "几点", "何时", "哪里", "哪个", "呢", "后来", "上面");
+
     @Override
     public AiChatVO chat(String question, List<AiChatHistoryMessage> history) {
         // M11 修复：AI 入参长度上限（流式/非流式共用 validateQuestion，口径保持一致）
@@ -104,17 +117,21 @@ public class AiChatServiceImpl implements AiChatService {
         }
         // R13-3：历史归一化（角色白名单 + 条数/长度裁剪），不信任前端
         List<AgnesClient.ChatMessage> normalizedHistory = normalizeHistory(history);
+        Long userId = UserContext.getUserId();
+        // 场景边界必须先于缓存、个人预约查询和上游调用；不能仅依赖 Prompt 自觉拒答
+        if (isOutOfScope(question, normalizedHistory)) {
+            return outOfScopeVO();
+        }
 
         // 1. 尝试大模型问答（检索增强注入个人预约上下文）；失败/非法输出统一由 AiInvoker 降级
-        String userMessage = buildContext(UserContext.getUserId()) + "\n【用户问题】" + question;
-        // 结果缓存：Key 含 userId + 历史指纹 + 问题（答案注入了个人预约上下文，故不跨用户复用；
-        // 不同上下文的相同问题不共享缓存）；TTL 取 30s（上下文会变）
+        String userMessage = buildContext(userId) + "\n【用户问题】" + question;
+        // 个人答案双重隔离：namespace 显式保留 literal userId，fingerprint 使用完整 SHA-256。
         String cacheKey = aiResultCache.buildKey(
-                AiConstants.AI_CACHE_NS_CHAT,
+                chatCacheNamespace(userId),
                 AiPrompts.versionOf(AiPrompts.CHAT) + "-" + aiConfigService.getEffectiveModel(),
-                AiHash.sha256Prefix8(UserContext.getUserId() + ":" + historyFingerprint(normalizedHistory) + ":" + question));
+                AiHash.sha256(userId + ":" + historyFingerprint(normalizedHistory) + ":" + question));
         // M7 修复：传入当前用户 ID，限流按用户维度隔离；R13-3：透传多轮历史
-        return aiInvoker.invoke("问答", UserContext.getUserId(), AiPrompts.CHAT, normalizedHistory, userMessage,
+        return aiInvoker.invoke("问答", userId, AiPrompts.CHAT, normalizedHistory, userMessage,
                 this::parseModelOutput,
                 vo -> {
                     vo.setEnabled(true);
@@ -158,13 +175,24 @@ public class AiChatServiceImpl implements AiChatService {
             }
             return;
         }
+        // 与非流式同一场景闸门：统一话术，不读缓存、不查个人预约、不调用上游
+        if (isOutOfScope(question, normalizedHistory)) {
+            try {
+                sink.meta(true, false, null);
+                emitChunks(sink, AiConstants.CHAT_OUT_OF_SCOPE);
+                sink.done(AiConstants.FINISH_REASON_STOP);
+            } catch (IOException e) {
+                log.debug("流式问答客户端已断开（场景外问题）：{}", e.getMessage());
+            }
+            return;
+        }
 
         // 2. 缓存值类型与非流式同为 AiChatVO；但版本段取 CHAT_STREAM（纯文本 Prompt），
         // 与非流式 CHAT(JSON) 的版本哈希不同，两路缓存各自独立、不共享
         String cacheKey = aiResultCache.buildKey(
-                AiConstants.AI_CACHE_NS_CHAT,
+                chatCacheNamespace(userId),
                 AiPrompts.versionOf(AiPrompts.CHAT_STREAM) + "-" + aiConfigService.getEffectiveModel(),
-                AiHash.sha256Prefix8(userId + ":" + historyFingerprint(normalizedHistory) + ":" + question));
+                AiHash.sha256(userId + ":" + historyFingerprint(normalizedHistory) + ":" + question));
         AiChatVO cached = aiResultCache.get(cacheKey, new TypeReference<AiChatVO>() {
         });
         if (cached != null && StrUtil.isNotBlank(cached.getAnswer())) {
@@ -187,8 +215,9 @@ public class AiChatServiceImpl implements AiChatService {
         final boolean[] closed = {false};
         // onReady 是否成功发出过 meta：决定降级收尾能否再发 degraded meta
         final boolean[] readyCalled = {false};
-        // 成功分支累积全文（仅用于写缓存；前端显示的是已实时发出的 delta，不受围栏剥离影响）
+        // 成功分支累积全文（仅用于最终校验与写缓存）；deltaSent 精确记录是否已有内容暴露给前端
         final StringBuilder fullText = new StringBuilder();
+        final boolean[] deltaSent = {false};
         Runnable onReady = () -> {
             try {
                 sink.meta(true, false, null);
@@ -207,6 +236,7 @@ public class AiChatServiceImpl implements AiChatService {
             fullText.append(piece);
             try {
                 sink.delta(piece);
+                deltaSent[0] = true;
             } catch (IOException e) {
                 // 中断契约：包装为 UncheckedIOException 快速中止上游读取，AgnesClient 据此返回 aborted 句柄
                 closed[0] = true;
@@ -221,12 +251,15 @@ public class AiChatServiceImpl implements AiChatService {
             return;
         }
 
-        if (handle.ok()) {
-            // 4. 成功：已实时发出的 delta 不可回收，围栏剥离只作用于「写缓存的值」，不改写已显示文本
-            String answer = AiStreamText.stripCodeFence(fullText.toString());
+        String rawAnswer = fullText.toString();
+        String answer = AiStreamText.stripCodeFence(rawAnswer);
+        boolean validFinish = !AiConstants.FINISH_REASON_LENGTH.equals(handle.finishReason())
+                && !AiConstants.FINISH_REASON_CONTENT_FILTER.equals(handle.finishReason());
+        if (handle.ok() && validFinish && isValidStreamAnswer(rawAnswer, answer)) {
+            // 4. 成功：最终全文通过纯文本场景契约后才写缓存并发成功终态
             AiChatVO vo = new AiChatVO();
             vo.setEnabled(true);
-            vo.setAnswer(answer);
+            vo.setAnswer(answer.trim());
             aiResultCache.put(cacheKey, vo, AiConstants.AI_CACHE_TTL_CHAT_SECONDS);
             try {
                 sink.done(StrUtil.blankToDefault(handle.finishReason(), AiConstants.FINISH_REASON_UNKNOWN));
@@ -236,24 +269,22 @@ public class AiChatServiceImpl implements AiChatService {
             return;
         }
 
-        // 5. 降级收尾：按 onReady 是否已发过唯一 meta 分流（规格 §3.2：meta 每流仅 1 个，先于一切 delta）
+        String reason = handle.ok() || StrUtil.isBlank(handle.reason())
+                ? (handle.ok() ? AiConstants.AI_OUTPUT_INVALID_MESSAGE : AiConstants.AI_SERVICE_ERROR_MESSAGE)
+                : handle.reason();
         try {
-            if (!readyCalled[0]) {
-                // 5a. 建链前降级（无 key/限流/非 200/建链异常）：尚未发过 meta，原因随 degraded meta 透出；
-                // 本地 FAQ 全文按固定步长打字机推送
-                sink.meta(true, true, handle.reason());
-                emitChunks(sink, chatFallback.chatFallback(question));
+            if (deltaSent[0]) {
+                // 已暴露半截内容也必须自动降级：reset 是完整替换而非追加，前端丢弃上游残片。
+                sink.reset(chatFallback.chatFallback(question), reason);
                 sink.done(AiConstants.FINISH_REASON_FALLBACK);
-            } else if (fullText.length() == 0) {
-                // 5b. 200 建链后空内容/全脏帧：唯一 meta 已在 onReady 发出，不能重发；
-                // 降级原因无法再通过 meta 透出（meta 契约每流仅 1 个），finishReason=fallback 如实反映兜底内容
-                emitChunks(sink, chatFallback.chatFallback(question));
-                sink.done(AiConstants.FINISH_REASON_FALLBACK);
-            } else {
-                // 5c. 200 建链后读体中断、已有半截 delta 实时发出：不重发 meta、不拼 FAQ
-                // （规格 §3.2 meta 唯一性；半截真实文本优于拼接 FAQ），done 如实标注结束原因
-                sink.done(StrUtil.blankToDefault(handle.finishReason(), AiConstants.FINISH_REASON_UNKNOWN));
+                return;
             }
+            // 尚未发出任何 delta：直接推送完整本地 FAQ，不混合上游与 fallback 文本。
+            if (!readyCalled[0]) {
+                sink.meta(true, true, reason);
+            }
+            emitChunks(sink, chatFallback.chatFallback(question));
+            sink.done(AiConstants.FINISH_REASON_FALLBACK);
         } catch (IOException e) {
             log.debug("流式问答收尾失败：{}", e.getMessage());
         }
@@ -264,6 +295,42 @@ public class AiChatServiceImpl implements AiChatService {
         for (String chunk : AiStreamText.chunks(text, AiConstants.AI_STREAM_CHUNK_SIZE)) {
             sink.delta(chunk);
         }
+    }
+
+    /** 场景外统一返回，不带降级错误信息（这是明确的业务边界，不是上游故障） */
+    private AiChatVO outOfScopeVO() {
+        AiChatVO vo = new AiChatVO();
+        vo.setEnabled(true);
+        vo.setAnswer(AiConstants.CHAT_OUT_OF_SCOPE);
+        return vo;
+    }
+
+    /** 个人问答命名空间显式包含 literal userId，不能只依赖哈希后的指纹隔离 */
+    private String chatCacheNamespace(Long userId) {
+        return AiConstants.AI_CACHE_NS_CHAT + ":user:" + (userId == null ? "anonymous" : userId);
+    }
+
+    /** 场景闸门：明显无关主题优先拒绝；无领域词的省略追问须由预约历史提供语义 */
+    private boolean isOutOfScope(String question, List<AgnesClient.ChatMessage> history) {
+        // 明确无关主题优先于领域词，避免“我的股票”“预约之余讲个笑话”借词汇碰撞绕过闸门。
+        if (containsAny(question, OUT_OF_SCOPE_TOPICS)) {
+            return true;
+        }
+        if (containsAny(question, SCENE_KEYWORDS)) {
+            return false;
+        }
+        if (history == null || history.isEmpty()
+                || !containsAny(question, FOLLOW_UP_MARKERS)) {
+            return true;
+        }
+        return history.stream()
+                .map(AgnesClient.ChatMessage::content)
+                .filter(java.util.Objects::nonNull)
+                .noneMatch(content -> containsAny(content, SCENE_KEYWORDS));
+    }
+
+    private boolean containsAny(String text, List<String> candidates) {
+        return text != null && candidates.stream().anyMatch(text::contains);
     }
 
     /**
@@ -299,7 +366,7 @@ public class AiChatServiceImpl implements AiChatService {
     }
 
     /**
-     * 历史指纹（R13-3）：归一化后的历史按 role:content 串联后取短哈希，并入缓存 key；
+     * 历史指纹（R13-3）：归一化后的历史按 role:content 串联后取完整 SHA-256，并入缓存 key；
      * 空历史固定 "none"，使「不带历史」的 key 段稳定可预期。
      */
     private String historyFingerprint(List<AgnesClient.ChatMessage> normalizedHistory) {
@@ -309,7 +376,7 @@ public class AiChatServiceImpl implements AiChatService {
         String joined = normalizedHistory.stream()
                 .map(message -> message.role() + ":" + message.content())
                 .collect(Collectors.joining("|"));
-        return AiHash.sha256Prefix8(joined);
+        return AiHash.sha256(joined);
     }
 
     /**
@@ -362,20 +429,39 @@ public class AiChatServiceImpl implements AiChatService {
         };
     }
 
+    /** 流式回答必须是非空白纯文本，不得把 JSON/Markdown 包装或场景拒答当成成功答案 */
+    private boolean isValidStreamAnswer(String rawAnswer, String strippedAnswer) {
+        if (StrUtil.isBlank(strippedAnswer)) {
+            return false;
+        }
+        String raw = rawAnswer.trim();
+        String stripped = strippedAnswer.trim();
+        return !raw.contains("```")
+                && !stripped.startsWith("{")
+                && !stripped.startsWith("[")
+                && !isOutOfScopeAnswer(stripped);
+    }
+
+    private boolean isOutOfScopeAnswer(String answer) {
+        return AiConstants.CHAT_OUT_OF_SCOPE.equals(answer)
+                || "抱歉，我只能解答预约相关问题。".equals(answer);
+    }
+
     /**
      * 解析大模型 JSON 输出（{"answer":"..."}），非法返回 null（触发降级）
      */
     private AiChatVO parseModelOutput(String content) {
         try {
             JsonNode root = aiJsonSupport.readObject(content);
-            if (root == null) {
+            if (root == null || !root.hasNonNull("answer") || !root.get("answer").isTextual()) {
                 return null;
             }
-            if (!root.hasNonNull("answer") || StrUtil.isBlank(root.get("answer").asText())) {
+            String answer = root.get("answer").asText().trim();
+            if (StrUtil.isBlank(answer) || isOutOfScopeAnswer(answer)) {
                 return null;
             }
             AiChatVO vo = new AiChatVO();
-            vo.setAnswer(root.get("answer").asText());
+            vo.setAnswer(answer);
             return vo;
         } catch (Exception e) {
             log.warn("问答模型输出 JSON 解析失败：{}", e.getMessage());

@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.example.reservation.ai.service.AiConfigService;
 import com.example.reservation.ai.support.AiDegradeReason;
 import com.example.reservation.ai.support.AiMetrics;
+import com.example.reservation.ai.support.AiRequestDeadline;
 import com.example.reservation.ai.support.AiResponseParser;
 import com.example.reservation.ai.support.AiStreamFrames;
 import com.example.reservation.ai.support.AiUsage;
@@ -42,7 +43,7 @@ import java.util.function.Consumer;
  *    改由本地限流器把上游调用速率压在账号额度之内，429 直接降级，不放大额度消耗
  *  - 密钥缺失：apiKey 为空直接降级，前端零接触密钥
  *
- * @author reservation-team
+ * @author hyr
  */
 @Slf4j
 @Component
@@ -98,6 +99,9 @@ public class AgnesClient {
      * @return 调用结果：ok=true 携带模型输出 content；ok=false 携带降级原因 reason（调用方据此切换本地规则模拟）
      */
     public AgnesResponse chat(Long userId, String system, List<ChatMessage> history, String user, boolean jsonMode) {
+        if (AiRequestDeadline.isCurrentExpired()) {
+            return AgnesResponse.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
+        }
         // 1. 限流保护（N2：双层——用户维度 rpm-limit/min + 全站维度 global-rpm-limit/min；触发返回降级，不触发对外调用）
         if (!limiter().tryAcquire(userId)) {
             log.warn("Agnes 调用触发限流（rpm-limit={}，global-rpm-limit={}，userId={}），切换降级",
@@ -184,6 +188,9 @@ public class AgnesClient {
      */
     public StreamChatHandle chatStream(Long userId, String system, List<ChatMessage> history, String user,
                                        Runnable onReady, Consumer<String> deltaConsumer) {
+        if (AiRequestDeadline.isCurrentExpired()) {
+            return StreamChatHandle.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
+        }
         // 1. 限流保护（与 chat() 同口径，触发即降级、不发对外请求）
         if (!limiter().tryAcquire(userId)) {
             log.warn("Agnes 流式调用触发限流（rpm-limit={}，global-rpm-limit={}，userId={}），切换降级",
@@ -322,9 +329,11 @@ public class AgnesClient {
      */
     private RestClient buildClient() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        int readTimeoutMs = Math.max(aiProperties.getTimeoutSeconds(), 1) * 1000;
-        factory.setConnectTimeout(10_000);          // 连接超时固定 10s，网络不可达时快速失败
-        factory.setReadTimeout(readTimeoutMs);      // 读取超时 = timeout-seconds（实测模型响应可达数十秒）
+        Duration configured = Duration.ofSeconds(Math.max(aiProperties.getTimeoutSeconds(), 1));
+        int readTimeoutMs = (int) Math.max(1L, AiRequestDeadline.remainingOrDefault(configured).toMillis());
+        // 连接与读取共享当前请求剩余预算；无请求作用域时仍保持 10s/60s 上限。
+        factory.setConnectTimeout(Math.min(10_000, readTimeoutMs));
+        factory.setReadTimeout(readTimeoutMs);
         return RestClient.builder()
                 .baseUrl(aiProperties.getBaseUrl())
                 .defaultHeader("Authorization", "Bearer " + aiProperties.getApiKey())

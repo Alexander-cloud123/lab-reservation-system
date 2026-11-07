@@ -8,9 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * AI 限流器（N2 修复）纯单测：不开启 AI、不消耗额度，注入可控时钟推进窗口。
- * 覆盖：用户维度超限、全站维度超限、窗口推进恢复、淘汰策略修正（超上限时其他用户窗口不被清空）。
+ * 覆盖：用户维度超限、全站维度超限、窗口推进恢复、活动窗口计数不被淘汰重置。
  *
- * @author reservation-team
+ * @author hyr
  */
 class RateLimiterTest {
 
@@ -57,20 +57,21 @@ class RateLimiterTest {
     }
 
     @Test
-    @DisplayName("N2：超 MAX_TRACKED_USERS 时仅淘汰最早窗口，其他用户窗口不被清空（修正 clear() 全清的绕过面）")
-    void trim_removesOldestOnly_otherWindowsKeepCounts() {
+    @DisplayName("活动窗口超过跟踪上限也不淘汰计数，不能借新用户重置旧用户额度")
+    void trim_neverEvictsActiveWindowCounts() {
         MutableClock clock = new MutableClock();
-        // maxTracked=1：跟踪窗口数超过 1 即触发淘汰
         RateLimiter limiter = new RateLimiter(2, 100, 60_000, clock, 1);
         clock.now = 1_000;
-        assertTrue(limiter.tryAcquire(1L), "A 第 1 次放行");
-        assertTrue(limiter.tryAcquire(1L), "A 第 2 次放行（达用户上限）");
+        assertTrue(limiter.tryAcquire(1L));
+        assertTrue(limiter.tryAcquire(1L), "A 达用户上限");
         clock.now = 2_000;
-        assertTrue(limiter.tryAcquire(2L), "B 第 1 次放行；此时跟踪数=2>1 → 触发淘汰（最早者 A）");
-        assertTrue(limiter.tryAcquire(2L), "B 第 2 次放行");
-        // 修正点证据：B 的窗口未被清空——若被 clear() 全清，B 的计数会归零，第 3 次反而放行
-        assertFalse(limiter.tryAcquire(2L), "B 第 3 次仍被拒（B 窗口计数保留，未被全清重置）");
-        // 淘汰只删最旧一个窗口：被淘汰者重建后可正常重新计数（而不是所有窗口一起重置）
-        assertTrue(limiter.tryAcquire(1L), "被淘汰窗口重建后第 1 次放行（定向淘汰未影响其他窗口计数）");
+        assertTrue(limiter.tryAcquire(2L), "B 新窗口使跟踪数超过 maxTracked");
+        assertTrue(limiter.tryAcquire(2L), "B 达用户上限");
+
+        assertFalse(limiter.tryAcquire(2L), "B 的活动计数必须保留");
+        assertFalse(limiter.tryAcquire(1L), "A 也不能因被淘汰而重新获得额度");
+
+        clock.now += 60_000;
+        assertTrue(limiter.tryAcquire(1L), "真实窗口到期后才允许重新计数并清理旧条目");
     }
 }

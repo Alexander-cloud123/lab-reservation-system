@@ -295,9 +295,11 @@ test('AI 预约助手：默认收起 → 展开侧边对话窗 → 发送问题�
   await expect(page.getByText('E2E：怎么预约教室？')).toBeVisible()
   // 接收期（mock 有 120ms 延迟）：最终答案尚未出现，先处于接收态
   await expect(page.locator('.typing-cursor')).toBeVisible()
-  await expect(page.getByText(answer)).toBeHidden()
+  await expect(page.locator('.chat-body .markdown-body').getByText(answer, { exact: true })).toBeHidden()
   // 多帧按序拼接后得到完整答案（若 SSE 解析/拼接错误，文本不会等于 answer）
-  await expect(page.getByText(answer)).toBeVisible()
+  await expect(page.locator('.chat-body .markdown-body').getByText(answer, { exact: true })).toBeVisible()
+  // 最终回答同时进入独立 live region；可见气泡与读屏播报各司其职，不断言全页文本唯一。
+  await expect(page.locator('.ai-assistant p[role="status"]')).toHaveText(answer)
   await expect(page.locator('.typing-cursor')).toHaveCount(0)
 
   // 回答区 AI 标注
@@ -572,7 +574,7 @@ test('AI 降级提示 · 助手：底栏提示替换为降级原因', async ({ p
 
   await page.getByPlaceholder('问我：怎么预约 / 怎么取消 / 审核要多久…').fill('E2E：怎么取消预约？')
   await page.getByRole('button', { name: '发送' }).click()
-  await expect(page.getByText('【E2E-MOCK】降级态回答')).toBeVisible()
+  await expect(page.locator('.chat-body .markdown-body').getByText('【E2E-MOCK】降级态回答', { exact: true })).toBeVisible()
 
   // 回答降级后底栏切换为降级原因（此时回答来自本地 FAQ 规则）
   await expect(tip).toContainText(DEGRADE_MSG)
@@ -643,7 +645,7 @@ test('AI 助手流式：请求带 stream=true，多帧拼接为完整答案', as
   await page.getByRole('button', { name: '发送' }).click()
 
   // SSE 多帧按序拼接，最终文本完整
-  await expect(page.getByText(answer)).toBeVisible()
+  await expect(page.locator('.chat-body .markdown-body').getByText(answer, { exact: true })).toBeVisible()
   await expect(page.locator('.chat-tip')).toContainText('AI 生成，仅供参考 · 仅解答预约相关问题')
   // 确实走的是流式 URL（pathname 计数仍归 /api/ai/chat）
   expect(calls[AI_PATHS.chat] || 0).toBe(1)
@@ -661,7 +663,7 @@ test('AI 助手流式降级：meta.degraded=true 时底栏切换为降级原因�
   await page.getByPlaceholder('问我：怎么预约 / 怎么取消 / 审核要多久…').fill('E2E-流式降级：审核？')
   await page.getByRole('button', { name: '发送' }).click()
 
-  await expect(page.getByText(fallbackAnswer)).toBeVisible()
+  await expect(page.locator('.chat-body .markdown-body').getByText(fallbackAnswer, { exact: true })).toBeVisible()
   await expect(tip).toContainText(DEGRADE_MSG)
   await expect(tip).not.toContainText('AI 生成，仅供参考')
 })
@@ -769,6 +771,13 @@ test('AI 助手 Markdown：标题/加粗/列表/链接/代码块渲染正确，H
   await expect(bubble.locator('script')).toHaveCount(0)
   expect(await page.evaluate(() => window.__xss)).toBeUndefined()
   await expect(bubble).toContainText('<img')
+
+  // 读屏播报（无障碍验收 A3）：live region 取渲染后的纯文本，不含 Markdown 标记，且与可见气泡逐字一致
+  const live = page.locator('.ai-assistant p[role="status"]')
+  const norm = (s) => (s || '').replace(/\s+/g, ' ').trim()
+  await expect(live).not.toContainText('**')
+  await expect(live).not.toContainText('```')
+  await expect.poll(async () => norm(await live.textContent())).toBe(norm(await bubble.textContent()))
 })
 
 test('AI 助手多轮：第二轮请求携带第一轮问答作为 history，首轮不带 history', async ({ page }) => {

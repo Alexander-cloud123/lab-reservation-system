@@ -23,6 +23,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -66,6 +67,13 @@ class AiChatStreamServiceTest {
         @Override
         public void delta(String text) {
             events.add("delta");
+            this.text.append(text);
+        }
+
+        @Override
+        public void reset(String text, String message) {
+            events.add("reset(" + message + ")");
+            this.text.setLength(0);
             this.text.append(text);
         }
 
@@ -251,6 +259,11 @@ class AiChatStreamServiceTest {
             }
 
             @Override
+            public void reset(String text, String message) {
+                throw new AssertionError("aborted 流不应再发 reset");
+            }
+
+            @Override
             public void done(String finishReason) {
                 throw new AssertionError("aborted 流不应再发 done");
             }
@@ -294,6 +307,11 @@ class AiChatStreamServiceTest {
             @Override
             public void delta(String text) {
                 throw new AssertionError("aborted 流不应再发 delta");
+            }
+
+            @Override
+            public void reset(String text, String message) {
+                throw new AssertionError("aborted 流不应再发 reset");
             }
 
             @Override
@@ -341,6 +359,48 @@ class AiChatStreamServiceTest {
         // 全流 meta 恰好 1 个：建链后降级原因不再通过第 2 个 degraded meta 透出
         assertEquals(1, sink.events.stream().filter(e -> e.startsWith("meta(")).count());
         verify(aiResultCache, never()).put(anyString(), any(), anyLong());
+    }
+
+    @Test
+    @DisplayName("场景闸门：无关个人问题在缓存、个人预约查询和上游之前直接拒绝")
+    void outOfScopeShortCircuitsBeforePersonalDataAndUpstream() {
+        when(aiConfigService.isAiEnabled()).thenReturn(true);
+        RecordingSink sink = new RecordingSink();
+
+        service.streamChat(7L, "我的股票怎么样", List.of(), sink);
+
+        assertEquals("meta(true,false,null)", sink.events.get(0));
+        assertEquals("done(stop)", sink.events.get(sink.events.size() - 1));
+        assertTrue(sink.events.stream().anyMatch("delta"::equals));
+        assertEquals(AiConstants.CHAT_OUT_OF_SCOPE, sink.text.toString());
+        org.mockito.Mockito.verifyNoInteractions(aiResultCache, agnesClient,
+                ReflectionTestUtils.getField(service, "reservationMapper"),
+                ReflectionTestUtils.getField(service, "classroomMapper"));
+    }
+
+    @Test
+    @DisplayName("个人缓存：已知 32 位碰撞对现在使用不同用户命名空间与完整 SHA-256")
+    void personalCacheResistsKnownShortHashCollision() {
+        when(aiConfigService.isAiEnabled()).thenReturn(true);
+        AiChatVO cached = new AiChatVO();
+        cached.setEnabled(true);
+        cached.setAnswer("缓存答案");
+        when(aiResultCache.buildKey(anyString(), anyString(), anyString())).thenReturn("cache-key");
+        when(aiResultCache.get(anyString(), any(TypeReference.class))).thenReturn(cached);
+
+        service.streamChat(2L, "我的预约21543", List.of(), new RecordingSink());
+        service.streamChat(1L, "我的预约31238", List.of(), new RecordingSink());
+
+        ArgumentCaptor<String> namespaceCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> fingerprintCaptor = ArgumentCaptor.forClass(String.class);
+        verify(aiResultCache, org.mockito.Mockito.times(2))
+                .buildKey(namespaceCaptor.capture(), anyString(), fingerprintCaptor.capture());
+        assertTrue(namespaceCaptor.getAllValues().get(0).endsWith(":user:2"));
+        assertTrue(namespaceCaptor.getAllValues().get(1).endsWith(":user:1"));
+        assertNotEquals(namespaceCaptor.getAllValues().get(0), namespaceCaptor.getAllValues().get(1));
+        assertNotEquals(fingerprintCaptor.getAllValues().get(0), fingerprintCaptor.getAllValues().get(1));
+        assertEquals(64, fingerprintCaptor.getAllValues().get(0).length());
+        assertEquals(64, fingerprintCaptor.getAllValues().get(1).length());
     }
 
     // ===== R13-3 多轮对话 =====
@@ -406,7 +466,7 @@ class AiChatStreamServiceTest {
         raw.add(historyMsg("system", "DROP TABLE"));
         raw.add(historyMsg("user", "   "));
 
-        service.streamChat(7L, "当前问题", raw, new RecordingSink());
+        service.streamChat(7L, "怎么预约", raw, new RecordingSink());
 
         ArgumentCaptor<List<AgnesClient.ChatMessage>> captor = ArgumentCaptor.forClass(List.class);
         verify(agnesClient).chatStream(anyLong(), anyString(), captor.capture(),
@@ -439,8 +499,8 @@ class AiChatStreamServiceTest {
         service.streamChat(7L, "继续说", List.of(historyMsg("user", "第一轮问了取消规则")), new RecordingSink());
         service.streamChat(7L, "继续说", List.of(historyMsg("user", "第一轮问了审核流程")), new RecordingSink());
         // 两次无历史（null）：归一化结果同为空，缓存 key 段必须稳定一致
-        service.streamChat(7L, "继续说", null, new RecordingSink());
-        service.streamChat(7L, "继续说", null, new RecordingSink());
+        service.streamChat(7L, "怎么预约", null, new RecordingSink());
+        service.streamChat(7L, "怎么预约", null, new RecordingSink());
 
         ArgumentCaptor<String> segmentCaptor = ArgumentCaptor.forClass(String.class);
         verify(aiResultCache, org.mockito.Mockito.times(4))
@@ -453,29 +513,28 @@ class AiChatStreamServiceTest {
     }
 
     @Test
-    @DisplayName("建链后读体中断(已有半截文本)：meta 仅 1 个，保留半截不拼 FAQ，done(unknown)")
-    void readyThenInterruptedKeepsPartialAndDoneUnknown() {
+    @DisplayName("建链后读体中断(已有半截文本)：reset 全量替换为 FAQ 并 done(fallback)")
+    void readyThenInterruptedReplacesPartialWithFallback() {
         stubEmptyUserContext();
         stubCacheKey();
         when(aiConfigService.isAiEnabled()).thenReturn(true);
         when(aiResultCache.get(anyString(), any(TypeReference.class))).thenReturn(null);
+        when(chatFallback.chatFallback("怎么预约")).thenReturn("完整FAQ");
         when(agnesClient.chatStream(anyLong(), anyString(), anyList(), anyString(), any(Runnable.class), any()))
                 .thenAnswer(inv -> {
-                    inv.getArgument(4, Runnable.class).run(); // onReady：唯一 meta 已发出
+                    inv.getArgument(4, Runnable.class).run();
                     inv.getArgument(5, java.util.function.Consumer.class).accept("半截回答");
-                    // 模拟读体中途 IOException：AgnesClient 返回 degraded 句柄（finishReason 为 null）
                     return AgnesClient.StreamChatHandle.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
                 });
         RecordingSink sink = new RecordingSink();
 
         service.streamChat(7L, "怎么预约", java.util.List.of(), sink);
 
-        // 精确事件序列：1 个 meta + 1 个 delta("半截回答") + done(unknown)，无第 2 个 meta、无 FAQ
-        assertEquals(List.of("meta(true,false,null)", "delta", "done(unknown)"), sink.events);
-        assertEquals("半截回答", sink.text.toString());
-        // 全部 delta 拼接不含 FAQ 文本，且兜底根本未被调用（半截真实文本不与 FAQ 拼接）
-        assertFalse(sink.text.toString().contains("FAQ"));
-        verify(chatFallback, never()).chatFallback(anyString());
+        assertEquals(List.of("meta(true,false,null)", "delta",
+                "reset(" + AiConstants.AI_SERVICE_ERROR_MESSAGE + ")", "done(fallback)"), sink.events);
+        assertEquals("完整FAQ", sink.text.toString(), "reset 必须替换而不是拼接上游残片");
+        assertFalse(sink.text.toString().contains("半截"));
+        verify(chatFallback).chatFallback("怎么预约");
         assertEquals(1, sink.events.stream().filter(e -> e.startsWith("meta(")).count());
         verify(aiResultCache, never()).put(anyString(), any(), anyLong());
     }

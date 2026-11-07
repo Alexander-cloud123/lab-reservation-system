@@ -12,7 +12,7 @@ import java.util.concurrent.ThreadPoolExecutor;
  *  - 有界队列 + AbortPolicy：占满时由 controller 捕获拒绝并回 error 事件，不压垮 Tomcat 请求线程；
  *  - daemon 线程：应用关闭时不阻塞 JVM 退出（ThreadPoolTaskExecutor 自身也随 Bean 销毁）。
  *
- * @author reservation-team
+ * @author hyr
  */
 @Configuration
 public class AiExecutorConfig {

@@ -62,8 +62,8 @@ export function probeAiRecommend({ force = false, onPhase } = {}) {
   }
   const promise = new Promise(resolve => {
     let settled = false
-    // result/done/error 三个终态只落地一次（done 无载荷，以已收到的 result 为准；
-    // 未收到 result 即 done/error，按未启用兜底）
+    // done/error 终态只落地一次（done 无载荷，以已收到的 result 为准；
+    // 未收到 result 即 done/error，按未启用兜底；仅 result 而异常 EOF 不算成功）
     let holder = null
     const finish = result => {
       if (settled) {
@@ -79,12 +79,13 @@ export function probeAiRecommend({ force = false, onPhase } = {}) {
       onPhase: d => onPhase && onPhase(d),
       onResult: data => {
         const vo = data || {}
-        finish({
+        // result 不是终态：必须等到 done 才接受，异常 EOF/超时不得把半次请求当成成功探测。
+        holder = {
           enabled: vo.enabled === true,
           recommendations: vo.recommendations || [],
           // 降级提示透传（AI 关闭时 message 为「AI 服务未启用…」，调用方按 enabled 区分处理）
           message: vo.enabled === true ? vo.message || '' : ''
-        })
+        }
       },
       onDone: () => finish(holder || disabledResult()),
       // 连接级失败（超时/线程池繁忙/网络异常）也缓存 enabled=false，避免重复打接口

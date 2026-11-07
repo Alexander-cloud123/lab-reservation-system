@@ -12,6 +12,7 @@ import com.example.reservation.ai.service.AiChatService;
 import com.example.reservation.ai.service.AiComplianceService;
 import com.example.reservation.ai.service.AiParseService;
 import com.example.reservation.ai.service.AiRecommendService;
+import com.example.reservation.ai.support.AiRequestDeadline;
 import com.example.reservation.ai.support.ChatStreamSink;
 import com.example.reservation.ai.support.SseChatStreamSink;
 import com.example.reservation.ai.support.SseStreams;
@@ -23,7 +24,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.task.TaskRejectedException;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,7 +31,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 /**
  * AI 能力模块控制器（R7，需求文档 2.5 AI 能力模块 4 接口）
@@ -40,7 +40,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 未登录 401；/api/ai 不在管理员前缀内（R7 已从 Constants.ADMIN_API_PREFIXES 移除）
  * ai.enable=false 时接口返回 enabled=false 的友好提示（不 500、不阻断核心），前端据此隐藏/禁用 AI 入口
  *
- * @author reservation-team
+ * @author hyr
  */
 @Slf4j
 @Tag(name = "AI 能力模块", description = "智能教室推荐 / 自然语言解析 / 场景限定问答 / 合规校验（只读，登录即可）")
@@ -48,8 +48,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @RequestMapping("/api/ai")
 public class AiController {
 
-    /** 流式 SSE 超时（ms）：略大于上游读超时 60s，避免容器先于上游断开 */
-    private static final long STREAM_TIMEOUT_MS = 70_000L;
 
     @Resource
     private AiRecommendService aiRecommendService;
@@ -73,7 +71,7 @@ public class AiController {
     @Operation(summary = "AI-智能教室推荐", description = "基于当前登录用户历史预约习惯（时段/楼栋/类型/人数）+实时空闲推荐Top3教室及理由")
     @PostMapping(value = "/recommend", params = "stream!=true")
     public Result<AiRecommendVO> recommend(@RequestBody(required = false) AiRecommendRequest request) {
-        return Result.success(aiRecommendService.recommend(UserContext.getUserId()));
+        return withinDeadline(() -> Result.success(aiRecommendService.recommend(UserContext.getUserId())));
     }
 
     /**
@@ -83,9 +81,10 @@ public class AiController {
     @Operation(summary = "AI-智能教室推荐（流式SSE）", description = "text/event-stream：meta/phase/result/done 事件；?stream=true")
     @PostMapping(value = "/recommend", params = "stream=true")
     public SseEmitter recommendStream() {
+        AiRequestDeadline deadline = AiRequestDeadline.start();
         Long userId = UserContext.getUserId();
         return SseStreams.<StructuredStreamSink<AiRecommendVO>>start(
-                STREAM_TIMEOUT_MS, aiStreamExecutor, "流式推荐", userId,
+                deadline, aiStreamExecutor, "流式推荐", userId,
                 SseStructuredStreamSink::new,
                 sink -> aiRecommendService.streamRecommend(userId, sink),
                 "AI 响应超时，请稍后再试", "AI 服务繁忙，请稍后再试", "服务暂时不可用，请稍后再试");
@@ -97,7 +96,7 @@ public class AiController {
     @Operation(summary = "AI-自然语言预约解析", description = "口语化文本→结构化JSON（date/startTime/endTime/capacity/roomType/purpose），识别失败返回error")
     @PostMapping(value = "/parse-reservation", params = "stream!=true")
     public Result<AiParseVO> parseReservation(@RequestBody AiParseRequest request) {
-        return Result.success(aiParseService.parse(request.getText()));
+        return withinDeadline(() -> Result.success(aiParseService.parse(request.getText())));
     }
 
     /**
@@ -107,12 +106,13 @@ public class AiController {
     @Operation(summary = "AI-自然语言预约解析（流式SSE）", description = "text/event-stream：meta/phase/result/done 事件；?stream=true")
     @PostMapping(value = "/parse-reservation", params = "stream=true")
     public SseEmitter parseReservationStream(@RequestBody AiParseRequest request) {
+        AiRequestDeadline deadline = AiRequestDeadline.start();
         // 1. SSE 建立前校验：BusinessException 由全局异常处理器转 Result JSON（与非流式完全一致）
         aiParseService.validateParseInput(request.getText());
         // 2. 请求线程捕获登录身份
         Long userId = UserContext.getUserId();
         return SseStreams.<StructuredStreamSink<AiParseVO>>start(
-                STREAM_TIMEOUT_MS, aiStreamExecutor, "流式解析", userId,
+                deadline, aiStreamExecutor, "流式解析", userId,
                 SseStructuredStreamSink::new,
                 sink -> aiParseService.streamParse(request.getText(), userId, sink),
                 "AI 响应超时，请稍后再试", "AI 服务繁忙，请稍后再试", "服务暂时不可用，请稍后再试");
@@ -124,7 +124,7 @@ public class AiController {
     @Operation(summary = "AI-预约智能问答", description = "场景绝对限定：仅回答预约/教室/个人记录相关问题；无关问题返回预设话术")
     @PostMapping(value = "/chat", params = "stream!=true")
     public Result<AiChatVO> chat(@RequestBody AiChatRequest request) {
-        return Result.success(aiChatService.chat(request.getQuestion(), request.getHistory()));
+        return withinDeadline(() -> Result.success(aiChatService.chat(request.getQuestion(), request.getHistory())));
     }
 
     /**
@@ -135,75 +135,17 @@ public class AiController {
     @Operation(summary = "AI-预约智能问答（流式SSE）", description = "text/event-stream：meta/delta/done 事件；?stream=true")
     @PostMapping(value = "/chat", params = "stream=true")
     public SseEmitter chatStream(@RequestBody AiChatRequest request) {
+        AiRequestDeadline deadline = AiRequestDeadline.start();
         // 1. SSE 建立前校验：BusinessException 由全局异常处理器转 Result JSON（与非流式完全一致）
         aiChatService.validateQuestion(request.getQuestion());
         // 2. 请求线程捕获登录身份
         Long userId = UserContext.getUserId();
 
-        SseEmitter emitter = new SseEmitter(STREAM_TIMEOUT_MS);
-        ChatStreamSink sink = new SseChatStreamSink(emitter);
-        final AtomicBoolean finished = new AtomicBoolean(false);
-        emitter.onTimeout(() -> {
-            finished.set(true);
-            // 70s 超时收尾：尽力补发 error 帧，避免前端永久停留在打字机光标态；
-            // 此时连接可能已被容器回收，发送失败由 safeSendError 吞掉，随后照常 complete
-            safeSendError(sink, "AI 响应超时，请稍后再试");
-            try {
-                emitter.complete();
-            } catch (Exception ignore) {
-                // 极端时序下二次收尾可能失败，忽略
-            }
-        });
-        emitter.onError(t -> {
-            finished.set(true);
-            log.debug("SSE 连接异常/客户端断开：{}", t.toString());
-        });
-
-        try {
-            aiStreamExecutor.execute(() -> {
-                // 排队期间已超时/出错（70s 从请求建立即起算）：连接已死，跳过全部业务与上游调用，避免白耗配额
-                if (finished.get()) {
-                    return;
-                }
-                try {
-                    aiChatService.streamChat(userId, request.getQuestion(), request.getHistory(), sink);
-                } catch (Exception e) {
-                    if (finished.get()) {
-                        log.debug("流式问答在连接结束后异常：userId={}，{}", userId, e.toString());
-                        return;
-                    }
-                    log.warn("流式问答执行异常：userId={}", userId, e);
-                    safeSendError(sink, "服务暂时不可用，请稍后再试");
-                } finally {
-                    if (!finished.get()) {
-                        try {
-                            emitter.complete();
-                        } catch (Exception ignore) {
-                            // 二次收尾失败无需处理
-                        }
-                    }
-                }
-            });
-        } catch (TaskRejectedException e) {
-            // 线程池/队列打满：连接刚建立尚未发 meta，直接发 error 事件收尾
-            log.warn("流式问答线程池已满，拒绝本次请求：userId={}", userId);
-            safeSendError(sink, "AI 服务繁忙，请稍后再试");
-            try {
-                emitter.complete();
-            } catch (Exception ignore) {
-                // 拒绝发生在请求线程，emitter 尚未派发；收尾失败无需处理
-            }
-        }
-        return emitter;
-    }
-
-    /** error 事件发送兜底（忽略二次失败，如客户端已断开） */
-    private void safeSendError(ChatStreamSink sink, String message) {
-        try {
-            sink.error(message);
-        } catch (Exception ignored) {
-            // 连接已关闭，无任何可做的补救
-        }
+        return SseStreams.<ChatStreamSink>start(
+                deadline, aiStreamExecutor, "流式问答", userId,
+                SseChatStreamSink::new,
+                sink -> aiChatService.streamChat(userId, request.getQuestion(), request.getHistory(), sink),
+                "AI 响应超时，请稍后再试", "AI 服务繁忙，请稍后再试", "服务暂时不可用，请稍后再试");
     }
 
     /**
@@ -212,7 +154,7 @@ public class AiController {
     @Operation(summary = "AI-预约合规校验", description = "输入预约用途→合规结果；只提示不改状态，审核动作仍由管理员手动执行")
     @PostMapping(value = "/compliance-check", params = "stream!=true")
     public Result<AiComplianceVO> complianceCheck(@RequestBody AiComplianceRequest request) {
-        return Result.success(aiComplianceService.check(request.getPurpose()));
+        return withinDeadline(() -> Result.success(aiComplianceService.check(request.getPurpose())));
     }
 
     /**
@@ -222,14 +164,23 @@ public class AiController {
     @Operation(summary = "AI-预约合规校验（流式SSE）", description = "text/event-stream：meta/phase/result/done 事件；只提示不改状态；?stream=true")
     @PostMapping(value = "/compliance-check", params = "stream=true")
     public SseEmitter complianceCheckStream(@RequestBody AiComplianceRequest request) {
+        AiRequestDeadline deadline = AiRequestDeadline.start();
         // 1. SSE 建立前校验：BusinessException 由全局异常处理器转 Result JSON（与非流式完全一致）
         aiComplianceService.validateCheckInput(request.getPurpose());
         // 2. 请求线程捕获登录身份
         Long userId = UserContext.getUserId();
         return SseStreams.<StructuredStreamSink<AiComplianceVO>>start(
-                STREAM_TIMEOUT_MS, aiStreamExecutor, "流式合规", userId,
+                deadline, aiStreamExecutor, "流式合规", userId,
                 SseStructuredStreamSink::new,
                 sink -> aiComplianceService.streamCheck(request.getPurpose(), userId, sink),
                 "AI 响应超时，请稍后再试", "AI 服务繁忙，请稍后再试", "服务暂时不可用，请稍后再试");
+    }
+
+    /** 同步端点与 SSE 共用请求入口 deadline，上游传输只可使用剩余预算。 */
+    private <T> T withinDeadline(Supplier<T> action) {
+        AiRequestDeadline deadline = AiRequestDeadline.start();
+        try (AiRequestDeadline.Scope ignored = deadline.open()) {
+            return action.get();
+        }
     }
 }

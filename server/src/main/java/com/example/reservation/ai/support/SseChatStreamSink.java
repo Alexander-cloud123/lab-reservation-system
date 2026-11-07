@@ -4,6 +4,7 @@ import com.example.reservation.ai.dto.AiStreamDelta;
 import com.example.reservation.ai.dto.AiStreamDone;
 import com.example.reservation.ai.dto.AiStreamError;
 import com.example.reservation.ai.dto.AiStreamMeta;
+import com.example.reservation.ai.dto.AiStreamReset;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -14,7 +15,7 @@ import java.io.IOException;
  * payload 以对象传入，由 Spring 用 Jackson 序列化为 JSON（UTF-8），中文不转义。
  * 客户端断开 / emitter 已完成时 send 抛异常，统一转 IOException 交 service 提前收尾。
  *
- * @author reservation-team
+ * @author hyr
  */
 @Slf4j
 public class SseChatStreamSink implements ChatStreamSink {
@@ -33,6 +34,11 @@ public class SseChatStreamSink implements ChatStreamSink {
     @Override
     public void delta(String text) throws IOException {
         send("delta", new AiStreamDelta(text));
+    }
+
+    @Override
+    public void reset(String text, String message) throws IOException {
+        send("reset", new AiStreamReset(text, message));
     }
 
     @Override

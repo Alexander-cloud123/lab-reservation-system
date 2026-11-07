@@ -10,7 +10,7 @@ import java.util.List;
  *  - chunks：把整段答案按固定步长切成多个 delta（降级 FAQ 分段推送 / 缓存命中重放）；
  *  - stripCodeFence：纯文本 Prompt 偶发被模型用 ``` 包裹时的最小兜底，只去整体围栏、绝不改写正文。
  *
- * @author reservation-team
+ * @author hyr
  */
 public final class AiStreamText {
 

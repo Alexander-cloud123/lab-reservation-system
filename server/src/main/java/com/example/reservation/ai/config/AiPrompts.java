@@ -14,7 +14,7 @@ import com.example.reservation.ai.support.AiHash;
  * 说明：本类只提供内置兜底值，不写库；ai_config 中的 DB 模板（若已配置）优先。
  * 是否把 prompt_chat / prompt_recommend 也纳入 ai_config，涉及表数据变更，须经负责人确认后再做。
  *
- * @author reservation-team
+ * @author hyr
  */
 public final class AiPrompts {
 
@@ -86,16 +86,16 @@ public final class AiPrompts {
             + "{\"recommendations\":[{\"classroomId\":数字,\"reason\":\"一句话理由\"}]}";
 
     /**
-     * Prompt 内容哈希版本号（8 位十六进制）
+     * Prompt 内容哈希版本号（完整 SHA-256，64 位十六进制）
      *
      * 用途：Prompt 无论是取自 ai_config 还是内置兜底，都按「实际生效文本」生成版本号，
      * 写入降级日志并作为结果缓存 Key 的版本段——Prompt 一改版本即变，便于归因「改 Prompt 导致的质量波动」，
      * 同时让旧版本的缓存自动失效。
      *
      * @param prompt 实际生效的 Prompt 文本
-     * @return 8 位短哈希；空白返回 none
+     * @return 64 位完整摘要；空白返回 none
      */
     public static String versionOf(String prompt) {
-        return AiHash.sha256Prefix8(prompt);
+        return AiHash.sha256(prompt);
     }
 }

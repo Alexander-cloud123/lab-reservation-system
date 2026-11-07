@@ -10,10 +10,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  *  1. 全站维度：窗口内全站累计最多 {@code globalLimit} 次（N2 新增——防多用户合力打满全站额度）；
  *  2. 用户维度：窗口内每用户最多 {@code perUserLimit} 次（保持既有 M7 口径：rpm-limit/分钟/用户）。
  * 判定顺序：先查用户窗口是否已超限（超限直接拒，不消耗全站额度）；再扣全站额度；最后扣用户额度。
- * 淘汰策略（N2 修正）：跟踪窗口数超 {@code maxTracked} 时，先清理窗口已过期的条目；
- * 仍超上限再按「最早过期者」淘汰单个条目——禁止 clear() 全清（全清等于把所有人的额度一起重置，是被绕过的口子）。
+ * 淘汰策略：跟踪窗口数超 {@code maxTracked} 时只清理已过期条目；
+ * 活动窗口即使超限数量也暂时保留，不能通过淘汰活动计数绕过用户额度。全局限额约束了单窗口新增条目增速。
  *
- * @author reservation-team
+ * @author hyr
  */
 public class RateLimiter {
 
@@ -100,29 +100,12 @@ public class RateLimiter {
         }
     }
 
-    /**
-     * 淘汰策略（N2 修正）：跟踪窗口数超上限时，先清理窗口已过期的条目；
-     * 仍超上限再按「最早过期者」淘汰单个条目（禁止 clear() 全清，避免全站额度一起被重置）。
-     */
+    /** 只淘汰过期窗口；活动窗口保留计数，超限数量在全局限额约束下暂时存在并于后续窗口回收。 */
     private void trim(long now) {
         if (userWindows.size() <= maxTracked) {
             return;
         }
-        // 1) 先删窗口已过期的条目（固定窗口结束即失去计数意义）
         userWindows.entrySet().removeIf(e -> now - e.getValue().windowStart >= windowMs);
-        if (userWindows.size() <= maxTracked) {
-            return;
-        }
-        // 2) 仍超上限：淘汰最早过期者（windowStart 最小者）
-        Map.Entry<Long, WindowCounter> oldest = null;
-        for (Map.Entry<Long, WindowCounter> e : userWindows.entrySet()) {
-            if (oldest == null || e.getValue().windowStart < oldest.getValue().windowStart) {
-                oldest = e;
-            }
-        }
-        if (oldest != null) {
-            // remove(key, value)：仅在值仍为该窗口时删除，避免误删并发下已重建的窗口
-            userWindows.remove(oldest.getKey(), oldest.getValue());
-        }
+        // 不得继续淘汰活动窗口：删除计数等于给该用户重新发放额度，会形成限流绕过。
     }
 }

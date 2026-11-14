@@ -56,6 +56,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ReservationServiceImplCoverageTest {
 
+    /** 预约日期统一取「明天」：用例不随系统日期漂移而失效（写死日期会在当天过后变成过去日期） */
+    private static final String FUTURE_DATE = LocalDate.now().plusDays(1).toString();
+
     @Mock
     private ReservationMapper reservationMapper;
 
@@ -97,14 +100,14 @@ class ReservationServiceImplCoverageTest {
     @Test
     @DisplayName("checkConflict：教室 ID / 日期 / 时间参数校验")
     void checkConflict_parameterValidation() {
-        assertMessage("教室 ID 不能为空", () -> reservationService.checkConflict(null, "2026-11-08", "09:00", "10:00"));
-        assertMessage("教室不存在", () -> reservationService.checkConflict(1L, "2026-11-08", "09:00", "10:00"));
+        assertMessage("教室 ID 不能为空", () -> reservationService.checkConflict(null, FUTURE_DATE, "09:00", "10:00"));
+        assertMessage("教室不存在", () -> reservationService.checkConflict(1L, FUTURE_DATE, "09:00", "10:00"));
         // 后续用例需要越过教室存在性校验，才检查日期 / 时间参数
         when(classroomMapper.selectById(1L)).thenReturn(room(1L, Constants.CLASSROOM_STATUS_ENABLED));
         assertMessage("预约日期不能为空", () -> reservationService.checkConflict(1L, " ", "09:00", "10:00"));
-        assertMessage("预约时间不能为空", () -> reservationService.checkConflict(1L, "2026-11-08", "", "10:00"));
+        assertMessage("预约时间不能为空", () -> reservationService.checkConflict(1L, FUTURE_DATE, "", "10:00"));
         assertMessage("开始时间必须早于结束时间",
-                () -> reservationService.checkConflict(1L, "2026-11-08", "10:00", "09:00"));
+                () -> reservationService.checkConflict(1L, FUTURE_DATE, "10:00", "09:00"));
     }
 
     @Test
@@ -114,7 +117,7 @@ class ReservationServiceImplCoverageTest {
         when(reservationMapper.selectList(any()))
                 .thenReturn(List.of(approved(1L, LocalTime.of(9, 0), LocalTime.of(11, 0))));
 
-        ConflictVO vo = reservationService.checkConflict(1L, "2026-11-08", "10:00", "12:00");
+        ConflictVO vo = reservationService.checkConflict(1L, FUTURE_DATE, "10:00", "12:00");
 
         assertTrue(vo.getConflict());
         assertTrue(vo.getReason().contains("09:00-11:00"));
@@ -128,7 +131,7 @@ class ReservationServiceImplCoverageTest {
         when(reservationMapper.selectList(any())
         ).thenReturn(List.of(approved(1L, LocalTime.of(9, 0), LocalTime.of(11, 0))));
 
-        ConflictVO vo = reservationService.checkConflict(1L, "2026-11-08", "11:00", "12:00");
+        ConflictVO vo = reservationService.checkConflict(1L, FUTURE_DATE, "11:00", "12:00");
 
         assertFalse(vo.getConflict());
         assertEquals("该时段可预约", vo.getReason());
@@ -139,14 +142,14 @@ class ReservationServiceImplCoverageTest {
     @Test
     @DisplayName("createReservation：教室为空 / 不存在 / 已停用 三种分支")
     void createReservation_roomValidation() {
-        ReservationDTO noRoom = dto("2026-11-08", "09:00", "10:00");
+        ReservationDTO noRoom = dto(FUTURE_DATE, "09:00", "10:00");
         noRoom.setClassroomId(null);
         assertMessage("教室不能为空", () -> reservationService.createReservation(noRoom));
 
         // 第一次查询返回 null（教室不存在），第二次返回停用教室
         when(classroomMapper.selectOne(any())).thenReturn(null, room(1L, Constants.CLASSROOM_STATUS_DISABLED));
-        assertMessage("教室不存在", () -> reservationService.createReservation(dto("2026-11-08", "09:00", "10:00")));
-        assertMessage("该教室已停用", () -> reservationService.createReservation(dto("2026-11-08", "09:00", "10:00")));
+        assertMessage("教室不存在", () -> reservationService.createReservation(dto(FUTURE_DATE, "09:00", "10:00")));
+        assertMessage("该教室已停用", () -> reservationService.createReservation(dto(FUTURE_DATE, "09:00", "10:00")));
     }
 
     @Test
@@ -154,15 +157,15 @@ class ReservationServiceImplCoverageTest {
     void createReservation_fieldValidation() {
         when(classroomMapper.selectOne(any())).thenReturn(room(1L, Constants.CLASSROOM_STATUS_ENABLED));
         assertMessage("预约日期不能为空", () -> reservationService.createReservation(dto(" ", "09:00", "10:00")));
-        assertMessage("预约时间不能为空", () -> reservationService.createReservation(dto("2026-11-08", "", "10:00")));
-        assertMessage("预约用途不能为空", () -> reservationService.createReservation(dto("2026-11-08", "09:00", "10:00", "   ")));
+        assertMessage("预约时间不能为空", () -> reservationService.createReservation(dto(FUTURE_DATE, "", "10:00")));
+        assertMessage("预约用途不能为空", () -> reservationService.createReservation(dto(FUTURE_DATE, "09:00", "10:00", "   ")));
         assertMessage("预约用途过长", () -> {
-            ReservationDTO dto = dto("2026-11-08", "09:00", "10:00");
+            ReservationDTO dto = dto(FUTURE_DATE, "09:00", "10:00");
             dto.setPurpose("x".repeat(Constants.PURPOSE_MAX_LENGTH + 1));
             reservationService.createReservation(dto);
         });
         assertMessage("开始时间必须早于结束时间",
-                () -> reservationService.createReservation(dto("2026-11-08", "10:00", "10:00")));
+                () -> reservationService.createReservation(dto(FUTURE_DATE, "10:00", "10:00")));
     }
 
     @Test
@@ -173,7 +176,7 @@ class ReservationServiceImplCoverageTest {
                 .thenReturn(List.of(approved(1L, LocalTime.of(9, 0), LocalTime.of(11, 0))));
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> reservationService.createReservation(dto("2026-11-08", "10:00", "12:00")));
+                () -> reservationService.createReservation(dto(FUTURE_DATE, "10:00", "12:00")));
         assertTrue(ex.getMessage().contains("冲突"));
     }
 
@@ -183,7 +186,7 @@ class ReservationServiceImplCoverageTest {
         when(classroomMapper.selectOne(any())).thenReturn(room(1L, Constants.CLASSROOM_STATUS_ENABLED));
         when(reservationMapper.selectList(any())).thenReturn(List.of());
 
-        reservationService.createReservation(dto("2026-11-08", "09:00", "11:00"));
+        reservationService.createReservation(dto(FUTURE_DATE, "09:00", "11:00"));
 
         verify(reservationMapper).insert(any(Reservation.class));
         // 无事务时 TransactionCacheInvalidator 立即执行，委托给 RedisCache#invalidateBusinessCaches

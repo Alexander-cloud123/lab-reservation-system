@@ -72,8 +72,8 @@ function Call($method, $path, $token, $body) {
 function J($r) { if ($r.body) { return ($r.body | ConvertFrom-Json) } else { return $null } }
 
 # ---- 1. 未登录访问受保护接口 ----
-$r = Call 'GET' '/classroom' $null $null
-Show '未登录访问 /classroom' ($r.status -eq 401) "status=$($r.status)"
+$r = Call 'GET' '/classroom/list' $null $null
+Show '未登录访问 /classroom/list' ($r.status -eq 401) "status=$($r.status)"
 
 # ---- 2. 登录 ----
 $r = Call 'POST' '/user/login' $null @{ username = 'admin'; password = 'admin123'; role = 1 }

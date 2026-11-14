@@ -195,9 +195,11 @@ test('登录后：当日存在即将开始（24h 内）的已通过预约 → �
   const now = dayjs()
   const start = now.add(90, 'minute')
   const end = start.add(60, 'minute')
-  // 可造预约窗口：08:00-22:00（后端强校验），且留出 1 小时以上便于清理时取消
+  // 可造预约窗口：08:00-22:00（后端强校验），且窗口不能跨午夜（23:35-00:35 会被判「开始晚于结束」）
+  const windowStart = now.startOf('day').add(8, 'hour')
+  const windowEnd = now.startOf('day').add(22, 'hour')
   test.skip(
-    end.hour() * 60 + end.minute() > 22 * 60 || start.hour() * 60 + start.minute() < 8 * 60,
+    start.isBefore(windowStart) || end.isAfter(windowEnd) || !end.isSame(start, 'day'),
     `当前时刻（${now.format('HH:mm')}）无法造出「今日且即将开始」的合法预约，本场景无法覆盖`
   )
 

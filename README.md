@@ -136,11 +136,18 @@ flowchart TB
 ### 方式一：Docker 一键起全栈
 
 ```powershell
+Copy-Item .env.example .env                    # 首次执行：端口与密钥都在 .env 里
+# 生成 48 位随机密钥并写入 .env（也可以手动填，至少 32 字节；缺失时 compose 会拒绝启动）
+$secret = -join ((1..48) | ForEach-Object { '{0:x}' -f (Get-Random -Maximum 16) })
+(Get-Content .env) -replace '^JWT_SECRET=.*', "JWT_SECRET=$secret" | Set-Content .env
+
 docker volume create reservation-mysql-data    # 首次执行：MySQL 数据卷为外部卷
 docker compose up -d --build                   # 构建并启动 MySQL / Redis / api / web
 docker compose ps                              # 四条服务均应为 healthy
-# 系统入口 http://localhost:8088   接口文档 http://localhost:8080/doc.html
+# 系统入口 http://localhost:8088（部署模式关闭接口文档与 SQL 明细日志）
 ```
+
+> 安全口径：容器一律以 `prod` profile 启动，未注入 ≥32 字节的 `JWT_SECRET` 时启动失败；`/doc.html` 与 `/v3/api-docs` 在容器部署下不可访问，本机 `mvn spring-boot:run` 仍可查看；CORS 白名单默认收敛到本机 `8088`（部署入口）与 `5173`（Vite dev / E2E）。检查项与证据见 [安全基线](docs/安全基线.md)。
 
 数据库首次初始化由容器自动执行 [init_db.sql](database/init_db.sql)（仅在数据卷为空时触发）。**存量库需执行一次幂等迁移**（会话撤销依赖 `sys_user.token_version`，重复执行安全）：
 
@@ -183,10 +190,12 @@ docker compose exec mysql mysql -uroot -proot -e "UPDATE reservation.ai_config S
 | 接口冒烟回归 | 41 项（鉴权 / 权限 / 预约生命周期 / 冲突 / 校验 / 看板 / 收藏 / AI 降级 / 会话撤销） | `pwsh server/scripts/smoke.ps1` |
 | 前端 E2E | 17 个 spec、120 个用例 × Chromium + Edge | `npm run test:e2e:all`（默认只跑 Chromium） |
 | 无障碍机器代理 | 16/16 项（人工听感按负责人决定不执行） | `node scripts/a11y-acceptance.mjs` |
+| 安全基线自检 | 8 项（默认密钥伪造 / 文档关闭 / 限流 / 响应头 / 越权） | `pwsh server/scripts/security-check.ps1` |
 
 ```powershell
 mvn -f server/pom.xml test                     # 后端单测 + 集成测试（需 MySQL/Redis 在线）
 pwsh server/scripts/smoke.ps1                  # 41 项接口冒烟（需后端已启动）
+pwsh server/scripts/security-check.ps1         # 8 项安全基线（需 compose 栈已启动）
 cd web; npm run lint; npm run build            # 前端规范与构建
 cd web; npm run test:e2e                       # Chromium E2E（webServer 自动拉起 Vite）
 cd web; node scripts/capture-screens.mjs       # 采集 README 预览截图
@@ -221,6 +230,7 @@ cd web; node scripts/capture-screens.mjs       # 采集 README 预览截图
 | 技术开发规格书 | [`spec.md`](spec.md) |
 | 协作章程与红线约束 | [`AGENTS.md`](AGENTS.md) |
 | 运行与配置（环境变量 / AI / Redis / 端口） | [`docs/运行与配置.md`](docs/运行与配置.md) |
+| 安全基线（部署加固项与验证命令） | [`docs/安全基线.md`](docs/安全基线.md) |
 | 演示视频分镜与录制说明 | [`docs/演示视频分镜.md`](docs/演示视频分镜.md) |
 | 各轮交付四件套（R1–R13） | [`docs/iterations/`](docs/iterations) |
 | QA 收口报告 | [`docs/qa/`](docs/qa) |

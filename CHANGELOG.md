@@ -14,14 +14,21 @@
 - 前端 401 处理尊重 `silent`：改密后调用登出（旧 Token 已被撤销）不再误报「登录已过期」或硬跳转。
 - **无障碍缺陷修复（读屏器清单机器代理验收发现）**：AI 助手 live region 改为播报 Markdown 渲染后的纯文本（原先播报 `**`/列表序号，与可见气泡不一致）；登录页错误提示补 `aria-invalid` / `aria-describedby` 关联与 `role=alert`；补齐 Element Plus zh-cn 缺失的 `dialog.close` / `drawer.close` / `messagebox.close` 键，关闭按钮不再暴露 `el.dialog.close` 这类原始 i18n key；「我的预约」取消确认后触发按钮被移除会导致焦点悬空到 `body`，修复为确认成功后聚焦列表区域（`role=region` + `aria-label="我的预约列表"`，`13-my-reservation` 已加断言）。
 
+- **上线前安全基线（Docker 部署）**：`docker-compose.yml` 的 api 固定 `SPRING_PROFILES_ACTIVE=prod`，`JWT_SECRET` 改为必填（缺失 / 为空 / 沿用开发默认值直接拒绝启动，已实测 `docker compose config` 退出 1）；容器关闭接口文档（`knife4j.enable=false` + `spring.web.resources.add-mappings=false`，`/doc.html` 不再返回文档页、`/v3/api-docs` 不再返回 schema，统一落到 `{"code":404}` 语义）与 MyBatis SQL 明细日志（`NoLoggingImpl`）；`web/nginx.conf` 增 `server_tokens off`、四条安全响应头（`/assets/` 与 `= /index.html` 各自补 `add_header`，避免继承被覆盖）、登录 / 注册 `limit_req`（10r/m，burst 9，第 11 次起 429）；CORS 白名单改由 `CORS_ALLOWED_ORIGINS` 注入，compose 默认收敛到本机 `8088` 与 Vite dev / E2E 的 `5173`。本机 `mvn spring-boot:run` 行为不变。
+- 关闭静态资源映射后，未映射路径原先会被兜底异常处理器当成 500：GlobalExceptionHandler 新增 NoHandlerFoundException 处理，返回统一 {"code":404,"message":"接口不存在"}（/api/classroom 这类少写一段的路径不再报 500）。
+- server/scripts/smoke.ps1 匿名访问用例从 /api/classroom 改到真实存在的 /api/classroom/list，避免依赖静态资源处理器兜出的 401 假阳性。
+
 ### 测试
 
 - 后端 **309 项**（新增 `TokenRevocationIntegrationTest`：固定 `redis.enable=false`，验证无 Redis 也能持久撤销；新增拦截器版本号 / 状态缓存用例）。新增 4 个纯逻辑测试类补齐看板与降级链：`StatsServiceImplTest`（聚合口径 / 窗口裁剪与 14h 封顶 / 排序 / 区间校验）、`ReservationConverterTest`（批量预查短路 / 三种 VO / 状态文案）、`AiParseFallbackTest`（自然语言解析与非法输入不抛异常）、`AiRecommendFallbackTest`（规则打分与推荐理由）；另补 2 个业务分支覆盖类 `ReservationServiceImplCoverageTest`（参数校验/授权/导出上限/日历区间与可见性/关键词拼接）与 `ClassroomServiceImplCoverageTest`（CRUD 校验/删除保护/启停幂等/学生端缓存与占用时段/状态标签），以及 `UserServiceImplCoverageTest`（登录/注册/资料/改密全分支）、`RedisCacheObjectCacheTest`（对象缓存与代次失效降级）、`AiJsonSupportTest`（模型 JSON 容错解析）、`FavoriteServiceImplCoverageTest`（收藏上限与幽灵卡片过滤），行覆盖率 54% → **80.6%**（指令 81.9% / 分支 74.2%，ReservationServiceImpl 98.1%、ClassroomServiceImpl 99.1%、UserServiceImpl 97.5%、RedisCache 87.0%）。
 - 前端 E2E **120 项 / 17 spec**，新增「会话撤销」spec；新增 Microsoft Edge 全量回归项目（`npm run test:e2e:edge`，默认脚本仍只跑 Chromium）。
 - `server/scripts/smoke.ps1` 增至 **41 项**（含重置密码后旧 Token 失效断言），并修复脚本对 PowerShell 7 错误响应的兼容性。
+- 10-auth.spec.js 的「即将开始提醒」用例在 22:00 之后会把窗口算到跨午夜（如 23:35-00:35），被后端判「开始时间必须早于结束时间」而误报失败；补充「窗口不跨日、落在 08:00-22:00」的跳过条件。
+- `ReservationServiceImplCoverageTest` 的日期字面量（2026-11-08）随系统日期过期导致 2 例失败，改用 `LocalDate.now().plusDays(1)` 生成未来日期，用例不再随时间漂移。
 
 ### 文档
 
+- 新增 [`docs/安全基线.md`](docs/安全基线.md) 与 [`server/scripts/security-check.ps1`](server/scripts/security-check.ps1)（8 项自动检查：响应头 / Server 版本 / 接口文档端点 / 默认密钥伪造 Token / 未登录 401 / 学生越权 403 / 登录与注册限流）；README「快速开始」补 `.env` 复制与密钥生成步骤、质量表增一行，[`docs/运行与配置.md`](docs/运行与配置.md) 环境变量表补 `SPRING_PROFILES_ACTIVE` / `CORS_ALLOWED_ORIGINS` 并更新 `JWT_SECRET` / `KNIFE4J_ENABLE` / `MYBATIS_LOG_IMPL` 口径。
 - 新增仓库「演示」物料：40 秒 GIF [`docs/images/demo-walkthrough.gif`](docs/images/demo-walkthrough.gif) 与 72 秒完整版 MP4（GitHub Release `v1.1.0` 资产），README 增 `## 演示` 区块与文档导航入口；录制脚本 [`web/scripts/capture-demo-video.mjs`](web/scripts/capture-demo-video.mjs) 以 Playwright 驱动真实浏览器（合成光标 + 页内字幕条），录制前自动复位种子库并按固定锚点造冲突 / 待审核数据，`web/package.json` 增 `demo:gif` / `demo:full`；分镜与验收见 [`docs/演示视频分镜.md`](docs/演示视频分镜.md)。
 - 同步 `需求设计文档.md` §2.3.2（`sys_user.token_version`）、`docs/Redis加分项接入说明.md`、`docs/演示脚本.md` 的撤销与 fail-closed 口径，并新增数据库设计图字段。
 - 新增 [`docs/无障碍人工验收清单.md`](docs/无障碍人工验收清单.md)（读屏器人工验收步骤；人工听感按项目负责人 2026-11-07 决定**不执行**，非需求项，机器代理记录见下）。

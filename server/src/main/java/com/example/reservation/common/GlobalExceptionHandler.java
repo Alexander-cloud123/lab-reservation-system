@@ -6,6 +6,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
@@ -61,6 +62,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     public Result<Void> handleNoResourceFound(NoResourceFoundException e) {
         log.warn("请求路径不存在：{}", e.getResourcePath());
+        return Result.error(ResultCode.NOT_FOUND.getCode(), "接口不存在");
+    }
+
+    /**
+     * 未匹配到任何处理器：部署模式关闭静态资源映射（spring.web.resources.add-mappings=false）后，
+     * 既不存在的 API 路径也不存在的静态路径都由 DispatcherServlet 抛该异常，同样按 404 语义返回，
+     * 避免落入 500 兜底并打印完整堆栈。
+     */
+    @ExceptionHandler(NoHandlerFoundException.class)
+    public Result<Void> handleNoHandlerFound(NoHandlerFoundException e) {
+        log.warn("请求路径不存在：{} {}", e.getHttpMethod(), e.getRequestURL());
         return Result.error(ResultCode.NOT_FOUND.getCode(), "接口不存在");
     }
 

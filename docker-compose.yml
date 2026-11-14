@@ -77,13 +77,20 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_ENABLE: "true"
+      # 容器部署一律按生产口径启动：缺少独立强密钥直接启动失败（JwtSecretGuard 只认 dev/local/test）
+      SPRING_PROFILES_ACTIVE: prod
       # 生产/演示必须覆盖 JWT_SECRET；AI 密钥只从 .env 或宿主机环境变量注入
-      JWT_SECRET: ${JWT_SECRET:-reservation-system-jwt-secret-2026}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET 未设置：请先 cp .env.example .env，再写入至少 32 字节随机值（见 docs/运行与配置.md）}
       AI_ENABLE: ${AI_ENABLE:-false}
       AGNES_API_KEY: ${AGNES_API_KEY:-}
+      # 对外部署关闭接口文档与 SQL 明细日志
+      KNIFE4J_ENABLE: "false"
+      MYBATIS_LOG_IMPL: org.apache.ibatis.logging.nologging.NoLoggingImpl
+      # 浏览器同源经 nginx 反代，跨域白名单只保留本机演示来源
+      CORS_ALLOWED_ORIGINS: "http://127.0.0.1:${WEB_PORT:-8088},http://localhost:${WEB_PORT:-8088},http://127.0.0.1:5173,http://localhost:5173"
       TZ: Asia/Shanghai
     ports:
-      # 暴露到宿主机，便于 Knife4j 文档（/doc.html）、smoke.ps1 与 E2E 直连；端口冲突时改 .env 的 API_PORT
+      # 仅绑本机回环，供 smoke.ps1 / Playwright / 调试直连；公网访问统一走 web 的 8088
       - "127.0.0.1:${API_PORT:-8080}:8080"
     healthcheck:
       # 运行镜像无 curl，用 bash 内建 /dev/tcp 探测端口可连

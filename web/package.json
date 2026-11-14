@@ -14,7 +14,9 @@
     "test:e2e:smoke": "playwright test --project=chromium e2e/specs/00-smoke.spec.js",
     "test:e2e:edge": "playwright test --project=edge",
     "test:e2e:all": "playwright test",
-    "test:e2e:report": "playwright show-report e2e-report/html"
+    "test:e2e:report": "playwright show-report e2e-report/html",
+    "demo:gif": "node scripts/capture-demo-video.mjs --mode=gif",
+    "demo:full": "node scripts/capture-demo-video.mjs --mode=full"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",

@@ -22,6 +22,7 @@
 
 ### 文档
 
+- 新增仓库「演示」物料：40 秒 GIF [`docs/images/demo-walkthrough.gif`](docs/images/demo-walkthrough.gif) 与 72 秒完整版 MP4（GitHub Release `v1.1.0` 资产），README 增 `## 演示` 区块与文档导航入口；录制脚本 [`web/scripts/capture-demo-video.mjs`](web/scripts/capture-demo-video.mjs) 以 Playwright 驱动真实浏览器（合成光标 + 页内字幕条），录制前自动复位种子库并按固定锚点造冲突 / 待审核数据，`web/package.json` 增 `demo:gif` / `demo:full`；分镜与验收见 [`docs/演示视频分镜.md`](docs/演示视频分镜.md)。
 - 同步 `需求设计文档.md` §2.3.2（`sys_user.token_version`）、`docs/Redis加分项接入说明.md`、`docs/演示脚本.md` 的撤销与 fail-closed 口径，并新增数据库设计图字段。
 - 新增 [`docs/无障碍人工验收清单.md`](docs/无障碍人工验收清单.md)（读屏器人工验收步骤；人工听感按项目负责人 2026-11-07 决定**不执行**，非需求项，机器代理记录见下）。
 - 新增无障碍机器代理验收：脚本 [`web/scripts/a11y-acceptance.mjs`](web/scripts/a11y-acceptance.mjs)、记录 [`docs/review/无障碍机器代理验收记录.md`](docs/review/无障碍机器代理验收记录.md) 与证据 [`docs/review/a11y-evidence/`](docs/review/a11y-evidence/)；**16 项全部有机器证据并通过**（C4 修复后由机器验证）；真实播报人工听感按负责人决定不纳入交付（本机未安装 NVDA、讲述人未运行，未执行）。

@@ -17,6 +17,16 @@
 
 **规模**：309 个后端测试（行覆盖 80.6%）· 41 项接口冒烟 · 120 例 Playwright E2E（Chromium + Edge）· 3 套 GitHub Actions。
 
+## 演示
+
+40 秒 GIF 走完核心链路——登录字段级校验 → 教室检索 → 实时冲突检测 → 状态流转 → 数据看板 → 批量审核（Playwright 驱动真实浏览器录制，非拼接截图）：
+
+<p align="center"><img src="docs/images/demo-walkthrough.gif" alt="预约系统 40 秒演示" width="880" /></p>
+
+72 秒完整版包含真实退出登录 / 管理员登录、日历月周切换、结尾指标卡：[下载 MP4](https://github.com/Alexander-cloud123/lab-reservation-system/releases/download/v1.1.0/demo-walkthrough.mp4)。
+
+录制脚本 [`web/scripts/capture-demo-video.mjs`](web/scripts/capture-demo-video.mjs) 会在录制前复位种子库、按固定锚点造出待审核与冲突数据，任意时刻重录结果一致；分镜、参数与验收清单见 [`docs/演示视频分镜.md`](docs/演示视频分镜.md)。
+
 ## 项目预览
 
 截图来自本机真实运行（种子账号登录，1440×900），可用 `node web/scripts/capture-screens.mjs` 复现：
@@ -211,6 +221,7 @@ cd web; node scripts/capture-screens.mjs       # 采集 README 预览截图
 | 技术开发规格书 | [`spec.md`](spec.md) |
 | 协作章程与红线约束 | [`AGENTS.md`](AGENTS.md) |
 | 运行与配置（环境变量 / AI / Redis / 端口） | [`docs/运行与配置.md`](docs/运行与配置.md) |
+| 演示视频分镜与录制说明 | [`docs/演示视频分镜.md`](docs/演示视频分镜.md) |
 | 各轮交付四件套（R1–R13） | [`docs/iterations/`](docs/iterations) |
 | QA 收口报告 | [`docs/qa/`](docs/qa) |
 | 软件审查报告与可视化 | [`docs/review/`](docs/review) |

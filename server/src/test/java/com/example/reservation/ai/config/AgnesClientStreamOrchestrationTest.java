@@ -62,6 +62,39 @@ class AgnesClientStreamOrchestrationTest {
         return "{\"choices\":[{\"delta\":" + delta + ",\"finish_reason\":" + finish + "}]}";
     }
 
+    /** 带推理字段的帧（R14：reasoning_content 与 content 分离） */
+    private static String reasoningChunk(String reasoning) {
+        return "{\"choices\":[{\"delta\":{\"reasoning_content\":\"" + reasoning + "\"}}]}";
+    }
+
+    @Test
+    @DisplayName("R14 推理透传：reasoning_content 只进入推理端口，不混入回答正文，正文仍正常累积")
+    void reasoningPassedThroughSeparately() {
+        transport.frames = List.of(reasoningChunk("先确认问题"), chunk("答案", null), "[DONE]");
+        List<String> pieces = new ArrayList<>();
+        List<String> reasonings = new ArrayList<>();
+
+        AgnesClient.StreamChatHandle handle =
+                client.chatStream(7L, "sys", List.of(), "q", transport.readyRecorder, reasonings::add, pieces::add);
+
+        assertTrue(handle.ok());
+        assertEquals(List.of("先确认问题"), reasonings);
+        assertEquals(List.of("答案"), pieces, "推理不得混入回答正文");
+    }
+
+    @Test
+    @DisplayName("R14 推理端口为空（null）时忽略推理帧，正文与终态不受影响")
+    void nullReasoningConsumerTolerated() {
+        transport.frames = List.of(reasoningChunk("推理"), chunk("答案", null), "[DONE]");
+        List<String> pieces = new ArrayList<>();
+
+        AgnesClient.StreamChatHandle handle =
+                client.chatStream(7L, "sys", List.of(), "q", transport.readyRecorder, null, pieces::add);
+
+        assertTrue(handle.ok());
+        assertEquals(List.of("答案"), pieces);
+    }
+
     @Test
     @DisplayName("正常流：ready 恰好一次、delta 按序、[DONE] 后帧忽略，返回 ok(stop)")
     void normalStream() {
@@ -70,7 +103,7 @@ class AgnesClientStreamOrchestrationTest {
         List<String> pieces = new ArrayList<>();
 
         AgnesClient.StreamChatHandle handle =
-                client.chatStream(7L, "sys", List.of(), "你好", transport.readyRecorder, pieces::add);
+                client.chatStream(7L, "sys", List.of(), "你好", transport.readyRecorder, null, pieces::add);
 
         assertTrue(handle.ok());
         assertEquals("stop", handle.finishReason());
@@ -92,7 +125,7 @@ class AgnesClientStreamOrchestrationTest {
         List<String> pieces = new ArrayList<>();
 
         AgnesClient.StreamChatHandle handle =
-                client.chatStream(7L, "sys", List.of(), "q", transport.readyRecorder, pieces::add);
+                client.chatStream(7L, "sys", List.of(), "q", transport.readyRecorder, null, pieces::add);
 
         assertTrue(handle.ok());
         assertEquals(List.of("ok"), pieces);
@@ -104,7 +137,7 @@ class AgnesClientStreamOrchestrationTest {
     void emptyContentDegrades() {
         transport.frames = List.of("{\"choices\":[]}", chunk(null, null), "[DONE]");
         AgnesClient.StreamChatHandle handle =
-                client.chatStream(7L, "sys", List.of(), "q", transport.readyRecorder, s -> {
+                client.chatStream(7L, "sys", List.of(), "q", transport.readyRecorder, null, s -> {
                 });
         assertFalse(handle.ok());
         assertEquals(AiConstants.AI_SERVICE_ERROR_MESSAGE, handle.reason());
@@ -115,7 +148,7 @@ class AgnesClientStreamOrchestrationTest {
     void http429RateLimited() {
         transport.httpStatus = 429;
         AgnesClient.StreamChatHandle handle =
-                client.chatStream(7L, "sys", List.of(), "q", transport.readyRecorder, s -> {
+                client.chatStream(7L, "sys", List.of(), "q", transport.readyRecorder, null, s -> {
                 });
         assertFalse(handle.ok());
         assertEquals(AiConstants.AI_RATE_LIMITED_MESSAGE, handle.reason());
@@ -127,7 +160,7 @@ class AgnesClientStreamOrchestrationTest {
     void http500ServiceError() {
         transport.httpStatus = 500;
         AgnesClient.StreamChatHandle handle =
-                client.chatStream(7L, "sys", List.of(), "q", transport.readyRecorder, s -> {
+                client.chatStream(7L, "sys", List.of(), "q", transport.readyRecorder, null, s -> {
                 });
         assertFalse(handle.ok());
         assertEquals(AiConstants.AI_SERVICE_ERROR_MESSAGE, handle.reason());
@@ -138,7 +171,7 @@ class AgnesClientStreamOrchestrationTest {
     void transportErrorDegrades() {
         transport.transportError = true;
         AgnesClient.StreamChatHandle handle =
-                client.chatStream(7L, "sys", List.of(), "q", transport.readyRecorder, s -> {
+                client.chatStream(7L, "sys", List.of(), "q", transport.readyRecorder, null, s -> {
                 });
         assertFalse(handle.ok());
         assertEquals(AiConstants.AI_SERVICE_ERROR_MESSAGE, handle.reason());
@@ -162,7 +195,7 @@ class AgnesClientStreamOrchestrationTest {
         };
 
         AgnesClient.StreamChatHandle handle =
-                client.chatStream(7L, "sys", List.of(), "q", transport.readyRecorder, failing);
+                client.chatStream(7L, "sys", List.of(), "q", transport.readyRecorder, null, failing);
 
         assertFalse(handle.ok());
         assertNull(handle.reason(), "中断不是降级：reason 必须为 null");
@@ -175,7 +208,7 @@ class AgnesClientStreamOrchestrationTest {
     void readyAbortReturnsAborted() {
         transport.readyThrows = true;
         AgnesClient.StreamChatHandle handle =
-                client.chatStream(7L, "sys", List.of(), "q", transport.readyRecorder, s -> {
+                client.chatStream(7L, "sys", List.of(), "q", transport.readyRecorder, null, s -> {
                 });
         assertFalse(handle.ok());
         assertNull(handle.reason());
@@ -191,7 +224,7 @@ class AgnesClientStreamOrchestrationTest {
         noKeyProps.setTimeoutSeconds(60);
         ReflectionTestUtils.setField(client, "aiProperties", noKeyProps);
         AgnesClient.StreamChatHandle handle =
-                client.chatStream(7L, "sys", List.of(), "q", transport.readyRecorder, s -> {
+                client.chatStream(7L, "sys", List.of(), "q", transport.readyRecorder, null, s -> {
                 });
         assertFalse(handle.ok());
         assertEquals(AiConstants.AI_NO_KEY_MESSAGE, handle.reason());

@@ -35,12 +35,42 @@ export function sseFrame(event, data) {
 export function chatStreamBody(payload) {
   const disabled = payload.enabled === false
   const degraded = !!payload.message
-  let body = sseFrame('meta', {
+  // _think 为 mock 专用控制字段：映射后端真实 thinking/reasoning 事件序列（R14）
+  const think = disabled ? null : payload._think
+  let body = ''
+  if (think) {
+    for (const step of think.steps || []) {
+      body += sseFrame('thinking', {
+        id: step.id,
+        label: step.label,
+        status: 'running',
+        elapsedMs: null
+      })
+      body += sseFrame('thinking', {
+        id: step.id,
+        label: step.label,
+        status: step.status || 'done',
+        elapsedMs: step.elapsedMs ?? 0
+      })
+    }
+  }
+  body += sseFrame('meta', {
     enabled: !disabled,
     // 与真实后端 AiChatServiceImpl 关闭分支一致：meta(false,true,message) → done('disabled')，中间无 delta
     degraded,
     message: payload.message ?? null
   })
+  if (think) {
+    for (const piece of think.reasoning || []) {
+      body += sseFrame('reasoning', { text: piece })
+    }
+    body += sseFrame('thinking', {
+      id: 'summary',
+      label: think.summary ?? null,
+      status: 'done',
+      elapsedMs: think.elapsedMs ?? 0
+    })
+  }
   const answer = payload.answer || ''
   for (let i = 0; i < answer.length; i += 8) {
     body += sseFrame('delta', { text: answer.slice(i, i + 8) })
@@ -48,6 +78,110 @@ export function chatStreamBody(payload) {
   const finishReason = disabled ? 'disabled' : degraded ? 'fallback' : 'stop'
   body += sseFrame('done', { finishReason })
   return body
+}
+
+/**
+ * 逐帧流式返回的假 AI 问答（R14「思考中」瞬时态断言用）。
+ *
+ * mockAi 的 route.fulfill 只能一次性返回整段响应体，无法让前端停在「正在思考」；
+ * 这里在页面加载前替换 fetch，用真正的 ReadableStream 按 delay 推帧，
+ * 使「思考中 → 折叠」这一时间维度可被 E2E 观察。仅拦截 /api/ai/chat?stream=true。
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {{steps?:Array, reasoning?:string[], answer?:string, summary?:string|null,
+ *          elapsedMs?:number, thinkDelayMs?:number, deltaDelayMs?:number}} opts
+ */
+export async function patchStreamingChat(page, opts = {}) {
+  const {
+    steps = [],
+    reasoning = [],
+    answer = '',
+    summary = null,
+    elapsedMs = 1600,
+    thinkDelayMs = 420,
+    deltaDelayMs = 90
+  } = opts
+  const frames = []
+  for (const step of steps) {
+    frames.push({
+      delay: thinkDelayMs,
+      text: sseFrame('thinking', { id: step.id, label: step.label, status: 'running', elapsedMs: null })
+    })
+    frames.push({
+      delay: 40,
+      text: sseFrame('thinking', {
+        id: step.id,
+        label: step.label,
+        status: step.status || 'done',
+        elapsedMs: step.elapsedMs ?? 200
+      })
+    })
+  }
+  frames.push({ delay: 60, text: sseFrame('meta', { enabled: true, degraded: false, message: null }) })
+  for (const piece of reasoning) {
+    frames.push({ delay: 70, text: sseFrame('reasoning', { text: piece }) })
+  }
+  frames.push({
+    delay: 60,
+    text: sseFrame('thinking', { id: 'summary', label: summary, status: 'done', elapsedMs })
+  })
+  for (let i = 0; i < answer.length; i += 8) {
+    frames.push({ delay: deltaDelayMs, text: sseFrame('delta', { text: answer.slice(i, i + 8) }) })
+  }
+  frames.push({ delay: 60, text: sseFrame('done', { finishReason: 'stop' }) })
+
+  await page.addInitScript(({ frames }) => {
+    const nativeFetch = window.fetch.bind(window)
+    window.fetch = (input, init) => {
+      const url = typeof input === 'string' ? input : input.url
+      if (!url.includes('/ai/chat?stream=true')) {
+        return nativeFetch(input, init)
+      }
+      const signal = init && init.signal
+      let cancelled = false
+      const encoder = new TextEncoder()
+      const body = new ReadableStream({
+        start(controller) {
+          const push = async () => {
+            for (const frame of frames) {
+              if (cancelled) return
+              await new Promise((resolve) => setTimeout(resolve, frame.delay))
+              if (cancelled) return
+              try {
+                controller.enqueue(encoder.encode(frame.text))
+              } catch {
+                return
+              }
+            }
+            try {
+              controller.close()
+            } catch {
+              // 已关闭（取消）时忽略
+            }
+          }
+          push()
+        },
+        cancel() {
+          cancelled = true
+        }
+      })
+      if (signal) {
+        signal.addEventListener(
+          'abort',
+          () => {
+            cancelled = true
+          },
+          { once: true }
+        )
+      }
+      return Promise.resolve(
+        new Response(body, {
+          status: 200,
+          headers: { 'content-type': 'text/event-stream;charset=UTF-8' }
+        })
+      )
+    }
+  }, { frames })
 }
 
 /**

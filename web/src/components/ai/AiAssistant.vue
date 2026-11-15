@@ -17,6 +17,8 @@
         <div v-for="(msg, index) in messages" :key="index" :class="['chat-msg', msg.role]">
           <!-- AI 气泡：Markdown 渲染（R13-2），html 仅来自 renderMarkdown（markdown-it 转义 + DOMPurify 消毒） -->
           <div v-if="msg.role === 'ai'" :class="['chat-bubble', { 'is-typing': msg.typing }]">
+            <!-- 思考过程（R14）：折叠区在回答正文之前，首个 delta 到达后自动收起 -->
+            <AiThinkingPanel v-if="msg.thinking" :trace="msg.thinking" />
             <div class="markdown-body" v-html="msg.html || ''"></div><span
               v-if="msg.typing"
               class="typing-cursor"
@@ -63,6 +65,7 @@ import { ChatDotRound, VideoPause } from '@element-plus/icons-vue'
 import { aiChatStream } from '@/api/ai'
 import { probeAiRecommend } from '@/utils/aiProbe'
 import { renderMarkdown } from '@/utils/markdown'
+import AiThinkingPanel from './AiThinkingPanel.vue'
 
 /**
  * 全局悬浮「AI 预约助手」（R7，需求文档 2.4）
@@ -146,9 +149,18 @@ async function send() {
   inputText.value = ''
   liveStatus.value = ''
   // 先推入空 AI 气泡：meta/delta 到达前即有占位，delta 直接追加（打字机）
-  messages.value.push({ role: 'ai', content: '', html: '', typing: true })
+  // thinking（R14）为后端真实执行轨迹的挂载点，面板随气泡一起渲染，首个 delta 后自动折叠
+  const trace = {
+    state: 'thinking',
+    steps: [],
+    reasoning: '',
+    summary: '',
+    startedAt: performance.now(),
+    elapsedMs: null
+  }
+  messages.value.push({ role: 'ai', content: '', html: '', typing: true, thinking: trace })
   const bubbleIndex = messages.value.length - 1
-  scrollToBottom()
+  scrollToBottom(true)
 
   sending.value = true
   const ctrl = new AbortController()
@@ -160,6 +172,11 @@ async function send() {
 
   /** 向当前 AI 气泡追加片段并跟随滚动；Markdown 按帧防抖渲染（半截语法到流末统一收敛） */
   const appendDelta = (text) => {
+    // 首个正文片段到达：思考阶段结束，立即折叠面板（后端 summary 事件随后补齐精确耗时）
+    if (bubble.thinking && bubble.thinking.state === 'thinking') {
+      bubble.thinking.state = 'done'
+      bubble.thinking.elapsedMs = performance.now() - bubble.thinking.startedAt
+    }
     bubble.content += text
     scheduleRender(bubble)
     scrollToBottom()
@@ -169,6 +186,49 @@ async function send() {
     await aiChatStream(
       { question, history },
       {
+        onThinking: (payload) => {
+          if (!payload || !bubble.thinking) {
+            return
+          }
+          const trace = bubble.thinking
+          if (payload.id === 'summary') {
+            // 汇总事件：后端给出「入口 → 首个 delta」的真实墙钟耗时，覆盖前端兜底读数
+            trace.summary = payload.label || ''
+            if (typeof payload.elapsedMs === 'number') {
+              trace.elapsedMs = payload.elapsedMs
+            }
+            if (trace.state === 'thinking') {
+              trace.state = trace.summary === '已降级为本地规则' ? 'degraded' : 'done'
+            }
+            return
+          }
+          const step = trace.steps.find((item) => item.id === payload.id)
+          if (payload.status === 'running') {
+            if (step) {
+              step.label = payload.label || step.label
+              step.status = 'running'
+            } else {
+              trace.steps.push({
+                id: payload.id,
+                label: payload.label || '',
+                status: 'running',
+                elapsedMs: null
+              })
+            }
+            return
+          }
+          const target =
+            step ||
+            trace.steps[trace.steps.push({ id: payload.id, label: payload.label || '', status: 'done', elapsedMs: null }) - 1]
+          target.label = payload.label || target.label
+          target.status = payload.status === 'failed' ? 'failed' : 'done'
+          target.elapsedMs = typeof payload.elapsedMs === 'number' ? payload.elapsedMs : null
+        },
+        onReasoning: (text) => {
+          if (bubble.thinking && text) {
+            bubble.thinking.reasoning += text
+          }
+        },
         onMeta: (meta) => {
           if (!meta) {
             return
@@ -178,6 +238,8 @@ async function send() {
             // 与「服务异常/限流降级」区分，也避免落入「暂时无法回答」兜底
             disabledMessage = meta.message || 'AI 服务未启用，当前为纯预约系统模式'
             bubble.content = disabledMessage
+            // 关闭态没有真实执行轨迹，移除思考面板，避免空壳
+            bubble.thinking = null
             return
           }
           // 降级时底栏切换为后端原因文案（与非流式时代 message 口径完全一致）
@@ -188,6 +250,12 @@ async function send() {
         onDelta: appendDelta,
         onReset: ({ text, message }) => {
           // 上游半截回答失败后，后端用完整本地 FAQ 全量替换，不能把两种来源拼接。
+          if (bubble.thinking && bubble.thinking.state !== 'degraded') {
+            bubble.thinking.state = 'degraded'
+            if (bubble.thinking.elapsedMs === null) {
+              bubble.thinking.elapsedMs = performance.now() - bubble.thinking.startedAt
+            }
+          }
           bubble.content = text || '暂时无法回答，请稍后重试'
           degradedMessage = message || '上游响应中断，已切换为本地规则回答'
           scheduleRender(bubble)
@@ -198,9 +266,14 @@ async function send() {
           if (info && info.finishReason === 'disabled' && !bubble.content) {
             disabledMessage = 'AI 服务未启用，当前为纯预约系统模式'
             bubble.content = disabledMessage
+            bubble.thinking = null
           }
         },
         onError: (msg) => {
+          if (bubble.thinking && bubble.thinking.state === 'thinking') {
+            bubble.thinking.state = 'error'
+            bubble.thinking.elapsedMs = performance.now() - bubble.thinking.startedAt
+          }
           bubble.content = msg || '抱歉，服务暂时不可用，请稍后再试'
         }
       },
@@ -223,6 +296,11 @@ async function send() {
       bubble.content = '抱歉，服务暂时不可用，请稍后再试'
     }
   } finally {
+    // 主动停止 / 异常结束时仍未收到正文：思考面板收尾为「已停止」，不留「正在思考」的假象
+    if (bubble.thinking && bubble.thinking.state === 'thinking') {
+      bubble.thinking.state = ctrl.signal.aborted ? 'stopped' : 'done'
+      bubble.thinking.elapsedMs = performance.now() - bubble.thinking.startedAt
+    }
     // 流终强制全量重渲染一次：完成代码块/列表等块级语法闭合（两段式渲染的收敛点）；
     // 空气泡已被上面的 abort/兜底分支 splice 时，渲染游离对象无副作用
     renderFinal(bubble)
@@ -264,10 +342,16 @@ onBeforeUnmount(() => {
   }
 })
 
-function scrollToBottom() {
+function scrollToBottom(force = false) {
   nextTick(() => {
-    if (chatBodyRef.value) {
-      chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight
+    const body = chatBodyRef.value
+    if (!body) {
+      return
+    }
+    // 仅当用户本来就贴着底部时才跟随新内容；向上翻阅历史时不打断阅读
+    const distanceToBottom = body.scrollHeight - body.scrollTop - body.clientHeight
+    if (force || distanceToBottom <= 24) {
+      body.scrollTop = body.scrollHeight
     }
   })
 }

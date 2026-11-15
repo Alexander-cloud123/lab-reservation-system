@@ -27,10 +27,12 @@ public final class AiStreamFrames {
     }
 
     /**
-     * 提取首 choice 的增量内容与结束原因。
+     * 提取首 choice 的增量内容、推理片段与结束原因。
      *
      * <p>脏帧（非 JSON / 无 choices）返回 empty，由调用方记日志后跳过，不中断整条流；
      * 字段缺失时 {@link ChunkDelta} 对应字段为 null（与 R12 dispatchStream 容错口径一致）。
+     * R14：同时提取 {@code delta.reasoning_content}（DeepSeek 系模型的思维链字段），
+     * 并兼容部分网关使用的 {@code delta.reasoning} 别名；二者都不并入回答正文。
      */
     public static Optional<ChunkDelta> tryExtract(String payload, ObjectMapper mapper) {
         if (payload == null || payload.isEmpty()) {
@@ -53,18 +55,30 @@ public final class AiStreamFrames {
         if (contentNode.isTextual() && !contentNode.asText().isEmpty()) {
             content = contentNode.asText();
         }
+        String reasoning = null;
+        JsonNode reasoningNode = first.path("delta").path("reasoning_content");
+        if (!reasoningNode.isTextual() || reasoningNode.asText().isEmpty()) {
+            reasoningNode = first.path("delta").path("reasoning");
+        }
+        if (reasoningNode.isTextual() && !reasoningNode.asText().isEmpty()) {
+            reasoning = reasoningNode.asText();
+        }
         String finishReason = null;
         JsonNode finishNode = first.path("finish_reason");
         // 记录非空 finish_reason（上游 SSE 协议下该值仅出现一次，与「最后一个非空」等价）
         if (finishNode.isTextual() && !finishNode.asText().isEmpty()) {
             finishReason = finishNode.asText();
         }
-        return Optional.of(new ChunkDelta(content, finishReason));
+        return Optional.of(new ChunkDelta(content, reasoning, finishReason));
     }
 
     /**
-     * 单个 chunk 的提取结果：content 为增量文本（无增量时 null），finishReason 为结束原因（缺失时 null）
+     * 单个 chunk 的提取结果。
+     *
+     * @param content      回答正文增量（无增量时 null）
+     * @param reasoning    模型推理增量（上游不返回思维链时为 null）
+     * @param finishReason 结束原因（缺失时 null）
      */
-    public record ChunkDelta(String content, String finishReason) {
+    public record ChunkDelta(String content, String reasoning, String finishReason) {
     }
 }

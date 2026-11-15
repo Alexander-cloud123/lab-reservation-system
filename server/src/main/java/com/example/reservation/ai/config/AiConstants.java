@@ -111,6 +111,47 @@ public final class AiConstants {
     /** 合规：进度文案 */
     public static final String PHASE_TEXT_COMPLIANCE = "正在校验预约用途的合规性";
 
+    /* ===== 思考过程（R14 交互优化：thinking/reasoning 事件，仅流式问答）=====
+     * 步骤按真实执行流水线发出，文案为用户视角的主动语态；前端不渲染任何后端未发过的步骤。 */
+    /** 步骤状态：运行中 */
+    public static final String THINK_STATUS_RUNNING = "running";
+    /** 步骤状态：已完成 */
+    public static final String THINK_STATUS_DONE = "done";
+    /** 步骤状态：失败（上游降级时用于 generate） */
+    public static final String THINK_STATUS_FAILED = "failed";
+    /** 步骤：场景判断 */
+    public static final String THINK_STEP_SCENE = "scene";
+    /** 步骤文案：场景判断 */
+    public static final String THINK_LABEL_SCENE = "确认问题是否属于预约范围";
+    /** 步骤：检索个人预约记录 */
+    public static final String THINK_STEP_RETRIEVE = "retrieve";
+    /** 步骤文案：检索个人预约记录 */
+    public static final String THINK_LABEL_RETRIEVE = "检索你的预约记录";
+    /** 步骤：调用模型 */
+    public static final String THINK_STEP_GENERATE = "generate";
+    /** 步骤文案：调用模型 */
+    public static final String THINK_LABEL_GENERATE = "调用模型生成回答";
+    /** 步骤：校验回答 */
+    public static final String THINK_STEP_VERIFY = "verify";
+    /** 步骤文案：校验回答 */
+    public static final String THINK_LABEL_VERIFY = "校验回答格式";
+    /** 步骤：命中缓存 */
+    public static final String THINK_STEP_CACHE = "cache";
+    /** 步骤文案：命中缓存 */
+    public static final String THINK_LABEL_CACHE = "命中最近一次回答";
+    /** 步骤：降级为本地规则 */
+    public static final String THINK_STEP_FALLBACK = "fallback";
+    /** 步骤文案：降级为本地规则 */
+    public static final String THINK_LABEL_FALLBACK = "切换为本地规则回答";
+    /** 步骤：思考计时汇总（每流至多 1 个，先于首个回答 delta） */
+    public static final String THINK_STEP_SUMMARY = "summary";
+    /** 汇总文案：缓存命中 */
+    public static final String THINK_SUMMARY_CACHE_HIT = "命中缓存";
+    /** 汇总文案：场景判断短路（问题不在预约范围） */
+    public static final String THINK_SUMMARY_OUT_OF_SCOPE = "范围判断完成";
+    /** 汇总文案：上游降级为本地规则 */
+    public static final String THINK_SUMMARY_DEGRADED = "已降级为本地规则";
+
     /* ===== 智能推荐（spec.md 6.2 推荐口径）===== */
     /** 推荐目标日期偏移（天）：默认推荐明天（当日时段过半后意义降低，固定偏移保证可复跑） */
     public static final int RECOMMEND_DATE_OFFSET_DAYS = 1;

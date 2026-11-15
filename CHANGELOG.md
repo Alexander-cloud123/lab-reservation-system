@@ -6,6 +6,9 @@
 
 ## [未发布] - 2026-11
 
+### 新增
+
+- **AI 助手思考过程面板（R14）**：/api/ai/chat 流式接口新增 	hinking / easoning 两个 SSE 事件。	hinking 按真实执行轨迹下发（场景判断 → 检索预约记录 → 调用模型 → 校验回答，缓存命中 / 降级 / 超范围 / 关闭态各有独立步骤），每步带服务端真实耗时与 unning/done/failed 状态；上游若返回 easoning_content（含 easoning 别名）则原样透传，**不伪造思维链、不并入正文**。前端新增 AiThinkingPanel：思考中三点脉冲 + 每 100ms 刷新计时，首个正文到达自动折叠为「已思考 X.X 秒」，可展开查看步骤时间线与推理原文（固定标注「模型推理 · AI 生成，仅供参考」）；降级 / 缓存命中 / 停止 / 失败各有明确文案，模型未返回推理时明确说明「以上为本次处理的实际步骤」，不编造内容。助手滚动改为仅在距底 ≤24px 时跟随。设计说明见 [docs/AI思考过程设计.md](docs/AI思考过程设计.md)。
 ### 修复 / 安全加固
 
 - **会话撤销改为数据库版本号权威**：`sys_user` 新增 `token_version`（幂等迁移脚本 [`database/migrations/20261107_add_sys_user_token_version.sql`](database/migrations/20261107_add_sys_user_token_version.sql)）。JWT 签发时携带版本号，登出 / 改密 / 管理员重置 / 启用禁用都会原子自增，正常路径下旧 Token 下一次请求即 401——Redis 关闭、后端重启、多实例部署下同样成立（删除鉴权快照失败的异常路径见下方「文档」修正条目）。
@@ -20,6 +23,8 @@
 
 ### 测试
 
+- 后端 **323 项**（+14）：新增 `AiThinkingTraceTest`（步骤计时 / closed 后静默丢弃 / 写失败抛 UncheckedIOException）、`AiChatStreamServiceTest` 5 例（成功轨迹顺序、缓存命中、降级 failed+fallback、关闭态无轨迹、reasoning 透传且不并入正文）、`AiStreamFramesTest` 2 例（`reasoning_content` 与别名 `reasoning`）、`AgnesClientStreamOrchestrationTest` 2 例（推理端口隔离）。
+- 前端 E2E **125 例 / 17 spec**（AI 助手思考过程新增 6 例：思考中计时与步骤 → 自动折叠 → 展开推理、无推理说明、降级标记、缓存命中、关闭态不渲染面板；「思考中」瞬时态用 `patchStreamingChat` 逐帧推流，不调用真实模型）。
 - 后端 **309 项**（新增 `TokenRevocationIntegrationTest`：固定 `redis.enable=false`，验证无 Redis 也能持久撤销；新增拦截器版本号 / 状态缓存用例）。新增 4 个纯逻辑测试类补齐看板与降级链：`StatsServiceImplTest`（聚合口径 / 窗口裁剪与 14h 封顶 / 排序 / 区间校验）、`ReservationConverterTest`（批量预查短路 / 三种 VO / 状态文案）、`AiParseFallbackTest`（自然语言解析与非法输入不抛异常）、`AiRecommendFallbackTest`（规则打分与推荐理由）；另补 2 个业务分支覆盖类 `ReservationServiceImplCoverageTest`（参数校验/授权/导出上限/日历区间与可见性/关键词拼接）与 `ClassroomServiceImplCoverageTest`（CRUD 校验/删除保护/启停幂等/学生端缓存与占用时段/状态标签），以及 `UserServiceImplCoverageTest`（登录/注册/资料/改密全分支）、`RedisCacheObjectCacheTest`（对象缓存与代次失效降级）、`AiJsonSupportTest`（模型 JSON 容错解析）、`FavoriteServiceImplCoverageTest`（收藏上限与幽灵卡片过滤），行覆盖率 54% → **80.6%**（指令 81.9% / 分支 74.2%，ReservationServiceImpl 98.1%、ClassroomServiceImpl 99.1%、UserServiceImpl 97.5%、RedisCache 87.0%）。
 - 前端 E2E **120 项 / 17 spec**，新增「会话撤销」spec；新增 Microsoft Edge 全量回归项目（`npm run test:e2e:edge`，默认脚本仍只跑 Chromium）。
 - `server/scripts/smoke.ps1` 增至 **41 项**（含重置密码后旧 Token 失效断言），并修复脚本对 PowerShell 7 错误响应的兼容性。

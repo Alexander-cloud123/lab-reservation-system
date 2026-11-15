@@ -269,16 +269,20 @@ export function aiComplianceCheckStream(data, handlers, signal) {
  *
  * @param {{question:string, history?:Array<{role:string,content:string}>}} data 请求体；
  *        history 为会话内历史（R13-3，按时间正序、不含当前问题），空数组/缺省退化为单轮
- * @param {{onMeta?:Function,onDelta?:Function,onReset?:Function,onDone?:Function,onError?:Function}} handlers 事件回调
+ * @param {{onThinking?:Function,onReasoning?:Function,onMeta?:Function,onDelta?:Function,onReset?:Function,onDone?:Function,onError?:Function}} handlers 事件回调
+ *        onThinking({id,label,status,elapsedMs}) 后端真实执行轨迹（可先于 meta 到达）
+ *        onReasoning({text}) 上游模型推理片段（模型未返回时不会出现）
  *        onMeta({enabled,degraded,message}) / onDelta(text) / onReset({text,message}) / onDone({finishReason}) / onError(message)
  * @param {AbortSignal} signal 抽屉关闭/组件卸载/停止生成/重复发送时中断
  */
 export function aiChatStream({ question, history }, handlers, signal) {
-  const { onMeta, onDelta, onReset, onDone, onError } = handlers || {}
+  const { onThinking, onReasoning, onMeta, onDelta, onReset, onDone, onError } = handlers || {}
   return ssePost('/ai/chat',
     // 空历史不带字段：后端缺省即单轮，请求体保持最小
     { question, history: history && history.length ? history : undefined },
     {
+      thinking: d => onThinking && onThinking(d),
+      reasoning: d => onReasoning && onReasoning(d.text || ''),
       meta: d => onMeta && onMeta(d),
       delta: d => onDelta && onDelta(d.text || ''),
       reset: d => onReset && onReset({ text: d.text || '', message: d.message || '' }),

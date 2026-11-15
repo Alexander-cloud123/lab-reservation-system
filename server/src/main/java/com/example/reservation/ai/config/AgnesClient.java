@@ -182,12 +182,15 @@ public class AgnesClient {
      *
      * @param history       已归一化的历史消息（R13-3 多轮上下文，system 之后、当前 user 之前注入）；空列表为单轮
      * @param onReady       上游 200 建链成功回调（失败/限流/无密钥时不回调）；抛 UncheckedIOException 视为客户端断开
+     * @param reasoningConsumer 模型推理片段回调（R14 思考过程透传，上游 delta.reasoning_content/reasoning）；
+     *                      可为 null，表示调用方不透传思维链；抛 UncheckedIOException 时取消上游
      * @param deltaConsumer 内容片段回调（按上游 chunk 粒度，可能多次）；抛 UncheckedIOException 时取消上游
      * @return ok=true 携带 finishReason；ok=false 携带降级原因（调用方改推本地 FAQ）；
      *         reason 与 finishReason 均为 null 表示客户端中断（调用方静默结束，不发任何事件）
      */
     public StreamChatHandle chatStream(Long userId, String system, List<ChatMessage> history, String user,
-                                       Runnable onReady, Consumer<String> deltaConsumer) {
+                                       Runnable onReady, Consumer<String> reasoningConsumer,
+                                       Consumer<String> deltaConsumer) {
         if (AiRequestDeadline.isCurrentExpired()) {
             return StreamChatHandle.degraded(AiConstants.AI_SERVICE_ERROR_MESSAGE);
         }
@@ -236,6 +239,10 @@ public class AgnesClient {
                         AiStreamFrames.ChunkDelta delta = extracted.get();
                         if (delta.finishReason() != null) {
                             finishReasonHolder[0] = delta.finishReason();
+                        }
+                        if (delta.reasoning() != null && reasoningConsumer != null) {
+                            // 推理帧与正文帧互不混入：reasoning 只回调推理端口，answer 仍只由 content 累积
+                            reasoningConsumer.accept(delta.reasoning());
                         }
                         if (delta.content() != null) {
                             full.append(delta.content());

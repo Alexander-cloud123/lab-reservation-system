@@ -4,7 +4,9 @@ import com.example.reservation.ai.dto.AiStreamDelta;
 import com.example.reservation.ai.dto.AiStreamDone;
 import com.example.reservation.ai.dto.AiStreamError;
 import com.example.reservation.ai.dto.AiStreamMeta;
+import com.example.reservation.ai.dto.AiStreamReasoning;
 import com.example.reservation.ai.dto.AiStreamReset;
+import com.example.reservation.ai.dto.AiStreamThinking;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -49,6 +51,16 @@ public class SseChatStreamSink implements ChatStreamSink {
     @Override
     public void error(String message) throws IOException {
         send("error", new AiStreamError(message));
+    }
+
+    @Override
+    public void thinking(AiStreamThinking payload) throws IOException {
+        send("thinking", payload);
+    }
+
+    @Override
+    public void reasoning(AiStreamReasoning payload) throws IOException {
+        send("reasoning", payload);
     }
 
     /** 发送单个命名事件；IllegalStateException（emitter 已完成，或发送被框架包装为 ISE）转 IOException */

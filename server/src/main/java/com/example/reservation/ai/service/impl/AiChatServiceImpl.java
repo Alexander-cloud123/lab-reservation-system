@@ -16,6 +16,7 @@ import com.example.reservation.ai.support.AiJsonSupport;
 import com.example.reservation.ai.support.AiMetrics;
 import com.example.reservation.ai.support.AiResultCache;
 import com.example.reservation.ai.support.AiStreamText;
+import com.example.reservation.ai.support.AiThinkingTrace;
 import com.example.reservation.ai.support.ChatStreamSink;
 import com.example.reservation.common.BusinessException;
 import com.example.reservation.common.Constants;
@@ -175,8 +176,15 @@ public class AiChatServiceImpl implements AiChatService {
             }
             return;
         }
+        // R14 思考过程：从请求入口开始计时，按真实执行流水线发 thinking 事件（不做任何人为延时）；
+        // thinking 允许先于 meta 出现（meta 仍保证先于一切 delta），meta 只在 enabled=true 时才会伴随面板渲染
+        AiThinkingTrace trace = new AiThinkingTrace(sink);
+        trace.begin(AiConstants.THINK_STEP_SCENE, AiConstants.THINK_LABEL_SCENE);
         // 与非流式同一场景闸门：统一话术，不读缓存、不查个人预约、不调用上游
-        if (isOutOfScope(question, normalizedHistory)) {
+        boolean outOfScope = isOutOfScope(question, normalizedHistory);
+        trace.end(AiConstants.THINK_STEP_SCENE);
+        if (outOfScope) {
+            trace.summary(AiConstants.THINK_SUMMARY_OUT_OF_SCOPE);
             try {
                 sink.meta(true, false, null);
                 emitChunks(sink, AiConstants.CHAT_OUT_OF_SCOPE);
@@ -197,6 +205,9 @@ public class AiChatServiceImpl implements AiChatService {
         });
         if (cached != null && StrUtil.isNotBlank(cached.getAnswer())) {
             aiMetrics.recordCacheHit();
+            trace.begin(AiConstants.THINK_STEP_CACHE, AiConstants.THINK_LABEL_CACHE);
+            trace.end(AiConstants.THINK_STEP_CACHE);
+            trace.summary(AiConstants.THINK_SUMMARY_CACHE_HIT);
             try {
                 sink.meta(true, false, null);
                 emitChunks(sink, cached.getAnswer());
@@ -208,9 +219,16 @@ public class AiChatServiceImpl implements AiChatService {
         }
         aiMetrics.recordCacheMiss();
 
-        // 3. 调上游：onReady 于收到 200 响应头时发出全流唯一 meta；建链后再降级（空内容/读体中断）不重发 meta；
-        // delta 即收即发（规格 §3.2：meta 每流仅 1 个，且先于一切 delta）
+        // 3. 检索个人预约记录：这一步有真实的 DB 往返，耗时如实上报
+        trace.begin(AiConstants.THINK_STEP_RETRIEVE, AiConstants.THINK_LABEL_RETRIEVE);
         String userMessage = buildContext(userId) + "\n【用户问题】" + question;
+        trace.end(AiConstants.THINK_STEP_RETRIEVE);
+        trace.begin(AiConstants.THINK_STEP_GENERATE, AiConstants.THINK_LABEL_GENERATE);
+        if (trace.isClosed()) {
+            // 思考事件写失败即连接已断：不再发起上游调用，避免白耗模型配额
+            log.debug("流式问答客户端已断开（思考事件写入失败）");
+            return;
+        }
         // 客户端断开后无需再回调：closed 标志阻止 Consumer 向已关闭连接写数据
         final boolean[] closed = {false};
         // onReady 是否成功发出过 meta：决定降级收尾能否再发 degraded meta
@@ -218,6 +236,8 @@ public class AiChatServiceImpl implements AiChatService {
         // 成功分支累积全文（仅用于最终校验与写缓存）；deltaSent 精确记录是否已有内容暴露给前端
         final StringBuilder fullText = new StringBuilder();
         final boolean[] deltaSent = {false};
+        // R14：思考计时只在「第一个回答 delta」时汇总一次（先发 summary，再发正文，前端据此折叠面板）
+        final boolean[] summarySent = {false};
         Runnable onReady = () -> {
             try {
                 sink.meta(true, false, null);
@@ -229,9 +249,16 @@ public class AiChatServiceImpl implements AiChatService {
                 throw new UncheckedIOException(e);
             }
         };
+        Consumer<String> onReasoning = trace::reasoning;
         Consumer<String> onDelta = piece -> {
             if (closed[0]) {
                 return;
+            }
+            if (!summarySent[0]) {
+                // 首个正文片段到来：模型这一步完成，思考用时定格
+                summarySent[0] = true;
+                trace.end(AiConstants.THINK_STEP_GENERATE);
+                trace.summary(null);
             }
             fullText.append(piece);
             try {
@@ -244,7 +271,8 @@ public class AiChatServiceImpl implements AiChatService {
             }
         };
         AgnesClient.StreamChatHandle handle =
-                agnesClient.chatStream(userId, AiPrompts.CHAT_STREAM, normalizedHistory, userMessage, onReady, onDelta);
+                agnesClient.chatStream(userId, AiPrompts.CHAT_STREAM, normalizedHistory, userMessage,
+                        onReady, onReasoning, onDelta);
         if (closed[0]) {
             // aborted 句柄静默结束：不发降级 meta、不推 FAQ、不写缓存、不发 done/error
             log.debug("流式问答客户端已断开（上游读取分支）");
@@ -261,6 +289,9 @@ public class AiChatServiceImpl implements AiChatService {
             vo.setEnabled(true);
             vo.setAnswer(answer.trim());
             aiResultCache.put(cacheKey, vo, AiConstants.AI_CACHE_TTL_CHAT_SECONDS);
+            // 回答已完整落地：补一步「校验回答格式」，展开面板时能看到这一环（耗时真实且通常极短）
+            trace.begin(AiConstants.THINK_STEP_VERIFY, AiConstants.THINK_LABEL_VERIFY);
+            trace.end(AiConstants.THINK_STEP_VERIFY);
             try {
                 sink.done(StrUtil.blankToDefault(handle.finishReason(), AiConstants.FINISH_REASON_UNKNOWN));
             } catch (IOException e) {
@@ -272,6 +303,14 @@ public class AiChatServiceImpl implements AiChatService {
         String reason = handle.ok() || StrUtil.isBlank(handle.reason())
                 ? (handle.ok() ? AiConstants.AI_OUTPUT_INVALID_MESSAGE : AiConstants.AI_SERVICE_ERROR_MESSAGE)
                 : handle.reason();
+        // 降级：模型这一步标记失败，并补一步「切换为本地规则回答」；
+        // 若还没等到正文就降级（summary 未发），用降级口吻汇总用时，避免前端显示「已思考 0 秒」
+        trace.fail(AiConstants.THINK_STEP_GENERATE);
+        trace.begin(AiConstants.THINK_STEP_FALLBACK, AiConstants.THINK_LABEL_FALLBACK);
+        trace.end(AiConstants.THINK_STEP_FALLBACK);
+        if (!summarySent[0]) {
+            trace.summary(AiConstants.THINK_SUMMARY_DEGRADED);
+        }
         try {
             if (deltaSent[0]) {
                 // 已暴露半截内容也必须自动降级：reset 是完整替换而非追加，前端丢弃上游残片。

@@ -21,7 +21,7 @@ import { test, expect } from '@playwright/test'
 import { apiLogin, loginAs } from '../helpers/auth'
 import { createReservation, expectOk, listManage, listMine, tryCancel } from '../helpers/api'
 import { CLASSROOMS, e2ePurpose, futureDate, SLOTS } from '../helpers/data'
-import { AI_PATHS, mockAi } from '../helpers/ai'
+import { AI_PATHS, mockAi, patchStreamingChat } from '../helpers/ai'
 
 /**
  * 从 SSE 响应体按线顺序提取全部事件名（R13-5 帧序列断言用）。
@@ -777,7 +777,10 @@ test('AI 助手 Markdown：标题/加粗/列表/链接/代码块渲染正确，H
   const norm = (s) => (s || '').replace(/\s+/g, ' ').trim()
   await expect(live).not.toContainText('**')
   await expect(live).not.toContainText('```')
-  await expect.poll(async () => norm(await live.textContent())).toBe(norm(await bubble.textContent()))
+  // 思考面板属于气泡内的辅助信息，live region 只播报回答正文，故与 Markdown 渲染区比对
+  await expect
+    .poll(async () => norm(await live.textContent()))
+    .toBe(norm(await bubble.locator('.markdown-body').textContent()))
 })
 
 test('AI 助手多轮：第二轮请求携带第一轮问答作为 history，首轮不带 history', async ({ page }) => {
@@ -819,4 +822,164 @@ test('AI 助手多轮：第二轮请求携带第一轮问答作为 history，首
     { role: 'user', content: 'E2E-HIST-Q1：教二301明天有空吗' },
     { role: 'assistant', content: answer1 }
   ])
+})
+
+/* ------------------------------------------------------------------ */
+/* 8. AI 助手思考过程（R14：thinking / reasoning 事件）                  */
+/* ------------------------------------------------------------------ */
+test('AI 助手思考过程：思考中展示计时与步骤，回答到达后自动折叠，展开可见推理原文', async ({ page }) => {
+  // 先让 AI 探测接口返回 enabled=true（否则悬浮球隐藏），再用 fetch 级 mock 提供逐帧流
+  await mockAi(page, {})
+  await patchStreamingChat(page, {
+    steps: [
+      { id: 'scene', label: '确认问题是否属于预约范围' },
+      { id: 'retrieve', label: '检索你的预约记录' }
+    ],
+    reasoning: ['先确认这个问题是否在预约范围内，', '再看你的近期预约记录来回答取消规则。'],
+    answer: '【E2E-THINK】开始前 1 小时可自由取消。',
+    elapsedMs: 1600
+  })
+  await loginAs(page, { who: 'student', path: '/student/home', aiEnabled: true })
+
+  await page.getByRole('button', { name: '打开 AI 预约助手' }).click()
+  await page.getByPlaceholder('问我：怎么预约 / 怎么取消 / 审核要多久…').fill('E2E-思考：怎么取消？')
+  await page.getByRole('button', { name: '发送' }).click()
+
+  const panel = page.locator('.chat-msg.ai .thinking').last()
+  await expect(panel).toBeVisible()
+  const head = panel.locator('.thinking-head')
+  await expect(head).toHaveText(/正在思考/)
+  await expect(panel.locator('.pulse-dots i')).toHaveCount(3)
+  await expect(head).toHaveAttribute('aria-expanded', 'true')
+
+  // 计时在走：思考中每 0.1 秒刷新一次读数
+  const t1 = await head.innerText()
+  await page.waitForTimeout(400)
+  const t2 = await head.innerText()
+  expect(t1).not.toBe(t2)
+
+  const bubble = page.locator('.chat-msg.ai .chat-bubble').last()
+  await expect(bubble.locator('.markdown-body')).toContainText('【E2E-THINK】')
+  // 首个正文到达即折叠，头部保留后端 summary 的真实耗时
+  await expect(head).toHaveAttribute('aria-expanded', 'false')
+  await expect(panel.locator('.thinking-body')).toBeHidden()
+  await expect(head).toContainText('已思考 1.6 秒')
+
+  // 手动展开：步骤顺序、推理原文与生成标注
+  await head.click()
+  await expect(head).toHaveAttribute('aria-expanded', 'true')
+  await expect(panel.locator('.thinking-body')).toBeVisible()
+  await expect(panel.locator('.step-label')).toHaveText(['确认问题是否属于预约范围', '检索你的预约记录'])
+  await expect(panel.locator('.reasoning-text')).toContainText('先确认这个问题是否在预约范围内')
+  await expect(panel.locator('.reasoning-label')).toHaveText('模型推理 · AI 生成，仅供参考')
+})
+
+test('AI 助手思考过程：模型未返回推理时展开区给出说明，不伪造推理文本', async ({ page }) => {
+  await mockAi(page, {
+    [AI_PATHS.chat]: {
+      enabled: true,
+      message: null,
+      answer: '【E2E-THINK2】明天下午 A201 空闲。',
+      _think: {
+        steps: [
+          { id: 'scene', label: '确认问题是否属于预约范围', elapsedMs: 120 },
+          { id: 'retrieve', label: '检索你的预约记录', elapsedMs: 260 }
+        ],
+        summary: null,
+        elapsedMs: 800
+      }
+    }
+  })
+  await loginAs(page, { who: 'student', path: '/student/home', aiEnabled: true })
+  await page.getByRole('button', { name: '打开 AI 预约助手' }).click()
+  await page.getByPlaceholder('问我：怎么预约 / 怎么取消 / 审核要多久…').fill('E2E-思考2：明天有空吗？')
+  await page.getByRole('button', { name: '发送' }).click()
+
+  const panel = page.locator('.chat-msg.ai .thinking').last()
+  const head = panel.locator('.thinking-head')
+  await expect(head).toContainText('已思考 0.8 秒')
+  await head.click()
+  await expect(panel.locator('.reasoning-text')).toHaveCount(0)
+  await expect(panel.locator('.reasoning-empty')).toHaveText(
+    '当前模型未返回推理文本，以上为本次处理的实际步骤。'
+  )
+  // 步骤耗时透出（该步真实耗时，非固定值）
+  await expect(panel.locator('.step-time')).toHaveText(['0.1 秒', '0.3 秒'])
+})
+
+test('AI 助手思考过程：降级时面板标记「已降级为本地规则」，失败的生成步骤可辨认', async ({ page }) => {
+  const fallbackAnswer = '【E2E-THINK3】审核一般在 24 小时内完成。'
+  await mockAi(page, {
+    [AI_PATHS.chat]: {
+      enabled: true,
+      message: DEGRADE_MSG,
+      answer: fallbackAnswer,
+      _think: {
+        steps: [
+          { id: 'scene', label: '确认问题是否属于预约范围', elapsedMs: 90 },
+          { id: 'retrieve', label: '检索你的预约记录', elapsedMs: 180 },
+          { id: 'generate', label: '调用模型生成回答', status: 'failed', elapsedMs: 620 },
+          { id: 'fallback', label: '切换为本地规则回答', elapsedMs: 20 }
+        ],
+        summary: '已降级为本地规则',
+        elapsedMs: 900
+      }
+    }
+  })
+  await loginAs(page, { who: 'student', path: '/student/home', aiEnabled: true })
+  await page.getByRole('button', { name: '打开 AI 预约助手' }).click()
+  await page.getByPlaceholder('问我：怎么预约 / 怎么取消 / 审核要多久…').fill('E2E-思考3：审核多久？')
+  await page.getByRole('button', { name: '发送' }).click()
+
+  const panel = page.locator('.chat-msg.ai .thinking').last()
+  await expect(panel).toHaveClass(/is-degraded/)
+  await expect(panel.locator('.thinking-head')).toContainText('已降级为本地规则')
+  await expect(page.locator('.chat-msg.ai .chat-bubble').last()).toContainText(fallbackAnswer)
+  await expect(page.locator('.chat-tip')).toContainText(DEGRADE_MSG)
+
+  await panel.locator('.thinking-head').click()
+  await expect(panel.locator('.step.is-failed')).toHaveCount(1)
+  await expect(panel.locator('.step.is-failed .step-label')).toHaveText('调用模型生成回答')
+})
+
+test('AI 助手思考过程：缓存命中时汇总标注「命中缓存」，不出现检索与生成步骤', async ({ page }) => {
+  await mockAi(page, {
+    [AI_PATHS.chat]: {
+      enabled: true,
+      message: null,
+      answer: '【E2E-THINK4】缓存回答。',
+      _think: {
+        steps: [
+          { id: 'scene', label: '确认问题是否属于预约范围', elapsedMs: 60 },
+          { id: 'cache', label: '命中最近一次回答', elapsedMs: 40 }
+        ],
+        summary: '命中缓存',
+        elapsedMs: 300
+      }
+    }
+  })
+  await loginAs(page, { who: 'student', path: '/student/home', aiEnabled: true })
+  await page.getByRole('button', { name: '打开 AI 预约助手' }).click()
+  await page.getByPlaceholder('问我：怎么预约 / 怎么取消 / 审核要多久…').fill('E2E-思考4：再问一次')
+  await page.getByRole('button', { name: '发送' }).click()
+
+  const panel = page.locator('.chat-msg.ai .thinking').last()
+  await expect(panel.locator('.thinking-head')).toContainText('已思考 0.3 秒 · 命中缓存')
+  await panel.locator('.thinking-head').click()
+  await expect(panel.locator('.step-label')).toHaveText(['确认问题是否属于预约范围', '命中最近一次回答'])
+  await expect(panel.locator('.step-label')).not.toContainText(['检索'])
+})
+
+test('AI 助手思考过程：AI 关闭态不渲染任何思考面板', async ({ page }) => {
+  const disabledMsg = 'AI 服务未启用，当前为纯预约系统模式'
+  await mockAi(page, {
+    [AI_PATHS.chat]: { enabled: false, message: disabledMsg }
+  })
+  await loginAs(page, { who: 'student', path: '/student/home', aiEnabled: true })
+  await page.getByRole('button', { name: '打开 AI 预约助手' }).click()
+  await page.getByPlaceholder('问我：怎么预约 / 怎么取消 / 审核要多久…').fill('E2E-思考5：在吗？')
+  await page.getByRole('button', { name: '发送' }).click()
+
+  await expect(page.locator('.chat-msg.ai .chat-bubble').last()).toContainText(disabledMsg)
+  await expect(page.locator('.thinking')).toHaveCount(0)
 })

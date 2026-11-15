@@ -68,4 +68,31 @@ class AiStreamFramesTest {
         assertTrue(delta.isPresent());
         assertNull(delta.get().content());
     }
+
+    @Test
+    @DisplayName("推理帧：reasoning_content 单独提取，不并入正文；content+reasoning 同帧时两者都取")
+    void extractReasoningContent() {
+        String reasoningOnly = "{\"choices\":[{\"delta\":{\"reasoning_content\":\"先确认问题\"}}]}";
+        AiStreamFrames.ChunkDelta delta = AiStreamFrames.tryExtract(reasoningOnly, mapper).orElseThrow();
+        assertEquals("先确认问题", delta.reasoning());
+        assertNull(delta.content(), "推理帧不应产生回答正文");
+
+        String both = "{\"choices\":[{\"delta\":{\"reasoning_content\":\"想一想\",\"content\":\"答案\"}}]}";
+        AiStreamFrames.ChunkDelta mixed = AiStreamFrames.tryExtract(both, mapper).orElseThrow();
+        assertEquals("想一想", mixed.reasoning());
+        assertEquals("答案", mixed.content());
+    }
+
+    @Test
+    @DisplayName("推理别名容错：部分网关用 reasoning 字段；空串视为无推理；无推理时字段为 null")
+    void extractReasoningAlias() {
+        String alias = "{\"choices\":[{\"delta\":{\"reasoning\":\"别名推理\"}}]}";
+        assertEquals("别名推理", AiStreamFrames.tryExtract(alias, mapper).orElseThrow().reasoning());
+
+        String blank = "{\"choices\":[{\"delta\":{\"reasoning_content\":\"\"}}]}";
+        assertNull(AiStreamFrames.tryExtract(blank, mapper).orElseThrow().reasoning());
+
+        String plain = "{\"choices\":[{\"delta\":{\"content\":\"你好\"}}]}";
+        assertNull(AiStreamFrames.tryExtract(plain, mapper).orElseThrow().reasoning());
+    }
 }

@@ -15,7 +15,7 @@
 - 冲突检测公式：`新开始 < 旧结束 AND 新结束 > 旧开始`
 - 状态流转：待审核(0) → 已通过(1) / 已驳回(2)；待审核 / 已通过 → 已取消(3)
 
-**规模**：309 个后端测试（行覆盖 80.6%）· 41 项接口冒烟 · 120 例 Playwright E2E（Chromium + Edge）· 3 套 GitHub Actions。
+**规模**：309 个后端测试（行覆盖 80.6%）· 41 项接口冒烟 · 120 例 Playwright E2E（Chromium + Edge）· 15 项故障演练 · 7 接口 + 7 页性能基准 · 3 套 GitHub Actions。
 
 ## 演示
 
@@ -191,11 +191,14 @@ docker compose exec mysql mysql -uroot -proot -e "UPDATE reservation.ai_config S
 | 前端 E2E | 17 个 spec、120 个用例 × Chromium + Edge | `npm run test:e2e:all`（默认只跑 Chromium） |
 | 无障碍机器代理 | 16/16 项（人工听感按负责人决定不执行） | `node scripts/a11y-acceptance.mjs` |
 | 安全基线自检 | 8 项（默认密钥伪造 / 文档关闭 / 限流 / 响应头 / 越权） | `pwsh server/scripts/security-check.ps1` |
+| 故障演练 | 2 类故障 × 恢复验证，15 项（Redis fail closed / MySQL 有界失败 / 数据复原） | `pwsh server/scripts/chaos-drill.ps1` |
+| 性能基准 | 7 个接口 + 7 个页面；冲突检测 p95 ≈ 16.5 ms（需求 ≤500 ms） | `node web/scripts/bench-api.mjs` · `cd web; node scripts/bench-page.mjs` |
 
 ```powershell
 mvn -f server/pom.xml test                     # 后端单测 + 集成测试（需 MySQL/Redis 在线）
 pwsh server/scripts/smoke.ps1                  # 41 项接口冒烟（需后端已启动）
 pwsh server/scripts/security-check.ps1         # 8 项安全基线（需 compose 栈已启动）
+pwsh server/scripts/chaos-drill.ps1            # 15 项故障演练（会临时停 Redis / MySQL）
 cd web; npm run lint; npm run build            # 前端规范与构建
 cd web; npm run test:e2e                       # Chromium E2E（webServer 自动拉起 Vite）
 cd web; node scripts/capture-screens.mjs       # 采集 README 预览截图
@@ -231,6 +234,7 @@ cd web; node scripts/capture-screens.mjs       # 采集 README 预览截图
 | 协作章程与红线约束 | [`AGENTS.md`](AGENTS.md) |
 | 运行与配置（环境变量 / AI / Redis / 端口） | [`docs/运行与配置.md`](docs/运行与配置.md) |
 | 安全基线（部署加固项与验证命令） | [`docs/安全基线.md`](docs/安全基线.md) |
+| 可靠性验证（故障演练 / 接口与页面性能基准） | [`docs/可靠性验证.md`](docs/可靠性验证.md) |
 | 演示视频分镜与录制说明 | [`docs/演示视频分镜.md`](docs/演示视频分镜.md) |
 | 各轮交付四件套（R1–R13） | [`docs/iterations/`](docs/iterations) |
 | QA 收口报告 | [`docs/qa/`](docs/qa) |

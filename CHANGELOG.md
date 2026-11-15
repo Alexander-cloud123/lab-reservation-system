@@ -28,6 +28,7 @@
 
 ### 文档
 
+- 新增可靠性证据：[`docs/可靠性验证.md`](docs/可靠性验证.md) 汇总故障演练与性能基准实测 —— 故障演练脚本 [`server/scripts/chaos-drill.ps1`](server/scripts/chaos-drill.ps1)（Redis fail closed 401 / MySQL 统一错误包 30s / 恢复自愈 / 数据复原，15 项；`-IncludeSlow` 补 60s 会话撤销窗口）、接口基准 [`web/scripts/bench-api.mjs`](web/scripts/bench-api.mjs)（7 个接口 p50/p95/p99，冲突检测 p95 ≈ 16.5 ms 对 500 ms 上限）、页面基准 [`web/scripts/bench-page.mjs`](web/scripts/bench-page.mjs)（7 个页面首屏就绪 p95 54–137 ms 对 2 s 上限）；README 质量表与文档导航同步。
 - 新增 [`docs/安全基线.md`](docs/安全基线.md) 与 [`server/scripts/security-check.ps1`](server/scripts/security-check.ps1)（8 项自动检查：响应头 / Server 版本 / 接口文档端点 / 默认密钥伪造 Token / 未登录 401 / 学生越权 403 / 登录与注册限流）；README「快速开始」补 `.env` 复制与密钥生成步骤、质量表增一行，[`docs/运行与配置.md`](docs/运行与配置.md) 环境变量表补 `SPRING_PROFILES_ACTIVE` / `CORS_ALLOWED_ORIGINS` 并更新 `JWT_SECRET` / `KNIFE4J_ENABLE` / `MYBATIS_LOG_IMPL` 口径。
 - 新增仓库「演示」物料：40 秒 GIF [`docs/images/demo-walkthrough.gif`](docs/images/demo-walkthrough.gif) 与 72 秒完整版 MP4（GitHub Release `v1.1.0` 资产），README 增 `## 演示` 区块与文档导航入口；录制脚本 [`web/scripts/capture-demo-video.mjs`](web/scripts/capture-demo-video.mjs) 以 Playwright 驱动真实浏览器（合成光标 + 页内字幕条），录制前自动复位种子库并按固定锚点造冲突 / 待审核数据，`web/package.json` 增 `demo:gif` / `demo:full`；分镜与验收见 [`docs/演示视频分镜.md`](docs/演示视频分镜.md)。
 - 同步 `需求设计文档.md` §2.3.2（`sys_user.token_version`）、`docs/Redis加分项接入说明.md`、`docs/演示脚本.md` 的撤销与 fail-closed 口径，并新增数据库设计图字段。

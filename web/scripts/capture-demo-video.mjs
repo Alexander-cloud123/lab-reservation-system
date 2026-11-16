@@ -52,6 +52,7 @@ const cfg = {
 }
 
 const GIF_FILE = path.join(ROOT, 'docs', 'images', 'demo-walkthrough.gif')
+const AI_FILE = path.join(cfg.out, 'demo-ai-thinking.mp4')
 
 /* ============================ 小工具 ============================ */
 
@@ -73,7 +74,9 @@ function parseArgs(argv) {
     else if (key === 'encode') cfg.encode = value !== 'false'
     else if (key in cfg) cfg[key] = value
   }
-  if (!['gif', 'full'].includes(cfg.mode)) throw new Error(`--mode 只支持 gif / full，收到 ${cfg.mode}`)
+  if (!['gif', 'full', 'ai'].includes(cfg.mode)) {
+    throw new Error(`--mode 只支持 gif / full / ai，收到 ${cfg.mode}`)
+  }
   if (!['none', 'before', 'after', 'both'].includes(cfg.reset)) {
     throw new Error(`--reset 只支持 none / before / after / both，收到 ${cfg.reset}`)
   }
@@ -516,6 +519,96 @@ async function segEndCard(page) {
   await sleep(6500)
 }
 
+/**
+ * 预热推荐缓存（服务端 60 秒 TTL）：首屏探测命中缓存可以让悬浮球与推荐卡立即出现。
+ * 真实模型首次生成推荐可能需要数秒到数十秒，直接录会让片头长时间空等。
+ */
+async function warmRecommendCache() {
+  const student = await apiLogin('zhangsan', '123456', 0)
+  const started = Date.now()
+  const res = await fetch(`${cfg.api}/api/ai/recommend?stream=true`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${student.token}`, 'Content-Type': 'application/json' },
+    body: '{}'
+  })
+  await res.text()
+  return Date.now() - started
+}
+
+/**
+ * AI 助手演示（ai 模式）：推荐卡 → 悬浮球对话 → 思考面板展开/折叠 → 推理原文或「未返回推理」说明。
+ * 面板事件全部来自真实后端（含耗时），因此录制时长的波动属上游真实表现，不压缩、不伪造。
+ */
+async function segAiAssistant(page) {
+  await setCaption(page, 'AI 助手：结合常用教室与空闲时段给出推荐')
+  await mustSee(page.locator('.ai-recommend-card'), 'AI 推荐卡', 25000)
+  await sleep(2400)
+
+  await tap(page, page.locator('.assistant-ball'), { delay: 220 })
+  const drawer = page.locator('.assistant-drawer')
+  await mustSee(drawer, 'AI 助手抽屉')
+
+  await setCaption(page, '自然语言提问：明天有哪些预约、取消要注意什么')
+  const input = page.locator('#ai-assistant-question')
+  await input.fill('我明天有哪些预约？取消预约要注意什么？')
+  await sleep(800)
+
+  await tap(page, drawer.locator('button').filter({ hasText: '发送' }).first(), { delay: 260 })
+  await setCaption(page, '思考过程先展开：步骤来自真实执行轨迹，不是伪造的思维链')
+
+  const panel = drawer.locator('.thinking')
+  await mustSee(panel.first(), '思考面板')
+  await mustSee(drawer.locator('.pulse-dots'), '思考等待动画')
+  await sleep(1400)
+
+  const head = panel.first().locator('.thinking-head')
+  if ((await head.getAttribute('aria-expanded')) === 'false') {
+    await tap(page, head, { delay: 200 })
+  }
+  await mustSee(drawer.locator('.step-label').first(), '思考步骤')
+  await setCaption(page, '场景判断 → 检索预约记录 → 调用模型 → 校验回答，每步带真实耗时')
+  await sleep(1800)
+
+  let answered = true
+  try {
+    await page.waitForFunction(
+      () => {
+        const body = document.querySelector('.assistant-drawer .markdown-body')
+        return !!body && body.textContent.trim().length > 0
+      },
+      { timeout: 45000 }
+    )
+  } catch {
+    answered = false
+  }
+
+  if (!answered) {
+    const stop = drawer.locator('button').filter({ hasText: '停止' }).first()
+    if (await stop.count()) await tap(page, stop, { delay: 180 })
+    await setCaption(page, '上游排队较慢：前端手动中断，服务端 60 秒预算兜底降级')
+    await sleep(2000)
+  } else {
+    await setCaption(page, '回答到达后自动折叠为「已思考 X.X 秒」，可随时展开回看')
+    await sleep(1600)
+    if ((await head.getAttribute('aria-expanded')) !== 'true') {
+      await tap(page, head, { delay: 220 })
+    }
+    await sleep(1600)
+    if (await drawer.locator('.reasoning-text').count()) {
+      await setCaption(page, '上游返回推理原文时原样展示，并固定标注「模型推理 · 仅供参考」')
+    } else {
+      await setCaption(page, '模型未返回推理时明确说明「以上为本次处理的实际步骤」，不编造内容')
+    }
+    await drawer.locator('.chat-body').evaluate(el => { el.scrollTop = el.scrollHeight }).catch(() => {})
+    await sleep(2200)
+  }
+
+  await setCaption(page, 'AI 只读不写：业务操作仍由你手动确认；生成内容固定标注「仅供参考」')
+  await sleep(2200)
+  await page.keyboard.press('Escape')
+  await sleep(600)
+}
+
 /* ============================ 页内叠加层 ============================ */
 
 /**
@@ -799,6 +892,23 @@ async function runFull(page, seed) {
   log(`完整版演示录制完成，用时 ${((Date.now() - started) / 1000).toFixed(1)}s`)
 }
 
+/** AI 片段（ai 模式）：约 40–70 秒，可单独上传为 Release 资产或作为视频尾部彩蛋 */
+async function runAi(page, seed) {
+  const started = Date.now()
+  const warmMs = await warmRecommendCache()
+  log(`推荐缓存预热完成（${(warmMs / 1000).toFixed(1)}s）`)
+  await openLogin(page)
+  await setCaption(page, 'AI 助手：真实思考过程、思考计时与等待动画')
+  await sleep(1800)
+  await segLogin(page, { role: 0, account: 'zhangsan', password: '123456', fast: true })
+  log('段 1/3：学生登录完成')
+  await segAiAssistant(page)
+  log('段 2/3：AI 思考过程展示完成')
+  await setCaption(page, 'AI 生成，仅供参考 · 所有写操作由用户手动确认')
+  await sleep(2400)
+  log(`AI 演示录制完成，用时 ${((Date.now() - started) / 1000).toFixed(1)}s`)
+}
+
 async function main() {
   parseArgs(process.argv.slice(2))
   log(`模式 ${cfg.mode} · 页面 ${cfg.base} · 接口 ${cfg.api}`)
@@ -835,7 +945,8 @@ async function main() {
 
   try {
     if (cfg.mode === 'gif') await runGif(page, seed)
-    else await runFull(page, seed)
+    else if (cfg.mode === 'full') await runFull(page, seed)
+    else await runAi(page, seed)
   } catch (error) {
     failure = error
   } finally {
@@ -876,6 +987,9 @@ async function main() {
       log(`GIF（重编码）：${size.toFixed(1)}MB`)
     }
     if (size > 8) throw new Error('GIF 仍超过 8MB，请降低 --gif-width 或 --gif-fps')
+  } else if (cfg.mode === 'ai') {
+    encodeMp4(webm, AI_FILE)
+    log(`AI 片段 MP4：${AI_FILE}（${fileSizeMB(AI_FILE).toFixed(1)}MB）`)
   } else {
     const mp4 = path.join(cfg.out, 'demo-walkthrough.mp4')
     encodeMp4(webm, mp4)

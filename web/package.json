@@ -16,7 +16,8 @@
     "test:e2e:all": "playwright test",
     "test:e2e:report": "playwright show-report e2e-report/html",
     "demo:gif": "node scripts/capture-demo-video.mjs --mode=gif",
-    "demo:full": "node scripts/capture-demo-video.mjs --mode=full"
+    "demo:full": "node scripts/capture-demo-video.mjs --mode=full",
+    "demo:ai": "node scripts/capture-demo-video.mjs --mode=ai"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",

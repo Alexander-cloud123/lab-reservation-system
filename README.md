@@ -15,7 +15,7 @@
 - 冲突检测公式：`新开始 < 旧结束 AND 新结束 > 旧开始`
 - 状态流转：待审核(0) → 已通过(1) / 已驳回(2)；待审核 / 已通过 → 已取消(3)
 
-**规模**：323 个后端测试（行覆盖 81.4%）· 41 项接口冒烟 · 125 例 Playwright E2E（Chromium + Edge）· 15 项故障演练 · 7 接口 + 7 页性能基准 · 3 套 GitHub Actions。
+**规模**：323 个后端测试（行覆盖 81.4%）· 41 项接口冒烟 · 127 例 Playwright E2E（Chromium + Edge）· 15 项故障演练 · 7 接口 + 7 页性能基准 · 3 套 GitHub Actions。
 
 ## 演示
 
@@ -173,12 +173,14 @@ cd web; npm ci; npm run dev                     # http://127.0.0.1:5173
 ### 启用 AI（可选，双开关缺一不可）
 
 ```powershell
-# 1. .env 设置 AI_ENABLE=true 与 AGNES_API_KEY=<密钥>，重建后端
+# 1. .env 设置 AI_ENABLE=true 与 AGNES_API_KEY=<密钥>，重建后端（restart 不会重读环境变量）
 docker compose up -d api
-# 2. 打开数据库开关（基线为 false，重建数据卷后会再次关闭）
-docker compose exec mysql mysql -uroot -proot -e "UPDATE reservation.ai_config SET config_value='true' WHERE config_key='ai_enable';"
-# 3. 前端重新登录，AI 入口才会出现
+# 2. 打开数据库动态开关（同时清理 AI 缓存并校验登录下发的 aiEnabled）
+pwsh server/scripts/ai-switch.ps1
+# 3. 浏览器刷新页面即可，开关变更无需重新登录
 ```
+
+> AI 悬浮球不出现时先查两个开关：`AI_ENABLE`（静态，改后必须重建 api 容器）与 `ai_config.ai_enable`（动态，`init_db.sql` 复位后会回到 `false`）。`pwsh server/scripts/ai-switch.ps1` 会打印登录接口返回的 `aiEnabled`，是排查最快的一步。
 
 演示账号：管理员 `admin / admin123`；学生 `zhangsan / 123456`（另有 `lisi`、`wangwu`、`zhaoliu`，密码均为 `123456`）。
 
@@ -188,7 +190,7 @@ docker compose exec mysql mysql -uroot -proot -e "UPDATE reservation.ai_config S
 |------|------|------|
 | 后端单元 / 集成测试 | 41 个测试类、323 个用例；行覆盖 **81.4%**（指令 82.8% / 分支 75.0%，JaCoCo） | `mvn -f server/pom.xml test` |
 | 接口冒烟回归 | 41 项（鉴权 / 权限 / 预约生命周期 / 冲突 / 校验 / 看板 / 收藏 / AI 降级 / 会话撤销） | `pwsh server/scripts/smoke.ps1` |
-| 前端 E2E | 17 个 spec、120 个用例 × Chromium + Edge | `npm run test:e2e:all`（默认只跑 Chromium） |
+| 前端 E2E | 17 个 spec、127 个用例 × Chromium + Edge | `npm run test:e2e:all`（默认只跑 Chromium） |
 | 无障碍机器代理 | 16/16 项（人工听感按负责人决定不执行） | `node scripts/a11y-acceptance.mjs` |
 | 安全基线自检 | 8 项（默认密钥伪造 / 文档关闭 / 限流 / 响应头 / 越权） | `pwsh server/scripts/security-check.ps1` |
 | 故障演练 | 2 类故障 × 恢复验证，15 项（Redis fail closed / MySQL 有界失败 / 数据复原） | `pwsh server/scripts/chaos-drill.ps1` |

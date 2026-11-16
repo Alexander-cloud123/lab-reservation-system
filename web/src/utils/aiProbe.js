@@ -20,8 +20,11 @@ import { useUserStore } from '@/stores/user'
  * 落地结果与旧非流式 JSON 同构，调用方无感知。
  *
  * R8：登录接口已随 LoginVO 下发 aiEnabled，并落盘 localStorage（刷新后仍生效）。
- * 后端明确关闭（false）时直接返回未启用，不再打一次 /ai/recommend 才知道要隐藏入口；
- * 开关为 true / 未知（null）时仍需调用，因为推荐内容只能由该接口返回。
+ * 持久化的 `false` 只作为首屏「快速隐藏」的提示，**不再作为永久否决**：
+ * 管理员随时可能改动态开关（ai_config.ai_enable），而 localStorage 只在登录时刷新；
+ * 若继续信任旧 `false` 直接短路，球会在开关重新打开后一直不出现，且刷新无效、只有重新登录才恢复。
+ * 关闭态探测本身是廉价路径（AiRecommendServiceImpl 的 emitDisabled 分支不查库、不调上游），
+ * 因此这里仍按 userId 探测一次，以服务端为准。
  */
 
 /** 探测结果缓存：userId → { promise, result }（result 用于结构完整，调用方统一 await promise 取值） */
@@ -50,10 +53,8 @@ export function probeAiRecommend({ force = false, onPhase } = {}) {
     // 未登录：无用户维度可缓存，直接返回未启用（与既有行为一致：组件静默隐藏）
     return Promise.resolve(disabledResult())
   }
-  if (userStore.aiEnabled === false) {
-    // R8：登录时后端已明确关闭 AI，直接短路，省掉这次 /ai/recommend 调用
-    return Promise.resolve(disabledResult())
-  }
+  // 注意：不能用 userStore.aiEnabled === false 短路（见文件头注释）。
+  // 开关可能在上次登录之后被管理员打开，旧值会让入口永久隐藏。
   if (!force) {
     const hit = probeCache.get(userId)
     if (hit) {

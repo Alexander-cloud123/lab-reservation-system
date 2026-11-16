@@ -289,6 +289,21 @@ export function aiDisabledPayload() {
 }
 
 /**
+ * 以「AI 全局关闭」挂载拦截（四个入口都返回 enabled=false）。
+ * 用于需要隐藏 AI 入口的确定性用例：R14 起前端每次启动都会向服务端探测开关，
+ * 仅靠 localStorage 旧值已不能阻止探测，故这些用例统一显式 mock 关闭态，
+ * 既保证页面没有 AI 元素，也避免本地已配真实 Key 时误打上游消耗额度。
+ */
+export async function mockAiOff(page) {
+  return mockAi(page, {
+    [AI_PATHS.recommend]: aiDisabledPayload(),
+    [AI_PATHS.parse]: aiDisabledPayload(),
+    [AI_PATHS.chat]: aiDisabledPayload(),
+    [AI_PATHS.compliance]: aiDisabledPayload()
+  })
+}
+
+/**
  * 挂载 AI 拦截。必须在 page.goto 之前调用。
  *
  * 注意路由匹配用 pathname 前缀而非 glob '**\/api\/**'——

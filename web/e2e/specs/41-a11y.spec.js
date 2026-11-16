@@ -23,7 +23,7 @@ import { test, expect } from '@playwright/test'
 import { apiLogin, loginAs } from '../helpers/auth'
 import { createReservation, expectOk, tryCancel } from '../helpers/api'
 import { isSlotFree } from '../helpers/stable-seed'
-import { AI_PATHS, mockAi } from '../helpers/ai'
+import { AI_PATHS, mockAi, mockAiOff } from '../helpers/ai'
 import { CLASSROOMS, e2ePurpose, futureDate, SLOTS } from '../helpers/data'
 
 const PATH = '/student/profile'
@@ -93,6 +93,7 @@ async function expectTabReachable(page, locator) {
 }
 
 async function openProfile(page) {
+  await mockAiOff(page)
   await loginAs(page, { who: 'student', path: PATH, aiEnabled: false })
   await expect(page.locator('.identity-card')).toBeVisible()
 }

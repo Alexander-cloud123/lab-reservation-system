@@ -64,6 +64,8 @@ import { onMounted, ref, nextTick, onBeforeUnmount } from 'vue'
 import { ChatDotRound, VideoPause } from '@element-plus/icons-vue'
 import { aiChatStream } from '@/api/ai'
 import { probeAiRecommend } from '@/utils/aiProbe'
+import { saveAiEnabled } from '@/utils/auth'
+import { useUserStore } from '@/stores/user'
 import { renderMarkdown } from '@/utils/markdown'
 import AiThinkingPanel from './AiThinkingPanel.vue'
 
@@ -131,6 +133,13 @@ function toPlainAnswer(markdownText) {
 onMounted(async () => {
   const res = await probeAiRecommend()
   aiEnabled.value = !!(res && res.enabled === true)
+  // 以服务端探测结果为准回写开关：登录后管理员改过 ai_config 时，localStorage 里的旧 false
+  // 会在下次启动继续误导（探针已不再信任它，但回写能让首屏也立即正确）
+  const userStore = useUserStore()
+  if (aiEnabled.value && userStore.aiEnabled !== true) {
+    userStore.aiEnabled = true
+    saveAiEnabled(true)
+  }
 })
 
 async function send() {

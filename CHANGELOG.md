@@ -24,10 +24,12 @@
 
 - **问答上下文补当前时间**：真实模型验收发现回答把 2026-11-16 说成「今天是 2026年11月14日」，相对日期整体偏移。`AiChatServiceImpl.buildContext()` 现于上下文首行下发 `【当前时间】yyyy-MM-dd HH:mm（Asia/Shanghai，星期X）`（固定东八区，格式常量 `CONTEXT_TIME_FORMATTER`），单测断言下发的用户消息包含该行与当天日期。
 
+- **AI 开关变更后悬浮球不再"消失到底"**：前端此前只信任登录时落盘的 `reservation_ai_enabled`，开关后开时旧值 `false` 会让 `probeAiRecommend()` 直接短路（刷新无效，只能重新登录才恢复）。`web/src/utils/aiProbe.js` 改为始终向服务端探测（仅未登录时短路），`AiAssistant.vue` 探测成功后回写 store 与 localStorage，下次启动即为正确值。另新增 [`server/scripts/ai-switch.ps1`](server/scripts/ai-switch.ps1)（默认开、`-Off` 关：改 `ai_config.ai_enable`、清 `cache:ai:*`、等 5 秒开关缓存过期、校验登录接口下发的 `aiEnabled`），避免 `init_db.sql` 复位后忘记开开关导致演示时 AI 入口静默缺失。
+
 ### 测试
 
 - 后端 **323 项**（+14）：新增 `AiThinkingTraceTest`（步骤计时 / closed 后静默丢弃 / 写失败抛 UncheckedIOException）、`AiChatStreamServiceTest` 5 例（成功轨迹顺序、缓存命中、降级 failed+fallback、关闭态无轨迹、reasoning 透传且不并入正文）、`AiStreamFramesTest` 2 例（`reasoning_content` 与别名 `reasoning`）、`AgnesClientStreamOrchestrationTest` 2 例（推理端口隔离）。
-- 前端 E2E **125 例 / 17 spec**（AI 助手思考过程新增 6 例：思考中计时与步骤 → 自动折叠 → 展开推理、无推理说明、降级标记、缓存命中、关闭态不渲染面板；「思考中」瞬时态用 `patchStreamingChat` 逐帧推流，不调用真实模型）。
+- 前端 E2E **127 例 / 17 spec**（AI 助手思考过程新增 6 例、AI 入口自愈新增 2 例：思考中计时与步骤 → 自动折叠 → 展开推理、无推理说明、降级标记、缓存命中、关闭态不渲染面板；「思考中」瞬时态用 `patchStreamingChat` 逐帧推流，不调用真实模型）。
 - 后端 **309 项**（新增 `TokenRevocationIntegrationTest`：固定 `redis.enable=false`，验证无 Redis 也能持久撤销；新增拦截器版本号 / 状态缓存用例）。新增 4 个纯逻辑测试类补齐看板与降级链：`StatsServiceImplTest`（聚合口径 / 窗口裁剪与 14h 封顶 / 排序 / 区间校验）、`ReservationConverterTest`（批量预查短路 / 三种 VO / 状态文案）、`AiParseFallbackTest`（自然语言解析与非法输入不抛异常）、`AiRecommendFallbackTest`（规则打分与推荐理由）；另补 2 个业务分支覆盖类 `ReservationServiceImplCoverageTest`（参数校验/授权/导出上限/日历区间与可见性/关键词拼接）与 `ClassroomServiceImplCoverageTest`（CRUD 校验/删除保护/启停幂等/学生端缓存与占用时段/状态标签），以及 `UserServiceImplCoverageTest`（登录/注册/资料/改密全分支）、`RedisCacheObjectCacheTest`（对象缓存与代次失效降级）、`AiJsonSupportTest`（模型 JSON 容错解析）、`FavoriteServiceImplCoverageTest`（收藏上限与幽灵卡片过滤），行覆盖率 54% → **80.6%**（指令 81.9% / 分支 74.2%，ReservationServiceImpl 98.1%、ClassroomServiceImpl 99.1%、UserServiceImpl 97.5%、RedisCache 87.0%）。
 - 前端 E2E **120 项 / 17 spec**，新增「会话撤销」spec；新增 Microsoft Edge 全量回归项目（`npm run test:e2e:edge`，默认脚本仍只跑 Chromium）。
 - `server/scripts/smoke.ps1` 增至 **41 项**（含重置密码后旧 Token 失效断言），并修复脚本对 PowerShell 7 错误响应的兼容性。
@@ -36,6 +38,7 @@
 
 ### 文档
 
+- 新增 [`server/scripts/ai-switch.ps1`](server/scripts/ai-switch.ps1)：AI 动态开关的一键切换与校验；README「启用 AI」与 [`docs/运行与配置.md`](docs/运行与配置.md) §2 同步改写，并补「悬浮球不出现」排查表（静态/动态双开关、`docker compose restart` 不重读环境变量、前端每次启动以服务端探测为准）。
 - 新增可靠性证据：[`docs/可靠性验证.md`](docs/可靠性验证.md) 汇总故障演练与性能基准实测 —— 故障演练脚本 [`server/scripts/chaos-drill.ps1`](server/scripts/chaos-drill.ps1)（Redis fail closed 401 / MySQL 统一错误包 30s / 恢复自愈 / 数据复原，15 项；`-IncludeSlow` 补 60s 会话撤销窗口）、接口基准 [`web/scripts/bench-api.mjs`](web/scripts/bench-api.mjs)（7 个接口 p50/p95/p99，冲突检测 p95 ≈ 16.5 ms 对 500 ms 上限）、页面基准 [`web/scripts/bench-page.mjs`](web/scripts/bench-page.mjs)（7 个页面首屏就绪 p95 54–137 ms 对 2 s 上限）；README 质量表与文档导航同步。
 - 新增 [`docs/安全基线.md`](docs/安全基线.md) 与 [`server/scripts/security-check.ps1`](server/scripts/security-check.ps1)（8 项自动检查：响应头 / Server 版本 / 接口文档端点 / 默认密钥伪造 Token / 未登录 401 / 学生越权 403 / 登录与注册限流）；README「快速开始」补 `.env` 复制与密钥生成步骤、质量表增一行，[`docs/运行与配置.md`](docs/运行与配置.md) 环境变量表补 `SPRING_PROFILES_ACTIVE` / `CORS_ALLOWED_ORIGINS` 并更新 `JWT_SECRET` / `KNIFE4J_ENABLE` / `MYBATIS_LOG_IMPL` 口径。
 - 新增仓库「演示」物料：40 秒 GIF [`docs/images/demo-walkthrough.gif`](docs/images/demo-walkthrough.gif) 与 72 秒完整版 MP4（GitHub Release `v1.1.0` 资产），README 增 `## 演示` 区块与文档导航入口；录制脚本 [`web/scripts/capture-demo-video.mjs`](web/scripts/capture-demo-video.mjs) 以 Playwright 驱动真实浏览器（合成光标 + 页内字幕条），录制前自动复位种子库并按固定锚点造冲突 / 待审核数据，`web/package.json` 增 `demo:gif` / `demo:full`；分镜与验收见 [`docs/演示视频分镜.md`](docs/演示视频分镜.md)。

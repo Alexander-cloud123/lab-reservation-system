@@ -19,6 +19,7 @@ import {
   getClassroom
 } from '../helpers/api'
 import { pageToken, isSlotFree } from '../helpers/stable-seed'
+import { mockAiOff } from '../helpers/ai'
 import { e2ePurpose, futureDate } from '../helpers/data'
 
 const PATH = '/student/my-reservations'
@@ -32,6 +33,7 @@ const RUN = String(Date.now()).slice(-6)
 const tag = (t) => e2ePurpose(`${t}-${RUN}`)
 
 async function openMine(page) {
+  await mockAiOff(page)
   await loginAs(page, { who: 'student', path: PATH, aiEnabled: false })
 }
 

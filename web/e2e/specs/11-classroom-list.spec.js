@@ -14,6 +14,7 @@ import { test, expect } from '@playwright/test'
 import { loginAs, apiLogin } from '../helpers/auth'
 import { expectOk, listClassrooms, tryCancel } from '../helpers/api'
 import { pageToken, seedApprovedAny } from '../helpers/stable-seed'
+import { mockAiOff } from '../helpers/ai'
 import { e2ePurpose, futureDate, SLOTS } from '../helpers/data'
 
 const PAGE = '/student/home'
@@ -26,6 +27,7 @@ const LIST_URL = '/api/classroom/list'
 /** 打开教室列表页，返回首屏列表接口的 records（期望来源） */
 async function openList(page) {
   const respP = page.waitForResponse((r) => r.url().includes(LIST_URL))
+  await mockAiOff(page)
   await loginAs(page, { who: 'student', path: PAGE, aiEnabled: false })
   const resp = await respP
   return (await resp.json()).data.records

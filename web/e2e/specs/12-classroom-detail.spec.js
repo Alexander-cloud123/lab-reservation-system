@@ -19,6 +19,7 @@ import {
   tryCancel
 } from '../helpers/api'
 import { pageToken, seedApprovedAny, isSlotFree } from '../helpers/stable-seed'
+import { mockAiOff } from '../helpers/ai'
 import { e2ePurpose, futureDate, today, SLOTS } from '../helpers/data'
 
 const detailPath = (id) => `/student/classrooms/${id}`
@@ -32,6 +33,7 @@ const RUN = String(Date.now()).slice(-6)
 const tag = (t) => e2ePurpose(`${t}-${RUN}`)
 
 async function openDetail(page, id) {
+  await mockAiOff(page)
   await loginAs(page, { who: 'student', path: detailPath(id), aiEnabled: false })
 }
 

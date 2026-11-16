@@ -7,7 +7,7 @@
  *   3) 「AI 预约智能助手」悬浮球：默认收起 → 展开 → 对话 → AI 标注
  *   4) 管理端 AI 合规校验：显示校验结果（只提示），状态仍为待审核(0)
  *   4.1) 管理端 AI 合规校验：首屏自动校验全部失败时入口仍可见且可点击重试（回归：入口曾会永久消失）
- *   5) AI 关闭态：入口数为 0、核心功能可用、连探测请求都不发
+ *   5) AI 关闭态：入口数为 0、核心功能可用；入口显隐以服务端探测为准（不再信任本地旧值）
  *   6) AI 降级提示渲染：4 个消费面（推荐卡 / 快速预约 / 助手 / 管理端合规标签）
  *      在 message 非空时切换来源标注并透出降级原因，使用户能区分真实模型与本地规则结果
  *
@@ -21,7 +21,7 @@ import { test, expect } from '@playwright/test'
 import { apiLogin, loginAs } from '../helpers/auth'
 import { createReservation, expectOk, listManage, listMine, tryCancel } from '../helpers/api'
 import { CLASSROOMS, e2ePurpose, futureDate, SLOTS } from '../helpers/data'
-import { AI_PATHS, mockAi, patchStreamingChat } from '../helpers/ai'
+import { AI_PATHS, aiDisabledPayload, mockAi, patchStreamingChat } from '../helpers/ai'
 
 /**
  * 从 SSE 响应体按线顺序提取全部事件名（R13-5 帧序列断言用）。
@@ -484,9 +484,9 @@ test('管理端 AI 合规校验：SSE 建链前返回 Result JSON 时识别为�
 /* ------------------------------------------------------------------ */
 /* 5. AI 关闭态                                                        */
 /* ------------------------------------------------------------------ */
-test('AI 关闭态：AI 入口数为 0，核心预约功能可用且不发探测请求', async ({ page }) => {
-  const calls = await mockAi(page)
-  await loginAs(page, { who: 'student', path: '/student/home', aiEnabled: false })
+test('AI 关闭态：服务端关闭时入口数为 0，核心预约功能可用', async ({ page }) => {
+  const calls = await mockAi(page, { [AI_PATHS.recommend]: aiDisabledPayload() })
+  await loginAs(page, { who: 'student', path: '/student/home', aiEnabled: true })
 
   // AI 入口隐藏（「不存在」断言）
   await expect(page.getByRole('button', { name: 'AI 快速预约' })).toHaveCount(0)
@@ -501,8 +501,38 @@ test('AI 关闭态：AI 入口数为 0，核心预约功能可用且不发探测
   await expect(page).toHaveURL(/\/student\/classrooms\/1$/)
   await expect(page.getByRole('button', { name: '预约申请' })).toBeVisible()
 
-  // 关闭态下连 /api/ai/recommend 探测都不发
-  expect(calls[AI_PATHS.recommend] || 0).toBe(0)
+  // R14 修复后：本地旧值不再短路，入口显隐由服务端探测决定（关闭态探测不查库、不调上游，成本可忽略）
+  expect(calls[AI_PATHS.recommend] || 0).toBeGreaterThan(0)
+})
+
+/* ------------------------------------------------------------------ */
+/* 5.1 开关变更后的入口自愈（R14 修复回归）                              */
+/* ------------------------------------------------------------------ */
+test('AI 入口自愈：本地缓存的旧 false 不再永久隐藏悬浮球，探测成功后回写', async ({ page }) => {
+  // 模拟「上次登录时 AI 关闭」留下的 localStorage=false，随后管理员打开了开关
+  await mockAi(page, {})
+  await loginAs(page, { who: 'student', path: '/student/home', aiEnabled: false })
+
+  const ball = page.getByRole('button', { name: '打开 AI 预约助手' })
+  await expect(ball).toBeVisible()
+
+  // 探测成功后把开关回写进 localStorage：下次启动首屏即为正确值，无需重新登录
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('reservation_ai_enabled')))
+    .toBe('true')
+
+  // 刷新（不重新登录）后悬浮球仍在
+  await page.reload()
+  await expect(page.getByRole('button', { name: '打开 AI 预约助手' })).toBeVisible()
+})
+
+test('AI 入口自愈：服务端关闭时即使本地缓存为 true，悬浮球也不出现', async ({ page }) => {
+  // 模拟「上次登录时 AI 开启」留下的 localStorage=true，随后管理员关闭了开关
+  await mockAi(page, { [AI_PATHS.recommend]: aiDisabledPayload() })
+  await loginAs(page, { who: 'student', path: '/student/home', aiEnabled: true })
+
+  await expect(page.getByRole('button', { name: '打开 AI 预约助手' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'AI 快速预约' })).toHaveCount(0)
 })
 
 /* ------------------------------------------------------------------ */

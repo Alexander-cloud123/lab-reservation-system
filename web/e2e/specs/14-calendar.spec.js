@@ -12,6 +12,7 @@ import { test, expect } from '@playwright/test'
 import { loginAs, apiLogin } from '../helpers/auth'
 import { expectOk, createReservation, auditReservation, getClassroom, tryCancel } from '../helpers/api'
 import { pageToken, isSlotFree } from '../helpers/stable-seed'
+import { mockAiOff } from '../helpers/ai'
 import { e2ePurpose, futureDate, SLOTS } from '../helpers/data'
 
 const PATH = '/student/calendar'
@@ -25,6 +26,7 @@ const RUN = String(Date.now()).slice(-6)
 const tag = (t) => e2ePurpose(`${t}-${RUN}`)
 
 async function openCalendar(page) {
+  await mockAiOff(page)
   await loginAs(page, { who: 'student', path: PATH, aiEnabled: false })
 }
 

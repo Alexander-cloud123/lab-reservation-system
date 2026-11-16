@@ -1029,3 +1029,87 @@ test('结构化流空载荷 done 帧仍是终态：推荐卡与悬浮球正常�
   // 快速预约 / 合规校验与推荐卡复用同一个结构化解析器，回填阶段由第 2、3 节用例覆盖；
   // 本用例只锁定前置条件：done 若被当脏帧丢弃，探测 Promise 会一直悬空，两个入口都不会出现。
 })
+
+test('重新生成：替换最后一条回答，且不重复追加用户提问', async ({ page }) => {
+  let chatCalls = 0
+  await mockAi(page, {
+    [AI_PATHS.chat]: () => {
+      chatCalls += 1
+      return { answer: chatCalls === 1 ? '【E2E-REGEN】第一版回答' : '【E2E-REGEN】第二版回答' }
+    }
+  })
+  await loginAs(page, { who: 'student', path: '/student/home', aiEnabled: true })
+
+  await page.locator('.assistant-ball').click()
+  await expect(page.locator('.ai-chat-page')).toBeVisible()
+  await page.locator('#ai-chat-input').fill('E2E：重新生成测试')
+  await page.locator('.composer-send').click()
+
+  await expect(page.locator('.chat-msg.ai .markdown-body')).toContainText('第一版回答')
+  await expect(page.locator('.chat-msg.user')).toHaveCount(1)
+
+  await page.getByRole('button', { name: '重新生成', exact: true }).click()
+  await expect(page.locator('.chat-msg.ai .markdown-body')).toContainText('第二版回答')
+  // 旧回答被替换而不是追加：仍只有一条 AI 回答、一条用户提问
+  await expect(page.locator('.chat-msg.ai')).toHaveCount(1)
+  await expect(page.locator('.chat-msg.user')).toHaveCount(1)
+  expect(chatCalls).toBe(2)
+})
+
+test('上翻历史出现「回到底部」，点击后重新贴底', async ({ page }) => {
+  const longAnswer = Array.from({ length: 60 }, (_, i) => `第 ${i + 1} 段：用于撑高消息区的说明文字。`).join(
+    '\n\n'
+  )
+  await mockAi(page, { [AI_PATHS.chat]: { answer: longAnswer } })
+  await loginAs(page, { who: 'student', path: '/student/home', aiEnabled: true })
+
+  await page.locator('.assistant-ball').click()
+  await page.locator('#ai-chat-input').fill('E2E：回到底部测试')
+  await page.locator('.composer-send').click()
+  await expect(page.locator('.composer-send')).toBeVisible()
+
+  const scroller = page.locator('.ai-chat-scroll')
+  // 流式结束后应贴在底部：先确认跟随语义没把用户钉在半途
+  const pinned = await scroller.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight)
+  expect(pinned).toBeLessThan(40)
+
+  await scroller.evaluate((el) => {
+    el.scrollTop = 0
+  })
+  await expect(page.locator('.ai-chat-jump')).toBeVisible()
+
+  await page.locator('.ai-chat-jump').click()
+  await expect(page.locator('.ai-chat-jump')).toHaveCount(0)
+  const distance = await scroller.evaluate(
+    (el) => el.scrollHeight - el.scrollTop - el.clientHeight
+  )
+  expect(distance).toBeLessThan(40)
+})
+
+test('Esc 停止生成：与「停止」按钮等价，中断后立刻恢复可发送', async ({ page }) => {
+  await mockAi(page, {})
+  await loginAs(page, { who: 'student', path: '/student/home', aiEnabled: true })
+
+  // 挂起 chat SSE：请求不返回，「回答中」态就稳定，避免与延迟赛跑
+  await page.route(
+    (url) => url.pathname === AI_PATHS.chat,
+    async () => {
+      await new Promise(() => {})
+    }
+  )
+
+  await page.locator('.assistant-ball').click()
+  const streamRequest = page.waitForRequest((r) => r.url().includes('/api/ai/chat?stream=true'))
+  await page.locator('#ai-chat-input').fill('E2E：Esc 停止测试')
+  await page.locator('.composer-send').click()
+  await streamRequest
+
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  await expect(page.getByRole('button', { name: '发送' })).toBeVisible()
+  await expect(page.locator('.typing-cursor')).toHaveCount(0)
+  // 未收到任何正文：空气泡被移除，仅保留用户提问，输入框可继续发送
+  await expect(page.locator('.chat-msg.ai')).toHaveCount(0)
+  await expect(page.locator('.chat-msg.user')).toHaveCount(1)
+})

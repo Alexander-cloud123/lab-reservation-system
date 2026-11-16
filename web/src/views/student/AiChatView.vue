@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { probeAiRecommend } from '@/utils/aiProbe'
 import { useAiChat } from '@/composables/useAiChat'
@@ -12,11 +12,19 @@ const chat = useAiChat()
 const { conversations, activeConversation, activeId, messages, hasMessages, input, sending, liveStatus, offNotice, degradedNotice } = chat
 
 const scrollRef = ref(null)
+const composerRef = ref(null)
+/** 上翻到历史深处时出现「回到底部」，避免用户找不到正在生成的回答 */
+const showJump = ref(false)
 /** 用户主动上翻读历史时不打扰：只有贴着底部才自动跟随新内容 */
 let stickToBottom = true
 let followFrame = 0
 
 const title = computed(() => (activeConversation.value ? activeConversation.value.title : 'AI 预约助手'))
+/** 只有最后一条回答可重新生成：避免误替换历史回答 */
+function canRegenerateMessage(message) {
+  return !sending.value && message.role === 'ai' && message.id === lastMessageId.value
+}
+
 const lastMessageId = computed(() => (messages.value.length ? messages.value[messages.value.length - 1].id : ''))
 const aiOff = computed(() => offNotice.value)
 
@@ -27,25 +35,35 @@ const suggestions = [
   '管理员审核一般要多久？'
 ]
 
-function atBottom() {
-  const el = scrollRef.value
-  if (!el) {
-    return true
-  }
-  return el.scrollHeight - el.scrollTop - el.clientHeight < 40
-}
 
-function scrollToBottom() {
+/** 只把视口钉到底部，不改变「是否跟随」的用户意图（滚动事件负责判定） */
+function pinToBottom() {
   const el = scrollRef.value
   if (!el) {
     return
   }
+  // 瞬时贴底：smooth 滚动会让首帧滚动事件把 stickToBottom 判成 false，跟随随即中断
+  const behavior = el.style.scrollBehavior
+  el.style.scrollBehavior = 'auto'
   el.scrollTop = el.scrollHeight
+  el.style.scrollBehavior = behavior
+  showJump.value = false
+}
+
+/** 用户主动回到底部（发送新问题、点击「回到底部」）：恢复跟随 */
+function scrollToBottom() {
+  pinToBottom()
   stickToBottom = true
 }
 
 function onScroll() {
-  stickToBottom = atBottom()
+  const el = scrollRef.value
+  if (!el) {
+    return
+  }
+  const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+  stickToBottom = distance < 40
+  showJump.value = distance > 160
 }
 
 /** 流式输出期间用 rAF 跟随，避免每个 delta 都同步触发布局抖动 */
@@ -57,7 +75,10 @@ function followLoop() {
       return
     }
     if (stickToBottom) {
-      scrollToBottom()
+      pinToBottom()
+    } else {
+      // 用户上翻读历史时不抢滚动条，只提示可回到底部
+      showJump.value = true
     }
     followFrame = requestAnimationFrame(step)
   }
@@ -72,10 +93,17 @@ watch(
 watch(sending, (value) => {
   if (value) {
     followLoop()
-  } else {
-    cancelAnimationFrame(followFrame)
-    followFrame = 0
+    return
   }
+  cancelAnimationFrame(followFrame)
+  followFrame = 0
+  // 正文在流式结束时才完成最终渲染：贴底状态下补一次，避免停在半途
+  nextTick(() => {
+    if (stickToBottom) {
+      pinToBottom()
+    }
+    onScroll()
+  })
 })
 
 async function ask(question) {
@@ -91,6 +119,13 @@ function onSend() {
     return
   }
   ask(question)
+  nextTick(() => composerRef.value && composerRef.value.focus())
+}
+
+/** 重新生成：删除最后一条回答并用同一提问重发，输入框保持聚焦 */
+function onRegenerate() {
+  chat.regenerate({ onFirstDelta: scrollToBottom })
+  nextTick(() => composerRef.value && composerRef.value.focus())
 }
 
 function onNewConversation() {
@@ -98,7 +133,21 @@ function onNewConversation() {
   scrollToBottom()
 }
 
+function onKeydown(event) {
+  // Esc 与主流对话产品一致：流式中按 Esc 立即停止，不误清输入
+  if (event.key === 'Escape' && sending.value) {
+    event.preventDefault()
+    chat.stop()
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+  nextTick(() => composerRef.value && composerRef.value.focus())
+})
+
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
   cancelAnimationFrame(followFrame)
   chat.dispose()
 })
@@ -175,7 +224,7 @@ probeAiRecommend().catch(() => {})
       <p v-if="aiOff" class="ai-chat-banner">{{ aiOff }}</p>
 
       <div ref="scrollRef" class="ai-chat-scroll" @scroll.passive="onScroll">
-        <div class="ai-chat-stream chat-body">
+        <div class="ai-chat-stream chat-body" :aria-busy="sending">
           <div v-if="!hasMessages" class="ai-chat-welcome">
             <h1>你好，我是 AI 预约助手</h1>
             <p>可以帮你查空教室、解释预约与审核规则，也会把思考过程摊开给你看。</p>
@@ -191,11 +240,22 @@ probeAiRecommend().catch(() => {})
             :key="message.id"
             :message="message"
             :streaming="sending && message.id === lastMessageId"
+            :can-regenerate="canRegenerateMessage(message)"
+            @regenerate="onRegenerate"
           />
 
           <p v-if="aiOff && hasMessages" class="ai-chat-banner is-inline">{{ aiOff }}</p>
         </div>
       </div>
+
+      <button
+        v-if="showJump"
+        type="button"
+        class="ai-chat-jump"
+        @click="scrollToBottom"
+      >
+        回到底部 ↓
+      </button>
 
       <div class="ai-chat-dock">
         <p
@@ -369,6 +429,7 @@ probeAiRecommend().catch(() => {})
 }
 
 .ai-chat-main {
+  position: relative;
   display: flex;
   flex: 1;
   min-width: 0;
@@ -505,6 +566,27 @@ probeAiRecommend().catch(() => {})
 .ai-chat-suggestions button:focus-visible {
   outline: 2px solid var(--brand-primary-border, #c2d4ff);
   outline-offset: 1px;
+}
+
+.ai-chat-jump {
+  position: absolute;
+  right: 32px;
+  bottom: 132px;
+  z-index: 5;
+  padding: 6px 12px;
+  border: 1px solid var(--border-color-light);
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: var(--shadow-raised, 0 2px 8px rgba(31, 35, 41, 0.08));
+  color: var(--text-regular);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ai-chat-jump:hover {
+  color: var(--text-primary);
+  border-color: var(--border-color);
 }
 
 .ai-chat-dock {

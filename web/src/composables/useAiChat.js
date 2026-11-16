@@ -140,7 +140,7 @@ export function useAiChat() {
    * 发送一条提问。onFirstDelta 在首个正文片段到达时回调（页面用它强制贴底滚动）。
    * 返回 Promise，流结束或中断后 resolve。
    */
-  async function send(question, { onFirstDelta } = {}) {
+  async function send(question, { onFirstDelta, appendUser = true } = {}) {
     const text = (question || '').trim()
     if (!text || sending.value) {
       return
@@ -151,7 +151,9 @@ export function useAiChat() {
     offNotice.value = ''
     degradedNotice.value = ''
 
-    const history = conversation.messages
+    // 重新生成时不追加用户气泡，历史需排除当前这条提问，避免发给模型两份同样的问题
+    const historySource = appendUser ? conversation.messages : conversation.messages.slice(0, -1)
+    const history = historySource
       .filter((message) => message.content && message.content.trim())
       .slice(-HISTORY_LIMIT)
       .map((message) => ({
@@ -164,7 +166,9 @@ export function useAiChat() {
       conversation.renamed = true
     }
 
-    conversation.messages.push({ id: createId(), role: 'user', content: text, at: Date.now() })
+    if (appendUser) {
+      conversation.messages.push({ id: createId(), role: 'user', content: text, at: Date.now() })
+    }
 
     // 必须用 reactive 包一层：流式回调通过局部变量原样改写状态，若保持裸对象
     // 会绕过响应式 set 陷阱，面板永远停在「正在思考」。
@@ -350,6 +354,24 @@ export function useAiChat() {
     }
   }
 
+  /**
+   * 重新生成：删掉最后一条回答，用同一提问重发（DeepSeek 的「重新生成」语义）。
+   * 用户提问只保留一条，不重复追加气泡。
+   */
+  async function regenerate({ onFirstDelta } = {}) {
+    if (sending.value) {
+      return
+    }
+    const conversation = ensureConversation()
+    const index = conversation.messages.map((message) => message.role).lastIndexOf('user')
+    if (index === -1) {
+      return
+    }
+    const question = conversation.messages[index].content
+    conversation.messages.splice(index + 1)
+    await send(question, { onFirstDelta, appendUser: false })
+  }
+
   /** 停止生成：中断流式接收；已收到的片段原样保留，空气泡在 send() 收尾时移除 */
   function stop() {
     if (controller) {
@@ -377,6 +399,7 @@ export function useAiChat() {
     offNotice,
     lastActivity,
     send,
+    regenerate,
     stop,
     newConversation,
     switchConversation,

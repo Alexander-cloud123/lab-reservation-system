@@ -5,8 +5,12 @@ import AiThinkingPanel from './AiThinkingPanel.vue'
 const props = defineProps({
   message: { type: Object, required: true },
   /** 最后一条 AI 回答在流式过程中才显示光标 */
-  streaming: { type: Boolean, default: false }
+  streaming: { type: Boolean, default: false },
+  /** 仅最后一条回答允许重新生成，避免历史回答被误替换 */
+  canRegenerate: { type: Boolean, default: false }
 })
+
+const emit = defineEmits(['regenerate'])
 
 const copied = ref(false)
 let copiedTimer = 0
@@ -53,9 +57,19 @@ async function copyAnswer() {
     </div>
     <span v-if="streaming" class="typing-cursor" aria-hidden="true"></span>
 
-    <div v-if="!streaming && message.content" class="ai-chat-actions">
-      <button type="button" class="ai-chat-copy" @click="copyAnswer">
+    <p v-if="message.state === 'stopped'" class="ai-chat-stopped">回答已停止生成，可重新生成或再次提问。</p>
+
+    <div v-if="!streaming && (message.content || message.state === 'error')" class="ai-chat-actions">
+      <button v-if="message.content" type="button" class="ai-chat-copy" @click="copyAnswer">
         {{ copied ? '已复制' : '复制' }}
+      </button>
+      <button
+        v-if="canRegenerate"
+        type="button"
+        class="ai-chat-copy ai-chat-regen"
+        @click="emit('regenerate')"
+      >
+        {{ message.state === 'error' ? '重试' : '重新生成' }}
       </button>
       <span class="ai-chat-badge">AI 生成，仅供参考</span>
     </div>
@@ -198,6 +212,12 @@ async function copyAnswer() {
   background: var(--text-regular);
   vertical-align: middle;
   animation: typing-blink 1s steps(2, start) infinite;
+}
+
+.ai-chat-stopped {
+  margin: 8px 0 0;
+  color: var(--text-placeholder);
+  font-size: 12px;
 }
 
 .ai-chat-actions {

@@ -545,15 +545,16 @@ async function segAiAssistant(page) {
   await sleep(2400)
 
   await tap(page, page.locator('.assistant-ball'), { delay: 220 })
-  const drawer = page.locator('.assistant-drawer')
-  await mustSee(drawer, 'AI 助手抽屉')
+  await page.waitForURL(/\/student\/ai$/, { timeout: 15000 })
+  const drawer = page.locator('.ai-chat-page')
+  await mustSee(drawer, 'AI 对话页')
 
   await setCaption(page, '自然语言提问：明天有哪些预约、取消要注意什么')
-  const input = page.locator('#ai-assistant-question')
+  const input = page.locator('#ai-chat-input')
   await input.fill('我明天有哪些预约？取消预约要注意什么？')
   await sleep(800)
 
-  await tap(page, drawer.locator('button').filter({ hasText: '发送' }).first(), { delay: 260 })
+  await tap(page, page.locator('.composer-send'), { delay: 260 })
   await setCaption(page, '思考过程先展开：步骤来自真实执行轨迹，不是伪造的思维链')
 
   const panel = drawer.locator('.thinking')
@@ -573,7 +574,7 @@ async function segAiAssistant(page) {
   try {
     await page.waitForFunction(
       () => {
-        const body = document.querySelector('.assistant-drawer .markdown-body')
+        const body = document.querySelector('.ai-chat-page .markdown-body')
         return !!body && body.textContent.trim().length > 0
       },
       { timeout: 45000 }
@@ -583,7 +584,7 @@ async function segAiAssistant(page) {
   }
 
   if (!answered) {
-    const stop = drawer.locator('button').filter({ hasText: '停止' }).first()
+    const stop = page.locator('.composer-stop')
     if (await stop.count()) await tap(page, stop, { delay: 180 })
     await setCaption(page, '上游排队较慢：前端手动中断，服务端 60 秒预算兜底降级')
     await sleep(2000)
@@ -599,13 +600,13 @@ async function segAiAssistant(page) {
     } else {
       await setCaption(page, '模型未返回推理时明确说明「以上为本次处理的实际步骤」，不编造内容')
     }
-    await drawer.locator('.chat-body').evaluate(el => { el.scrollTop = el.scrollHeight }).catch(() => {})
+    await drawer.locator('.ai-chat-scroll').evaluate(el => { el.scrollTop = el.scrollHeight }).catch(() => {})
     await sleep(2200)
   }
 
   await setCaption(page, 'AI 只读不写：业务操作仍由你手动确认；生成内容固定标注「仅供参考」')
   await sleep(2200)
-  await page.keyboard.press('Escape')
+  await page.locator('.topbar-back').click().catch(() => {})
   await sleep(600)
 }
 

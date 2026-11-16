@@ -27,6 +27,15 @@ export function sseFrame(event, data) {
 }
 
 /**
+ * 无 JSON 载荷的 SSE 帧（真实后端 done 事件的线格式：`event:done\ndata:` + 空行）。
+ * 与 {@link sseFrame} 分开，是因为 JSON.stringify(undefined) 会得到 undefined 字符串拼接错误；
+ * 真实 SseEmitter 对空对象也会写成空 data，前端必须能把它当终态而不是脏帧丢弃。
+ */
+export function sseEmptyFrame(event) {
+  return `event:${event}\ndata:\n\n`
+}
+
+/**
  * 把问答 VO（{enabled,message,answer}）转换为流式 SSE 响应体：
  * meta（degraded 取 message 是否非空）→ answer 按 8 字切多个 delta → done。
  * Playwright route.fulfill 一次性返回整段响应体（无法按时间推块），
@@ -215,8 +224,9 @@ export function structuredStreamBody(kind, payload) {
     body += sseFrame('phase', phaseMeta[kind])
   }
   body += sseFrame('result', vo)
-  // done 无业务载荷（后端发空对象）
-  body += sseFrame('done', {})
+  // done 无业务载荷：真实后端 SseEmitter 对 new Object() 只写出 "event:done\ndata:"（没有 JSON 体），
+  // 与 sseFrame 的 JSON.stringify 不同——mock 必须照抄真实线格式，否则会把前端「空载荷终态」缺陷漏检。
+  body += sseEmptyFrame('done')
   return body
 }
 

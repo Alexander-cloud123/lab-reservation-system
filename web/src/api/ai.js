@@ -213,9 +213,19 @@ function dispatchFrame(rawFrame, handlers) {
   if (!dataLines.length) {
     return
   }
+  const rawData = dataLines.join('\n')
+  // 空载荷事件（线上真实后端 done 帧为 "event:done\ndata:"，无 JSON 体）：
+  // 不能按「脏帧」丢弃——done/error 正是终态信号，丢弃会让调用方永久等待，探测结果回退为未启用。
+  if (!rawData.trim()) {
+    const emptyCallback = handlers[eventName]
+    if (emptyCallback) {
+      emptyCallback(null)
+    }
+    return
+  }
   let data
   try {
-    data = JSON.parse(dataLines.join('\n'))
+    data = JSON.parse(rawData)
   } catch {
     return
   }

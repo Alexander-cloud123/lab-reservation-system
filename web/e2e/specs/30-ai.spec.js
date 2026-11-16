@@ -1013,3 +1013,18 @@ test('AI 助手思考过程：AI 关闭态不渲染任何思考面板', async ({
   await expect(page.locator('.chat-msg.ai .chat-bubble').last()).toContainText(disabledMsg)
   await expect(page.locator('.thinking')).toHaveCount(0)
 })
+/* 8. 回归：结构化 SSE 的 done 帧为空载荷（线上真实线格式 event:done\ndata:）   */
+/*    曾因前端按「脏帧」丢弃空 data，done 永不落地 → 探测 Promise 悬空          */
+/*    → 推荐卡与悬浮球在真机全隐藏（mock 用 data:{} 掩盖了该缺陷）。            */
+test('结构化流空载荷 done 帧仍是终态：推荐卡与悬浮球正常出现', async ({ page }) => {
+  await mockAi(page, {})
+  await loginAs(page, { who: 'student', path: '/student/home', aiEnabled: true })
+
+  // 探测结果落地（enabled=true）后两个入口才会出现
+  await expect(page.locator('.ai-recommend-card')).toBeVisible()
+  await expect(page.locator('.ai-recommend-card .recommend-item')).toHaveCount(3)
+  await expect(page.locator('.assistant-ball')).toBeVisible()
+
+  // 快速预约 / 合规校验与推荐卡复用同一个结构化解析器，回填阶段由第 2、3 节用例覆盖；
+  // 本用例只锁定前置条件：done 若被当脏帧丢弃，探测 Promise 会一直悬空，两个入口都不会出现。
+})

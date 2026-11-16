@@ -28,6 +28,8 @@
 
 - **AI 开关变更后悬浮球不再"消失到底"**：前端此前只信任登录时落盘的 `reservation_ai_enabled`，开关后开时旧值 `false` 会让 `probeAiRecommend()` 直接短路（刷新无效，只能重新登录才恢复）。`web/src/utils/aiProbe.js` 改为始终向服务端探测（仅未登录时短路），`AiAssistant.vue` 探测成功后回写 store 与 localStorage，下次启动即为正确值。另新增 [`server/scripts/ai-switch.ps1`](server/scripts/ai-switch.ps1)（默认开、`-Off` 关：改 `ai_config.ai_enable`、清 `cache:ai:*`、等 5 秒开关缓存过期、校验登录接口下发的 `aiEnabled`），避免 `init_db.sql` 复位后忘记开开关导致演示时 AI 入口静默缺失。
 
+- **修复结构化 SSE 空载荷终态（AI 入口在真实后端全隐藏）**：真实后端 `SseStructuredStreamSink.done()` 对空对象只写出 `event:done\ndata:`（没有 JSON 体），前端 `dispatchFrame` 把空 `data:` 当脏帧丢弃，`done` 永不落地 → `probeAiRecommend()` 的 Promise 一直悬空 → 推荐卡、悬浮球、AI 快速预约在**真机**上全部不出现（E2E 用 mock 的 `data:{}` 掩盖了该缺陷）。前端改为把「空载荷事件」按终态分发（`done` 回调收到 `null`），并同步 `web/e2e/helpers/ai.js` 的 mock 线格式为真实空 `data:`，新增回归用例「结构化流空载荷 done 帧仍是终态」。修复后实测推荐卡与悬浮球立即出现。
+
 ### 测试
 
 - 后端 **323 项**（+14）：新增 `AiThinkingTraceTest`（步骤计时 / closed 后静默丢弃 / 写失败抛 UncheckedIOException）、`AiChatStreamServiceTest` 5 例（成功轨迹顺序、缓存命中、降级 failed+fallback、关闭态无轨迹、reasoning 透传且不并入正文）、`AiStreamFramesTest` 2 例（`reasoning_content` 与别名 `reasoning`）、`AgnesClientStreamOrchestrationTest` 2 例（推理端口隔离）。

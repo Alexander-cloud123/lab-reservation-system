@@ -40,6 +40,7 @@ thinking(scene running) → thinking(scene done) → thinking(retrieve running) 
 - `thinking(summary)` 一定先于首个 `delta`：正文开始输出时，头部即可显示「已思考 X.X 秒」。
 - `thinking(verify)` 在最后一个 `delta` 之后、`done` 之前。
 - `reasoning` 帧可出现在任意位置，前端按到达顺序拼接。
+- **`done` 无业务载荷**：结构化接口的 `done` 帧线上是 `event:done\ndata:`（空 data，没有 JSON 体），问答接口的 `done` 带 `{finishReason}`。前端解析器必须把「空载荷事件」当作合法终态分发，否则 `done` 会被当成脏帧丢弃、调用方永久等待（真实后端下 AI 入口曾因此全隐藏，回归用例见 `30-ai.spec.js`「结构化流空载荷 done 帧仍是终态」）。
 
 ### `thinking` 负载
 

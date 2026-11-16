@@ -12,6 +12,8 @@
 
 ### 修复 / 安全加固
 
+- **AI 默认口径调整为「容器演示默认开启」**：`docker-compose.yml` 的 api 环境默认值由 `AI_ENABLE=false` 改为 `true`，`.env.example` 同步为 `AI_ENABLE=true`，`database/init_db.sql` 种子 `ai_config.ai_enable` 改为 `true`——`docker compose up -d` 后登录即下发 `aiEnabled=true`，不再需要人工跑开关脚本。裸 `java -jar`、单元测试与 CI 仍由 `application.yml` 的 `${AI_ENABLE:false}` 与工作流显式 `AI_ENABLE=false` 保持关闭（零依赖、确定性不变）。未配置 `AGNES_API_KEY` 时两开关仍为开启，但所有 AI 回复自动降级为本地规则并在界面标注「AI 服务未配置密钥」，不阻断预约核心功能。存量数据卷（种子改动前创建、`ai_enable` 仍为 `false`）需跑一次 `pwsh server/scripts/ai-switch.ps1` 补齐；文档见 [docs/运行与配置.md](docs/运行与配置.md)。
+
 - **会话撤销改为数据库版本号权威**：`sys_user` 新增 `token_version`（幂等迁移脚本 [`database/migrations/20261107_add_sys_user_token_version.sql`](database/migrations/20261107_add_sys_user_token_version.sql)）。JWT 签发时携带版本号，登出 / 改密 / 管理员重置 / 启用禁用都会原子自增，正常路径下旧 Token 下一次请求即 401——Redis 关闭、后端重启、多实例部署下同样成立（删除鉴权快照失败的异常路径见下方「文档」修正条目）。
 - 移除 Redis 侧「本地撤销标记」兜底（`RedisCache.removeToken` 的「撤销未完全确认」异常语义），改为 `invalidateSession` 只做清理；鉴权状态缓存升级为 `status|tokenVersion`。
 - Redis 启用但连接异常时鉴权 **fail closed（401）**，不再退化为仅 JWT 放行；`REDIS_ENABLE=false` 才是明确无状态模式（无单点会话，撤销仍由版本号保证）。

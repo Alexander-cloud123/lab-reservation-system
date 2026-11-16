@@ -170,17 +170,20 @@ mvn -f server/pom.xml spring-boot:run
 cd web; npm ci; npm run dev                     # http://127.0.0.1:5173
 ```
 
-### 启用 AI（可选，双开关缺一不可）
+### AI 开关（容器演示默认开启）
+
+`docker compose up -d` 后 AI 立即可用：登录接口下发 `aiEnabled=true`，学生端右下角出现悬浮球，教室推荐卡与智能预约入口同步开启。此时：
+
+- **不填密钥**：AI 回复走本地规则，界面统一标注「AI 服务未配置密钥，已自动切换为本地规则模式」，预约核心功能不受影响；
+- **填了密钥**：接真实模型 `agnes-3.0-flash`，`.env` 中设置 `AGNES_API_KEY=<密钥>` 后 `docker compose up -d api`（`restart` 不会重读环境变量）。
 
 ```powershell
-# 1. .env 设置 AI_ENABLE=true 与 AGNES_API_KEY=<密钥>，重建后端（restart 不会重读环境变量）
-docker compose up -d api
-# 2. 打开数据库动态开关（同时清理 AI 缓存并校验登录下发的 aiEnabled）
-pwsh server/scripts/ai-switch.ps1
-# 3. 浏览器刷新页面即可，开关变更无需重新登录
+# 关闭演示里的 AI（两种方式任选，前者需重建容器，后者立即生效）
+# 1) .env 改 AI_ENABLE=false，然后 docker compose up -d api
+# 2) 运行时切换：pwsh server/scripts/ai-switch.ps1 -Off
 ```
 
-> AI 悬浮球不出现时先查两个开关：`AI_ENABLE`（静态，改后必须重建 api 容器）与 `ai_config.ai_enable`（动态，`init_db.sql` 复位后会回到 `false`）。`pwsh server/scripts/ai-switch.ps1` 会打印登录接口返回的 `aiEnabled`，是排查最快的一步。
+> 默认口径分层：容器演示默认开启；裸 `java -jar`、单元测试与 CI 仍由 `application.yml` 的 `ai.enable=${AI_ENABLE:false}` 保持关闭（零依赖、确定性）。沿用旧数据卷的部署若 `ai_config.ai_enable` 仍为 `false`，跑一次 `pwsh server/scripts/ai-switch.ps1` 补齐。悬浮球不出现时的排查顺序见 [`docs/运行与配置.md`](docs/运行与配置.md)。
 
 演示账号：管理员 `admin / admin123`；学生 `zhangsan / 123456`（另有 `lisi`、`wangwu`、`zhaoliu`，密码均为 `123456`）。
 

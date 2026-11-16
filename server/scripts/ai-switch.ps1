@@ -10,8 +10,9 @@
       2. redis-cli 删除 cache:ai:*（AI 回答缓存）
       3. 调登录接口校验 LoginVO.aiEnabled 是否与开关一致
 
-    为什么需要它：database/init_db.sql 复位种子数据会把 ai_enable 重置为 false，
-    每次演示前忘记手动开开关时，AI 悬浮球、推荐卡、智能预约都会静默消失。
+    默认口径（2026-11 调整）：docker compose 演示默认开启 AI（compose 注入 AI_ENABLE=true、
+    init_db.sql 种子 ai_enable=true），全新启动无需再跑本脚本。本脚本用于：切关演示 AI、
+    或在沿用旧数据卷（ai_enable 仍为 false）的存量部署里补齐动态开关。
     AI 开关在服务端有 5 秒进程内缓存，脚本会等待 6 秒再校验。
 
     注意：本脚本要求 docker compose 栈已启动（api / mysql / redis）。

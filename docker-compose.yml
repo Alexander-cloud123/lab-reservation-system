@@ -81,7 +81,9 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       # 生产/演示必须覆盖 JWT_SECRET；AI 密钥只从 .env 或宿主机环境变量注入
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET 未设置：请先 cp .env.example .env，再写入至少 32 字节随机值（见 docs/运行与配置.md）}
-      AI_ENABLE: ${AI_ENABLE:-false}
+      # 容器演示默认开启 AI：未配置密钥时自动降级为本地规则，不影响预约核心功能；
+      # 裸 jar / 单测 / CI 由 application.yml 默认 false 与工作流显式 AI_ENABLE=false 保持关闭
+      AI_ENABLE: ${AI_ENABLE:-true}
       AGNES_API_KEY: ${AGNES_API_KEY:-}
       # 对外部署关闭接口文档与 SQL 明细日志
       KNIFE4J_ENABLE: "false"

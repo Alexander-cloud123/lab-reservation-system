@@ -34,6 +34,9 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -94,6 +97,9 @@ public class AiChatServiceImpl implements AiChatService {
 
     /** R13-3 历史中 assistant 消息最大长度（防止长答案回灌放大 token） */
     private static final int HISTORY_ASSISTANT_MAX_LENGTH = 500;
+
+    /** 问答上下文中的当前时间格式：东八区、精确到分钟，供模型解析「今天 / 明天」 */
+    private static final DateTimeFormatter CONTEXT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     /** 预约场景词： deterministic 场景闸门，不依赖模型 Prompt 拒答 */
     private static final List<String> SCENE_KEYWORDS = List.of(
@@ -434,6 +440,14 @@ public class AiChatServiceImpl implements AiChatService {
                 new LambdaQueryWrapper<Reservation>().eq(Reservation::getUserId, userId));
 
         StringBuilder sb = new StringBuilder();
+        // 「今天 / 明天」相对日期必须由服务端给出权威值：模型只能看到预约日期字面量，
+        // 若无当前时间它会自行猜测（实测把今天猜成两天前）。固定东八区，与业务时区口径一致。
+        ZonedDateTime now = ZonedDateTime.now(ZoneId.of("Asia/Shanghai"));
+        sb.append("【当前时间】")
+                .append(now.format(CONTEXT_TIME_FORMATTER))
+                .append("（Asia/Shanghai，星期")
+                .append("一二三四五六日".charAt(now.getDayOfWeek().getValue() - 1))
+                .append("）\n");
         sb.append("【用户预约概况】共 ").append(total).append(" 条预约记录");
         if (recent.isEmpty()) {
             sb.append("；暂无预约记录");

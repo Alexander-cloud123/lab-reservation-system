@@ -163,8 +163,10 @@ class AiChatStreamServiceTest {
         stubCacheKey();
         when(aiConfigService.isAiEnabled()).thenReturn(true);
         when(aiResultCache.get(anyString(), any(TypeReference.class))).thenReturn(null);
+        String[] capturedUserMessage = new String[1];
         when(agnesClient.chatStream(anyLong(), anyString(), anyList(), anyString(), any(Runnable.class), any(), any()))
                 .thenAnswer(inv -> {
+                    capturedUserMessage[0] = inv.getArgument(3, String.class);
                     inv.getArgument(4, Runnable.class).run(); // onReady
                     inv.getArgument(6, java.util.function.Consumer.class).accept("你好");
                     inv.getArgument(6, java.util.function.Consumer.class).accept("，世界");
@@ -173,6 +175,11 @@ class AiChatStreamServiceTest {
         RecordingSink sink = new RecordingSink();
 
         service.streamChat(7L, "怎么预约", java.util.List.of(), sink);
+
+        // 上下文必须携带服务端权威当前时间，模型才能解析「今天 / 明天」（实测缺失时会把今天猜错）
+        String expectToday = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Shanghai")).toLocalDate().toString();
+        org.assertj.core.api.Assertions.assertThat(capturedUserMessage[0]).contains("【当前时间】");
+        org.assertj.core.api.Assertions.assertThat(capturedUserMessage[0]).contains(expectToday);
 
         // 精确事件序列：恰好 1 个 meta、2 个 delta、1 个 done，且顺序固定
         assertEquals(List.of("meta(true,false,null)", "delta", "delta", "done(stop)"), sink.events);

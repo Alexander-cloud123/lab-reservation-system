@@ -93,6 +93,18 @@ thinking(scene running) → thinking(scene done) → thinking(retrieve running) 
 | 上游失败/限流 | scene → retrieve → generate(failed) → fallback → summary（「已降级为本地规则」）→ 降级回答 → done |
 | AI 关闭 | 不发任何 thinking/reasoning，直接 meta(disabled) + done |
 
+### 问答上下文注入当前时间
+
+模型看不到系统时钟，只看到预约日期字面量；上下文若不给当前时间，它会自行猜测「今天」。真实链路验收时模型把 2026-11-16 说成「今天是 2026年11月14日」，相对日期全部偏移。
+
+因此 `AiChatServiceImpl.buildContext()` 在上下文首行固定下发：
+
+```
+【当前时间】2026-11-16 14:12（Asia/Shanghai，星期日）
+```
+
+时间取 `ZonedDateTime.now(ZoneId.of("Asia/Shanghai"))`，格式常量 `CONTEXT_TIME_FORMATTER`（`yyyy-MM-dd HH:mm`），与业务时区口径一致；单测 `AiChatStreamServiceTest#successStreamsAndCaches` 断言下发的用户消息包含该行与当天日期。
+
 ## 5. 前端实现
 
 `web/src/components/ai/AiThinkingPanel.vue`：
@@ -123,11 +135,19 @@ cd web; npx playwright test specs/30-ai.spec.js --project=chromium
 ```
 
 E2E 的「思考中」瞬时态用 `web/e2e/helpers/ai.js` 的 `patchStreamingChat()` 逐帧推送真实 `text/event-stream`，
-不调用真实模型（本机未配置 `AGNES_API_KEY`，真实模型链需负责人按 100 秒间隔验收）。
+不调用真实模型；真实模型链按以下顺序单独验收（Agnes 免费额度紧，间隔 ≥100 秒）：
+
+```powershell
+docker compose build api; docker compose up -d api
+node .devtmp\verify-ai-thinking.mjs   # 登录 → POST /api/ai/chat?stream=true → 解析 SSE
+```
+
+实测（2026-11-16，agnes-3.0-flash）：`thinking` 9 帧（scene 0 ms、retrieve 17 ms、generate 3790 ms、summary 3813 ms、verify 0 ms）→ `meta` → 30 个 `delta` → `done`，总耗时 4.6 s；上游未返回 `reasoning_content`，面板按设计回退为「只有真实轨迹」。
+
 
 ## 7. 已知边界
 
-1. **推理文本取决于上游**：Agnes 网关返回 `reasoning_content` 才有推理区内容；当前模型未在本机实测，故默认路径是「只有真实轨迹」；
+1. **推理文本取决于上游**：只有 Agnes 网关返回 `reasoning_content`（或别名 `reasoning`）才有推理区内容。本机用 `agnes-3.0-flash` 实测未返回该字段，故当前实际展示的是「真实执行轨迹」，推理区显示固定的缺省说明，不编造内容；
 2. **只覆盖 AI 助手聊天**：结构化流式入口（推荐 / 解析预约 / 合规检查）仍是一行阶段提示，避免同轮改动面过大；
 3. **不缓存思考过程**：缓存命中时只重放回答，步骤重新走一遍（scene → cache → summary），保证面板始终反映本次请求的真实情况；
 4. **思考事件不是业务数据**：写入失败只影响面板，绝不影响回答输出与降级链路。

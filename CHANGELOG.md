@@ -8,7 +8,8 @@
 
 ### 新增
 
-- **AI 助手思考过程面板（R14）**：/api/ai/chat 流式接口新增 	hinking / easoning 两个 SSE 事件。	hinking 按真实执行轨迹下发（场景判断 → 检索预约记录 → 调用模型 → 校验回答，缓存命中 / 降级 / 超范围 / 关闭态各有独立步骤），每步带服务端真实耗时与 unning/done/failed 状态；上游若返回 easoning_content（含 easoning 别名）则原样透传，**不伪造思维链、不并入正文**。前端新增 AiThinkingPanel：思考中三点脉冲 + 每 100ms 刷新计时，首个正文到达自动折叠为「已思考 X.X 秒」，可展开查看步骤时间线与推理原文（固定标注「模型推理 · AI 生成，仅供参考」）；降级 / 缓存命中 / 停止 / 失败各有明确文案，模型未返回推理时明确说明「以上为本次处理的实际步骤」，不编造内容。助手滚动改为仅在距底 ≤24px 时跟随。设计说明见 [docs/AI思考过程设计.md](docs/AI思考过程设计.md)。
+- **AI 助手思考过程面板（R14）**：`/api/ai/chat` 流式接口新增 `thinking` / `reasoning` 两个 SSE 事件。`thinking` 按真实执行轨迹下发（场景判断 → 检索预约记录 → 调用模型 → 校验回答，缓存命中 / 降级 / 超范围 / 关闭态各有独立步骤），每步带服务端真实耗时与 `running` / `done` / `failed` 状态；上游若返回 `reasoning_content`（含 `reasoning` 别名）则原样透传，**不伪造思维链、不并入正文**。前端新增 `AiThinkingPanel`：思考中三点脉冲 + 每 100ms 刷新计时，首个正文到达自动折叠为「已思考 X.X 秒」，可展开查看步骤时间线与推理原文（固定标注「模型推理 · AI 生成，仅供参考」）；降级 / 缓存命中 / 停止 / 失败各有明确文案，模型未返回推理时明确说明「以上为本次处理的实际步骤」，不编造内容。助手滚动改为仅在距底 ≤24px 时跟随。设计说明见 [docs/AI思考过程设计.md](docs/AI思考过程设计.md)。
+
 ### 修复 / 安全加固
 
 - **会话撤销改为数据库版本号权威**：`sys_user` 新增 `token_version`（幂等迁移脚本 [`database/migrations/20261107_add_sys_user_token_version.sql`](database/migrations/20261107_add_sys_user_token_version.sql)）。JWT 签发时携带版本号，登出 / 改密 / 管理员重置 / 启用禁用都会原子自增，正常路径下旧 Token 下一次请求即 401——Redis 关闭、后端重启、多实例部署下同样成立（删除鉴权快照失败的异常路径见下方「文档」修正条目）。
@@ -20,6 +21,8 @@
 - **上线前安全基线（Docker 部署）**：`docker-compose.yml` 的 api 固定 `SPRING_PROFILES_ACTIVE=prod`，`JWT_SECRET` 改为必填（缺失 / 为空 / 沿用开发默认值直接拒绝启动，已实测 `docker compose config` 退出 1）；容器关闭接口文档（`knife4j.enable=false` + `spring.web.resources.add-mappings=false`，`/doc.html` 不再返回文档页、`/v3/api-docs` 不再返回 schema，统一落到 `{"code":404}` 语义）与 MyBatis SQL 明细日志（`NoLoggingImpl`）；`web/nginx.conf` 增 `server_tokens off`、四条安全响应头（`/assets/` 与 `= /index.html` 各自补 `add_header`，避免继承被覆盖）、登录 / 注册 `limit_req`（10r/m，burst 9，第 11 次起 429）；CORS 白名单改由 `CORS_ALLOWED_ORIGINS` 注入，compose 默认收敛到本机 `8088` 与 Vite dev / E2E 的 `5173`。本机 `mvn spring-boot:run` 行为不变。
 - 关闭静态资源映射后，未映射路径原先会被兜底异常处理器当成 500：GlobalExceptionHandler 新增 NoHandlerFoundException 处理，返回统一 {"code":404,"message":"接口不存在"}（/api/classroom 这类少写一段的路径不再报 500）。
 - server/scripts/smoke.ps1 匿名访问用例从 /api/classroom 改到真实存在的 /api/classroom/list，避免依赖静态资源处理器兜出的 401 假阳性。
+
+- **问答上下文补当前时间**：真实模型验收发现回答把 2026-11-16 说成「今天是 2026年11月14日」，相对日期整体偏移。`AiChatServiceImpl.buildContext()` 现于上下文首行下发 `【当前时间】yyyy-MM-dd HH:mm（Asia/Shanghai，星期X）`（固定东八区，格式常量 `CONTEXT_TIME_FORMATTER`），单测断言下发的用户消息包含该行与当天日期。
 
 ### 测试
 

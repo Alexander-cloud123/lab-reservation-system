@@ -8,9 +8,11 @@
 
 ### 新增
 
+- **AI 对话历史持久化与界面细化**：会话从「只在内存」改为浏览器本地持久化——`web/src/utils/aiChatStorage.js` 写入 `localStorage` 的 `reservation_ai_conversations:<userId>`，只存消息结构不存 HTML（恢复时重新渲染），上限 40 会话 / 每会话 60 条 / 单条 12000 字，序列化超 2MB 按活动时间淘汰，`QuotaExceededError` 再淘汰一次后静默跳过；`useAiChat` 增加 `init(userId)`、400ms 防抖落盘、发送结束立即落盘；刷新后会话、思考步骤与「已思考」计时恢复，`thinking` 态一律收敛为「已停止」、不补发请求；退出登录 `clearAuth()` 清空本地会话。界面同步细化：左栏增加搜索与「今天 / 昨天 / 更早」分组、hover 删除（二次确认），欢迎屏改竖排建议，正文 768px 居中，输入区 16px 圆角 + 34px 发送钮。新增 `web/e2e/specs/32-ai-history.spec.js` 4 条覆盖恢复 / 排序 / 删除 / 登出清理，说明见 [docs/AI对话界面.md](docs/AI对话界面.md)。
+
 - **AI 对话交互补齐（重新生成 / 回到底部 / Esc 停止 / 焦点回位）**：`useAiChat` 新增 `regenerate()`——删掉最后一条回答、用同一提问重发，不重复追加用户气泡；`AiChatMessage` 增加「重新生成」按钮（仅最后一条回答、非生成中显示，失败态显示「重试」）与「回答已停止生成」提示。对话页新增「回到底部 ↓」浮层：上翻超过 160px 才出现，点击贴底并恢复跟随；程序化贴底临时切 `scroll-behavior: auto`，避免平滑动画首帧滚动事件被误判成「用户上翻」而中断跟随。Esc 与「停止」按钮等价，流式中按下立即中断；发送/重新生成后焦点回到输入框。新增 3 条 E2E（重新生成、回到底部、Esc 停止），设计说明补进 [docs/AI对话界面.md](docs/AI对话界面.md)。
 
-- **AI 助手改为 DeepSeek 式全屏对话界面**：原来的 380px 抽屉换成 `/student/ai` 全屏页——左侧 248px 会话栏（新建 / 切换 / 删除，标题取首问前 18 字）、760px 居中正文、底部自增高输入框（Enter 发送 / Shift + Enter 换行 / 输入法组合态不拦截）、流式中发送键变「停止」。会话只存在内存，刷新即清空；`trace` 与气泡改为 `reactive()`，修复「面板永远停在正在思考」；页面只保留一个 `role="status"` 的 live region（播报最终回答纯文本），提示条与横幅不再抢读。既有 `30-ai` E2E 通过类名兼容层继续有效。设计说明见 [docs/AI对话界面.md](docs/AI对话界面.md)。
+- **AI 助手改为 DeepSeek 式全屏对话界面**：原来的 380px 抽屉换成 `/student/ai` 全屏页——左侧 248px 会话栏（新建 / 切换 / 删除，标题取首问前 18 字）、760px 居中正文、底部自增高输入框（Enter 发送 / Shift + Enter 换行 / 输入法组合态不拦截）、流式中发送键变「停止」。会话改存浏览器本地（见上一条）；`trace` 与气泡改为 `reactive()`，修复「面板永远停在正在思考」；页面只保留一个 `role="status"` 的 live region（播报最终回答纯文本），提示条与横幅不再抢读。既有 `30-ai` E2E 通过类名兼容层继续有效。设计说明见 [docs/AI对话界面.md](docs/AI对话界面.md)。
 
 - **AI 助手思考过程面板（R14）**：`/api/ai/chat` 流式接口新增 `thinking` / `reasoning` 两个 SSE 事件。`thinking` 按真实执行轨迹下发（场景判断 → 检索预约记录 → 调用模型 → 校验回答，缓存命中 / 降级 / 超范围 / 关闭态各有独立步骤），每步带服务端真实耗时与 `running` / `done` / `failed` 状态；上游若返回 `reasoning_content`（含 `reasoning` 别名）则原样透传，**不伪造思维链、不并入正文**。前端新增 `AiThinkingPanel`：思考中三点脉冲 + 每 100ms 刷新计时，首个正文到达自动折叠为「已思考 X.X 秒」，可展开查看步骤时间线与推理原文（固定标注「模型推理 · AI 生成，仅供参考」）；降级 / 缓存命中 / 停止 / 失败各有明确文案，模型未返回推理时明确说明「以上为本次处理的实际步骤」，不编造内容。助手滚动改为仅在距底 ≤24px 时跟随。设计说明见 [docs/AI思考过程设计.md](docs/AI思考过程设计.md)。
 
@@ -37,7 +39,7 @@
 ### 测试
 
 - 后端 **323 项**（+14）：新增 `AiThinkingTraceTest`（步骤计时 / closed 后静默丢弃 / 写失败抛 UncheckedIOException）、`AiChatStreamServiceTest` 5 例（成功轨迹顺序、缓存命中、降级 failed+fallback、关闭态无轨迹、reasoning 透传且不并入正文）、`AiStreamFramesTest` 2 例（`reasoning_content` 与别名 `reasoning`）、`AgnesClientStreamOrchestrationTest` 2 例（推理端口隔离）。
-- 前端 E2E **131 例 / 17 spec**（AI 助手思考过程新增 6 例、AI 入口自愈 2 例、本轮交互补 3 例（重新生成 / 回到底部 / Esc 停止）：思考中计时与步骤 → 自动折叠 → 展开推理、无推理说明、降级标记、缓存命中、关闭态不渲染面板；「思考中」瞬时态用 `patchStreamingChat` 逐帧推流，不调用真实模型）。
+- 前端 E2E **135 例 / 18 spec**（AI 助手思考过程新增 6 例、AI 入口自愈 2 例、对话交互补 3 例（重新生成 / 回到底部 / Esc 停止）、本轮历史持久化补 4 例（刷新恢复 / 会话排序 / 删除 / 登出清理）：思考中计时与步骤 → 自动折叠 → 展开推理、无推理说明、降级标记、缓存命中、关闭态不渲染面板；「思考中」瞬时态用 `patchStreamingChat` 逐帧推流，不调用真实模型）。
 - 后端 **309 项**（新增 `TokenRevocationIntegrationTest`：固定 `redis.enable=false`，验证无 Redis 也能持久撤销；新增拦截器版本号 / 状态缓存用例）。新增 4 个纯逻辑测试类补齐看板与降级链：`StatsServiceImplTest`（聚合口径 / 窗口裁剪与 14h 封顶 / 排序 / 区间校验）、`ReservationConverterTest`（批量预查短路 / 三种 VO / 状态文案）、`AiParseFallbackTest`（自然语言解析与非法输入不抛异常）、`AiRecommendFallbackTest`（规则打分与推荐理由）；另补 2 个业务分支覆盖类 `ReservationServiceImplCoverageTest`（参数校验/授权/导出上限/日历区间与可见性/关键词拼接）与 `ClassroomServiceImplCoverageTest`（CRUD 校验/删除保护/启停幂等/学生端缓存与占用时段/状态标签），以及 `UserServiceImplCoverageTest`（登录/注册/资料/改密全分支）、`RedisCacheObjectCacheTest`（对象缓存与代次失效降级）、`AiJsonSupportTest`（模型 JSON 容错解析）、`FavoriteServiceImplCoverageTest`（收藏上限与幽灵卡片过滤），行覆盖率 54% → **80.6%**（指令 81.9% / 分支 74.2%，ReservationServiceImpl 98.1%、ClassroomServiceImpl 99.1%、UserServiceImpl 97.5%、RedisCache 87.0%）。
 - 前端 E2E **120 项 / 17 spec**，新增「会话撤销」spec；新增 Microsoft Edge 全量回归项目（`npm run test:e2e:edge`，默认脚本仍只跑 Chromium）。
 - `server/scripts/smoke.ps1` 增至 **41 项**（含重置密码后旧 Token 失效断言），并修复脚本对 PowerShell 7 错误响应的兼容性。

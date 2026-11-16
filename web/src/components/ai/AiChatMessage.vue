@@ -60,8 +60,12 @@ async function copyAnswer() {
     <p v-if="message.state === 'stopped'" class="ai-chat-stopped">回答已停止生成，可重新生成或再次提问。</p>
 
     <div v-if="!streaming && (message.content || message.state === 'error')" class="ai-chat-actions">
-      <button v-if="message.content" type="button" class="ai-chat-copy" @click="copyAnswer">
-        {{ copied ? '已复制' : '复制' }}
+      <button v-if="message.content" type="button" class="ai-chat-copy" :aria-label="copied ? '已复制' : '复制回答'" @click="copyAnswer">
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+          <rect x="9" y="9" width="10" height="10" rx="1.6" stroke="currentColor" stroke-width="1.4" fill="none" />
+          <path d="M15 6.5V5.6A1.6 1.6 0 0 0 13.4 4H6.6A1.6 1.6 0 0 0 5 5.6v6.8A1.6 1.6 0 0 0 6.6 14h.9" stroke="currentColor" stroke-width="1.4" fill="none" />
+        </svg>
+        <span>{{ copied ? '已复制' : '复制' }}</span>
       </button>
       <button
         v-if="canRegenerate"
@@ -69,7 +73,10 @@ async function copyAnswer() {
         class="ai-chat-copy ai-chat-regen"
         @click="emit('regenerate')"
       >
-        {{ message.state === 'error' ? '重试' : '重新生成' }}
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+          <path d="M19 12a7 7 0 1 1-2.4-5.3M19 5v4.4h-4.4" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+        <span>{{ message.state === 'error' ? '重试' : '重新生成' }}</span>
       </button>
       <span class="ai-chat-badge">AI 生成，仅供参考</span>
     </div>
@@ -90,7 +97,7 @@ async function copyAnswer() {
 .ai-chat-bubble {
   max-width: 78%;
   padding: 10px 14px;
-  border-radius: 12px;
+  border-radius: 16px;
   background: var(--bg-fill, #eff0f1);
   color: var(--text-primary);
   font-size: 14.5px;
@@ -230,17 +237,21 @@ async function copyAnswer() {
 }
 
 .ai-chat-copy {
-  padding: 2px 8px;
-  border: 1px solid var(--border-color-light);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border: 0;
   border-radius: var(--radius-sm);
   background: none;
-  color: var(--text-regular);
+  color: var(--text-placeholder);
   font: inherit;
+  font-size: 12px;
   cursor: pointer;
 }
 
 .ai-chat-copy:hover {
-  border-color: var(--border-color);
+  background: var(--bg-subtle, #f8f9fa);
   color: var(--text-primary);
 }
 

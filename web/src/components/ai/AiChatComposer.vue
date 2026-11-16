@@ -81,7 +81,8 @@ defineExpose({ focus })
       ></textarea>
 
       <div class="composer-bar">
-        <span class="composer-hint">Enter 发送 · Shift + Enter 换行</span>
+        <span class="composer-hint">只读 · 不提交预约</span>
+        <span class="composer-kbd">Enter 发送 · Shift + Enter 换行</span>
         <button
           v-if="sending"
           type="button"
@@ -119,7 +120,7 @@ defineExpose({ focus })
 .composer-box {
   padding: 10px 10px 8px 14px;
   border: 1px solid var(--border-color, #d0d3d6);
-  border-radius: 14px;
+  border-radius: 16px;
   background: var(--bg-card, #fff);
   transition: border-color 0.16s ease, box-shadow 0.16s ease;
 }
@@ -166,8 +167,13 @@ defineExpose({ focus })
 }
 
 .composer-hint {
+  color: var(--text-regular);
+  font-size: 12px;
+}
+
+.composer-kbd {
   color: var(--text-placeholder);
-  font-size: 11.5px;
+  font-size: 11px;
 }
 
 .composer-stop,
@@ -175,7 +181,7 @@ defineExpose({ focus })
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 30px;
+  height: 34px;
   margin-left: auto;
   border-radius: var(--radius-md);
   font: inherit;
@@ -184,7 +190,8 @@ defineExpose({ focus })
 }
 
 .composer-stop {
-  padding: 0 12px;
+  padding: 0 14px;
+  border-radius: 999px;
   border: 1px solid var(--border-color);
   background: var(--bg-card);
   color: var(--text-regular);
@@ -196,7 +203,8 @@ defineExpose({ focus })
 }
 
 .composer-send {
-  width: 30px;
+  width: 34px;
+  border-radius: 999px;
   border: 1px solid transparent;
   background: var(--brand-primary);
   color: #fff;
@@ -226,7 +234,7 @@ defineExpose({ focus })
 }
 
 @media (max-width: 720px) {
-  .composer-hint {
+  .composer-kbd {
     display: none;
   }
 }

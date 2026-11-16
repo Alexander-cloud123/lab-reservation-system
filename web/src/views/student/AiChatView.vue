@@ -1,7 +1,9 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { probeAiRecommend } from '@/utils/aiProbe'
+import { getStoredUser } from '@/utils/auth'
 import { useAiChat } from '@/composables/useAiChat'
 import AiChatMessage from '@/components/ai/AiChatMessage.vue'
 import AiChatComposer from '@/components/ai/AiChatComposer.vue'
@@ -11,15 +13,20 @@ const router = useRouter()
 const chat = useAiChat()
 const { conversations, activeConversation, activeId, messages, hasMessages, input, sending, liveStatus, offNotice, degradedNotice } = chat
 
+// 历史按用户隔离：同一台电脑换账号登录时各自读自己的记录
+chat.init(getStoredUser() ? getStoredUser().id : 'anon')
+
 const scrollRef = ref(null)
 const composerRef = ref(null)
+/** 侧栏搜索：只过滤标题，不查消息正文（会话多时也要保持瞬时响应） */
+const searchQuery = ref('')
 /** 上翻到历史深处时出现「回到底部」，避免用户找不到正在生成的回答 */
 const showJump = ref(false)
 /** 用户主动上翻读历史时不打扰：只有贴着底部才自动跟随新内容 */
 let stickToBottom = true
 let followFrame = 0
 
-const title = computed(() => (activeConversation.value ? activeConversation.value.title : 'AI 预约助手'))
+const title = computed(() => (activeConversation.value ? activeConversation.value.title : '新对话'))
 /** 只有最后一条回答可重新生成：避免误替换历史回答 */
 function canRegenerateMessage(message) {
   return !sending.value && message.role === 'ai' && message.id === lastMessageId.value
@@ -28,12 +35,71 @@ function canRegenerateMessage(message) {
 const lastMessageId = computed(() => (messages.value.length ? messages.value[messages.value.length - 1].id : ''))
 const aiOff = computed(() => offNotice.value)
 
+/** 有内容的会话才进侧栏：空「新对话」不占列表，与 DeepSeek 一致 */
+const sideConversations = computed(() => {
+  const keyword = searchQuery.value.trim().toLowerCase()
+  return conversations.value
+    .filter((conversation) => conversation.messages.length > 0)
+    .filter((conversation) => !keyword || conversation.title.toLowerCase().includes(keyword))
+    .slice()
+    .sort((a, b) => chat.lastActivity(b) - chat.lastActivity(a))
+})
+
+/** 按「今天 / 昨天 / 更早」分组，用最后一条消息的时间判断 */
+const groupedConversations = computed(() => {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000)
+  const groups = [
+    { key: 'today', label: '今天', items: [] },
+    { key: 'yesterday', label: '昨天', items: [] },
+    { key: 'earlier', label: '更早', items: [] }
+  ]
+  sideConversations.value.forEach((conversation) => {
+    const at = chat.lastActivity(conversation)
+    const day = new Date(at)
+    day.setHours(0, 0, 0, 0)
+    if (day.getTime() === today.getTime()) {
+      groups[0].items.push({ conversation, time: formatClock(at) })
+    } else if (day.getTime() === yesterday.getTime()) {
+      groups[1].items.push({ conversation, time: '昨天' })
+    } else {
+      groups[2].items.push({ conversation, time: formatDate(at) })
+    }
+  })
+  return groups.filter((group) => group.items.length)
+})
+
+function formatClock(value) {
+  const date = new Date(value)
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+function formatDate(value) {
+  const date = new Date(value)
+  return `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
 const suggestions = [
-  '明天下午有哪些空教室？',
-  '怎么取消一条已通过的预约？',
-  '预约冲突是怎么判定的？',
-  '管理员审核一般要多久？'
+  { icon: 'spark', text: '明天下午有哪些空教室？' },
+  { icon: 'calendar', text: '怎么取消一条已通过的预约？' },
+  { icon: 'shield', text: '预约冲突是怎么判定的？' },
+  { icon: 'clock', text: '管理员审核一般要多久？' }
 ]
+
+async function onDeleteConversation(conversation) {
+  try {
+    await ElMessageBox.confirm(`删除后无法恢复，确定删除「${conversation.title}」？`, '删除会话', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+  } catch {
+    // 用户取消，不做任何改动
+    return
+  }
+  chat.removeConversation(conversation.id)
+}
 
 
 /** 只把视口钉到底部，不改变「是否跟随」的用户意图（滚动事件负责判定） */
@@ -89,6 +155,12 @@ watch(
   () => messages.value.length,
   () => nextTick(scrollToBottom)
 )
+
+// 切换/恢复历史会话后直接落在最新一条，避免用户一进来看到很早的消息
+watch(activeId, () => {
+  stickToBottom = true
+  nextTick(scrollToBottom)
+})
 
 watch(sending, (value) => {
   if (value) {
@@ -177,30 +249,59 @@ probeAiRecommend().catch(() => {})
       </div>
 
       <button type="button" class="ai-chat-new" @click="onNewConversation">
-        <span aria-hidden="true">＋</span> 新对话
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" fill="none" />
+        </svg>
+        <span>新对话</span>
       </button>
 
-      <ul class="ai-chat-convs">
-        <li
-          v-for="conversation in conversations"
-          :key="conversation.id"
-          class="ai-chat-conv"
-          :class="{ 'is-active': conversation.id === activeId }"
-        >
-          <button type="button" class="conv-main" @click="chat.switchConversation(conversation.id)">
-            <span class="conv-title">{{ conversation.title }}</span>
-          </button>
-          <button
-            v-if="conversations.length > 1"
-            type="button"
-            class="conv-remove"
-            :aria-label="`删除会话 ${conversation.title}`"
-            @click.stop="chat.removeConversation(conversation.id)"
-          >
-            ×
-          </button>
-        </li>
-      </ul>
+      <label class="ai-chat-search">
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+          <circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="1.6" fill="none" />
+          <path d="m15.6 15.6 3.4 3.4" stroke="currentColor" stroke-width="1.6" fill="none" />
+        </svg>
+        <input
+          v-model="searchQuery"
+          type="search"
+          class="search-input"
+          placeholder="搜索历史会话"
+          aria-label="搜索历史会话"
+        />
+      </label>
+
+      <nav class="ai-chat-convs" aria-label="历史会话">
+        <section v-for="group in groupedConversations" :key="group.key" class="conv-group">
+          <h2 class="conv-group-title">{{ group.label }}</h2>
+          <ul class="conv-list">
+            <li
+              v-for="item in group.items"
+              :key="item.conversation.id"
+              class="conv-row ai-chat-conv"
+              :class="{ 'is-active': item.conversation.id === activeId }"
+            >
+              <button
+                type="button"
+                class="conv-main"
+                @click="chat.switchConversation(item.conversation.id)"
+              >
+                <span class="conv-title">{{ item.conversation.title }}</span>
+              </button>
+              <span class="conv-time" aria-hidden="true">{{ item.time }}</span>
+              <button
+                type="button"
+                class="conv-delete conv-remove"
+                :aria-label="`删除会话 ${item.conversation.title}`"
+                @click.stop="onDeleteConversation(item.conversation)"
+              >
+                ×
+              </button>
+            </li>
+          </ul>
+        </section>
+        <p v-if="!sideConversations.length" class="conv-empty">
+          {{ searchQuery ? '没有匹配的会话' : '还没有历史会话，先提一个问题吧' }}
+        </p>
+      </nav>
 
       <p class="sidebar-foot">仅解答预约相关问题 · 只读不写</p>
     </aside>
@@ -226,11 +327,43 @@ probeAiRecommend().catch(() => {})
       <div ref="scrollRef" class="ai-chat-scroll" @scroll.passive="onScroll">
         <div class="ai-chat-stream chat-body" :aria-busy="sending">
           <div v-if="!hasMessages" class="ai-chat-welcome">
+            <span class="welcome-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="26" height="26">
+                <path
+                  d="M12 3.2 14 9l5.8 2-5.8 2-2 5.8-2-5.8L4.2 11 10 9l2-5.8Z"
+                  fill="currentColor"
+                />
+              </svg>
+            </span>
             <h1>你好，我是 AI 预约助手</h1>
             <p>可以帮你查空教室、解释预约与审核规则，也会把思考过程摊开给你看。</p>
             <ul class="ai-chat-suggestions">
-              <li v-for="item in suggestions" :key="item">
-                <button type="button" @click="ask(item)">{{ item }}</button>
+              <li v-for="item in suggestions" :key="item.text">
+                <button type="button" class="suggest-item" @click="ask(item.text)">
+                  <span class="suggest-icon" aria-hidden="true">
+                    <svg v-if="item.icon === 'spark'" viewBox="0 0 24 24" width="16" height="16">
+                      <path
+                        d="M12 4.5 13.6 9l4.4 1.6-4.4 1.6L12 16.7l-1.6-4.5L6 10.6 10.4 9 12 4.5Z"
+                        stroke="currentColor"
+                        stroke-width="1.4"
+                        fill="none"
+                      />
+                    </svg>
+                    <svg v-else-if="item.icon === 'calendar'" viewBox="0 0 24 24" width="16" height="16">
+                      <rect x="4.5" y="6" width="15" height="13" rx="2" stroke="currentColor" stroke-width="1.4" fill="none" />
+                      <path d="M4.5 10h15M9 4.5v3M15 4.5v3" stroke="currentColor" stroke-width="1.4" fill="none" />
+                    </svg>
+                    <svg v-else-if="item.icon === 'shield'" viewBox="0 0 24 24" width="16" height="16">
+                      <path d="M12 4.5 18 7v5c0 3.6-2.5 6.4-6 7.5-3.5-1.1-6-3.9-6-7.5V7l6-2.5Z" stroke="currentColor" stroke-width="1.4" fill="none" />
+                    </svg>
+                    <svg v-else viewBox="0 0 24 24" width="16" height="16">
+                      <circle cx="12" cy="12" r="7.5" stroke="currentColor" stroke-width="1.4" fill="none" />
+                      <path d="M12 8v4.4l2.6 1.6" stroke="currentColor" stroke-width="1.4" fill="none" />
+                    </svg>
+                  </span>
+                  <span class="suggest-text">{{ item.text }}</span>
+                  <span class="suggest-arrow" aria-hidden="true">→</span>
+                </button>
               </li>
             </ul>
           </div>
@@ -335,21 +468,20 @@ probeAiRecommend().catch(() => {})
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 0 4px 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--border-color-light);
+  margin: 0 2px 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--brand-primary-border, #c2d4ff);
   border-radius: var(--radius-md);
-  background: var(--bg-card);
-  color: var(--text-primary);
+  background: var(--brand-primary-lighter, #f0f4ff);
+  color: var(--brand-primary);
   font: inherit;
   font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  text-align: left;
 }
 
 .ai-chat-new:hover {
-  border-color: var(--border-color);
-  background: #fff;
+  background: var(--brand-primary-light, #e0e9ff);
 }
 
 .ai-chat-new:focus-visible {
@@ -357,26 +489,81 @@ probeAiRecommend().catch(() => {})
   outline-offset: 1px;
 }
 
+.ai-chat-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 2px 10px;
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  background: #ececee;
+  color: var(--text-placeholder);
+}
+
+.ai-chat-search:focus-within {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--brand-primary-border, #c2d4ff);
+  color: var(--text-regular);
+}
+
+.search-input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12.5px;
+  outline: none;
+}
+
+.search-input::placeholder {
+  color: var(--text-placeholder);
+}
+
+/* 搜索框自带的清除按钮在深色侧栏里不搭，隐藏 */
+.search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
 .ai-chat-convs {
   flex: 1;
-  margin: 0;
-  padding: 0;
-  list-style: none;
   overflow-y: auto;
 }
 
-.ai-chat-conv {
+
+
+.conv-group {
+  margin: 0 0 10px;
+}
+
+.conv-group-title {
+  margin: 0 0 2px;
+  padding: 4px 8px;
+  color: var(--text-placeholder);
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.conv-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conv-row {
+  position: relative;
   display: flex;
   align-items: center;
   border-radius: var(--radius-md);
 }
 
-.ai-chat-conv:hover,
-.ai-chat-conv.is-active {
-  background: #efeff1;
+.conv-row:hover,
+.conv-row.is-active {
+  background: #e9e9ec;
 }
 
-.ai-chat-conv.is-active .conv-title {
+.conv-row.is-active .conv-title {
   color: var(--text-primary);
   font-weight: 500;
 }
@@ -401,25 +588,62 @@ probeAiRecommend().catch(() => {})
   white-space: nowrap;
 }
 
-.conv-remove {
-  visibility: hidden;
-  margin-right: 4px;
+.conv-time {
+  flex: 0 0 auto;
+  padding-right: 6px;
+  color: var(--text-placeholder);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 时间与删除按钮共用同一块位置：悬停时淡出时间、淡入删除，避免行宽跳动 */
+.conv-delete {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
   border: 0;
-  background: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
   color: var(--text-placeholder);
   font: inherit;
+  font-size: 14px;
+  line-height: 1;
   cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
 }
 
-.ai-chat-conv:hover .conv-remove,
-.ai-chat-conv.is-active .conv-remove {
-  visibility: visible;
+.conv-row:hover .conv-delete,
+.conv-row.is-active .conv-delete {
+  opacity: 1;
+  pointer-events: auto;
+  background: #e2e2e6;
+  color: var(--text-regular);
 }
 
-.conv-remove:focus-visible {
-  visibility: visible;
+.conv-delete:hover {
+  color: var(--color-danger, #c02a26);
+}
+
+.conv-row:hover .conv-time,
+.conv-row.is-active .conv-time {
+  visibility: hidden;
+}
+
+.conv-delete:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
   outline: 2px solid var(--brand-primary-border, #c2d4ff);
-  border-radius: var(--radius-sm);
+}
+
+.conv-empty {
+  margin: 6px 8px;
+  color: var(--text-placeholder);
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .sidebar-foot {
@@ -507,65 +731,106 @@ probeAiRecommend().catch(() => {})
 
 .ai-chat-stream {
   width: 100%;
-  max-width: 760px;
+  max-width: 768px;
   margin: 0 auto;
   padding: 28px 24px 24px;
 }
 
 .ai-chat-welcome {
-  padding: 6vh 0 0;
+  padding: 9vh 0 0;
+}
+
+.welcome-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 18px;
+  border-radius: 14px;
+  background: var(--brand-primary-lighter, #f0f4ff);
+  color: var(--brand-primary);
 }
 
 .ai-chat-welcome h1 {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
   color: var(--text-primary);
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 600;
-  line-height: 1.35;
-  letter-spacing: -0.01em;
+  line-height: 1.32;
+  letter-spacing: -0.02em;
 }
 
 .ai-chat-welcome p {
-  margin: 0 0 26px;
+  margin: 0 0 28px;
   max-width: 520px;
   color: var(--text-regular);
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.7;
 }
 
 .ai-chat-suggestions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   max-width: 620px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.ai-chat-suggestions button {
+.suggest-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--border-color-light);
-  border-radius: var(--radius-md);
-  background: var(--bg-card);
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
   color: var(--text-regular);
   font: inherit;
-  font-size: 12.5px;
-  line-height: 1.5;
+  font-size: 13.5px;
+  line-height: 1.55;
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s ease, color 0.15s ease;
+  transition: background-color 0.12s ease, color 0.12s ease;
 }
 
-.ai-chat-suggestions button:hover {
-  border-color: var(--brand-primary-border, #c2d4ff);
+.suggest-item:hover {
+  background: var(--bg-subtle, #f8f9fa);
   color: var(--text-primary);
 }
 
-.ai-chat-suggestions button:focus-visible {
+.suggest-item:focus-visible {
   outline: 2px solid var(--brand-primary-border, #c2d4ff);
   outline-offset: 1px;
+}
+
+.suggest-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--text-placeholder);
+}
+
+.suggest-item:hover .suggest-icon {
+  color: var(--brand-primary);
+}
+
+.suggest-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.suggest-arrow {
+  flex: 0 0 auto;
+  color: var(--text-placeholder);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.suggest-item:hover .suggest-arrow {
+  opacity: 1;
 }
 
 .ai-chat-jump {
@@ -595,7 +860,7 @@ probeAiRecommend().catch(() => {})
 }
 
 .ai-chat-dock > * {
-  max-width: 760px;
+  max-width: 768px;
   margin-left: auto;
   margin-right: auto;
 }
@@ -645,10 +910,6 @@ probeAiRecommend().catch(() => {})
 
   .ai-chat-dock {
     padding: 8px 16px 12px;
-  }
-
-  .ai-chat-suggestions {
-    grid-template-columns: 1fr;
   }
 }
 

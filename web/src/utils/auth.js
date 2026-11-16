@@ -3,6 +3,8 @@
  * 独立模块避免 request.js 与 stores 循环依赖
  */
 
+import { clearAllAiConversations } from './aiChatStorage'
+
 const TOKEN_KEY = 'reservation_token'
 const USER_KEY = 'reservation_user'
 const AI_ENABLED_KEY = 'reservation_ai_enabled'
@@ -23,6 +25,8 @@ export function clearAuth() {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_KEY)
   localStorage.removeItem(AI_ENABLED_KEY)
+  // 同一台电脑换账号时，上一个账号的对话历史不能被下一个账号看到
+  clearAllAiConversations()
 }
 
 /** 获取本地用户信息；非对象、数组或缺少有效角色时一律视为损坏数据 */

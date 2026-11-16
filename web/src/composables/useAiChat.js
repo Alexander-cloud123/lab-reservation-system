@@ -1,5 +1,6 @@
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { aiChatStream } from '@/api/ai'
+import { loadAiConversations, saveAiConversations } from '@/utils/aiChatStorage'
 import { renderMarkdown } from '@/utils/markdown'
 
 /** 多轮上下文上限：与后端 normalizeHistory 的截断口径一致（最近 10 条） */
@@ -9,6 +10,9 @@ const TITLE_LIMIT = 18
 
 /** AI 双层开关都关闭时，把「未启用」与「限流/上游降级」区分开（AGENTS 4.4 标注口径） */
 const DISABLED_TEXT = 'AI 服务未启用，当前为纯预约系统模式'
+
+/** 落盘防抖：流式期间正文变化极频繁，等稳定 400ms 再写 localStorage */
+const PERSIST_DELAY = 400
 
 function createId() {
   return `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
@@ -33,7 +37,80 @@ export function useAiChat() {
   const offNotice = ref('')
 
   let controller = null
+  let persistTimer = null
+  /** 每条 AI 气泡的渲染帧句柄（WeakMap：气泡丢弃即自动回收） */
   const renderFrames = new WeakMap()
+  /** 当前用户 id（历史按用户隔离，登出清理由 auth.js 负责） */
+  let currentUserId = ''
+
+  /** 落盘：只存原始文本与轨迹数据，html 由恢复时重新渲染 */
+  function persistNow() {
+    if (!currentUserId) {
+      return
+    }
+    if (persistTimer) {
+      clearTimeout(persistTimer)
+      persistTimer = null
+    }
+    saveAiConversations(currentUserId, {
+      activeId: activeId.value,
+      conversations: conversations.value
+    })
+  }
+
+  function schedulePersist() {
+    if (!currentUserId) {
+      return
+    }
+    if (persistTimer) {
+      clearTimeout(persistTimer)
+    }
+    persistTimer = setTimeout(() => {
+      persistTimer = null
+      persistNow()
+    }, PERSIST_DELAY)
+  }
+
+  /**
+   * 恢复历史：补齐 html、关掉打字光标；停在 thinking 的轨迹收敛为「已停止」，
+   * 恢复后不再补发请求（页面刷新等于用户离开，续传没有可靠语义）。
+   */
+  function restoreConversation(saved) {
+    return {
+      id: saved.id,
+      title: saved.title,
+      renamed: saved.renamed,
+      createdAt: saved.createdAt,
+      messages: saved.messages.map((message) => {
+        const thinking = message.thinking
+          ? {
+              ...message.thinking,
+              steps: message.thinking.steps.map((step) => ({ ...step })),
+              state: message.thinking.state === 'thinking' ? 'stopped' : message.thinking.state
+            }
+          : null
+        return {
+          ...message,
+          html: message.role === 'ai' ? renderMarkdown(message.content) : '',
+          typing: false,
+          thinking
+        }
+      })
+    }
+  }
+
+  /** 载入某个用户的历史（页面挂载时调用一次） */
+  function init(userId) {
+    currentUserId = userId || 'anon'
+    const saved = loadAiConversations(currentUserId)
+    if (!saved.conversations.length) {
+      conversations.value = []
+      activeId.value = ''
+      return
+    }
+    conversations.value = saved.conversations.map(restoreConversation)
+    activeId.value = saved.activeId || conversations.value[0].id
+  }
 
   const activeConversation = computed(
     () => conversations.value.find((item) => item.id === activeId.value) || null
@@ -67,13 +144,15 @@ export function useAiChat() {
     return createConversation()
   }
 
+  /** 新对话：只切到空态，不预建会话条目；首次发送时才落一个条目（与 DeepSeek 空态一致） */
   function newConversation() {
     stop()
     input.value = ''
     offNotice.value = ''
     degradedNotice.value = ''
     liveStatus.value = ''
-    createConversation()
+    activeId.value = ''
+    persistNow()
   }
 
   function switchConversation(id) {
@@ -98,10 +177,11 @@ export function useAiChat() {
     }
     conversations.value.splice(index, 1)
     if (!conversations.value.length) {
-      createConversation()
+      activeId.value = ''
     } else if (!activeConversation.value) {
       activeId.value = conversations.value[Math.min(index, conversations.value.length - 1)].id
     }
+    persistNow()
   }
 
   /** 终态全量渲染：完成代码块/列表等块级语法闭合 */
@@ -351,6 +431,8 @@ export function useAiChat() {
       liveStatus.value = toPlainText(bubble.content)
       sending.value = false
       controller = null
+      // 一轮回答结束立即落盘：避免用户看到回答后马上刷新却丢掉这一轮
+      persistNow()
     }
   }
 
@@ -380,11 +462,13 @@ export function useAiChat() {
   }
 
   function dispose() {
+    persistNow()
     stop()
     controller = null
   }
 
-  createConversation()
+  // 任意会话/活跃会话变化都排队落盘；init 之前 currentUserId 为空，watch 自动跳过
+  watch([conversations, activeId], schedulePersist, { deep: true })
 
   return {
     conversations,
@@ -398,6 +482,7 @@ export function useAiChat() {
     degradedNotice,
     offNotice,
     lastActivity,
+    init,
     send,
     regenerate,
     stop,

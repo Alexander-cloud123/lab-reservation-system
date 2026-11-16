@@ -23,6 +23,10 @@
             <el-icon><Calendar /></el-icon>
             <span>日历总览</span>
           </el-menu-item>
+          <el-menu-item v-if="aiReady" index="/student/ai">
+            <el-icon><MagicStick /></el-icon>
+            <span>AI 助手</span>
+          </el-menu-item>
           <el-menu-item index="/student/profile">
             <el-icon><User /></el-icon>
             <span>个人中心</span>
@@ -69,6 +73,7 @@ import { ElMessageBox } from 'element-plus'
 import {
   CaretBottom,
   Calendar,
+  MagicStick,
   OfficeBuilding,
   School,
   SwitchButton,
@@ -83,6 +88,8 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const userInfo = computed(() => userStore.userInfo)
+/** AI 双层开关都开启时才露出对话入口（与悬浮球同一份探测缓存） */
+const aiReady = computed(() => userStore.aiEnabled === true)
 
 /** 头像占位：取姓名末位，多字取后两字 */
 const avatarText = computed(() => {

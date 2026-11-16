@@ -78,6 +78,9 @@ async function main() {
       await page.goto(BASE + '/student/calendar', { waitUntil: 'domcontentloaded' })
       await page.waitForTimeout(800)
       await shot(page, '05-calendar')
+      await page.goto(BASE + '/student/ai', { waitUntil: 'domcontentloaded' })
+      await page.waitForTimeout(1200)
+      await shot(page, '08-ai-chat')
       await ctx.close()
     }
     {

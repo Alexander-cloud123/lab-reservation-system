@@ -1,68 +1,22 @@
-<template>
-  <!--
-    思考过程面板（R14）：参考主流对话产品的「可折叠思考区」。
-    数据全部来自后端真实执行轨迹（thinking 事件）+ 上游推理透传（reasoning 事件），
-    前端只做展现与计时，不伪造任何步骤或推理文本。
-  -->
-  <div class="thinking" :class="`is-${trace.state}`" role="group" aria-label="AI 思考过程">
-    <button
-      type="button"
-      class="thinking-head"
-      :aria-expanded="expanded"
-      :aria-controls="detailId"
-      @click="toggle"
-    >
-      <span class="head-glyph" aria-hidden="true">
-        <span v-if="thinking" class="pulse-dots"><i></i><i></i><i></i></span>
-        <span v-else class="head-dot"></span>
-      </span>
-      <span class="head-text">{{ headline }}</span>
-      <span class="head-meta">{{ meta }}</span>
-      <span class="chevron" :class="{ 'is-open': expanded }" aria-hidden="true"></span>
-    </button>
-
-    <div v-show="expanded" :id="detailId" class="thinking-body">
-      <ol v-if="steps.length" class="steps">
-        <li v-for="step in steps" :key="step.id" class="step" :class="`is-${step.status}`">
-          <span class="step-dot" aria-hidden="true"></span>
-          <span class="step-label">{{ step.label }}</span>
-          <span v-if="step.elapsedMs != null" class="step-time">{{ formatDuration(step.elapsedMs) }}</span>
-        </li>
-      </ol>
-
-      <div v-if="reasoning" class="reasoning">
-        <p class="reasoning-label">模型推理 · AI 生成，仅供参考</p>
-        <p class="reasoning-text">{{ reasoning }}</p>
-      </div>
-      <p v-else-if="settled" class="reasoning-empty">当前模型未返回推理文本，以上为本次处理的实际步骤。</p>
-    </div>
-  </div>
-</template>
-
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
-/**
- * @type {{
- *   state: 'thinking'|'done'|'stopped'|'degraded'|'error',
- *   steps: Array<{id:string,label:string,status:'running'|'done'|'failed',elapsedMs:number|null}>,
- *   reasoning: string,
- *   summary: string,
- *   startedAt: number,
- *   elapsedMs: number|null
- * }}
- */
 const props = defineProps({
+  /**
+   * 思考轨迹快照：
+   * - state: thinking / done / stopped / degraded / error
+   * - steps: [{ id, label, status: running|done|failed, elapsedMs }]（后端按真实流水线逐个下发）
+   * - reasoning: 上游模型透传的推理文本（可能为空）
+   * - summary: 汇总标签（命中缓存 / 范围判断完成 / 已降级为本地规则）
+   */
   trace: { type: Object, required: true }
 })
 
-const detailId = `ai-thinking-${Math.random().toString(36).slice(2, 8)}`
 const expanded = ref(true)
 /** 用户手动展开过：后续折叠不再自动收起，尊重用户选择 */
 let userExpanded = false
 
 const thinking = computed(() => props.trace.state === 'thinking')
-const settled = computed(() => !thinking.value)
 const steps = computed(() => props.trace.steps || [])
 const reasoning = computed(() => (props.trace.reasoning || '').trim())
 
@@ -148,12 +102,62 @@ function toggle() {
 onBeforeUnmount(stopTimer)
 </script>
 
+<template>
+  <div
+    class="thinking"
+    :class="`is-${trace.state}`"
+    role="group"
+    :aria-label="`思考过程：${headline} ${meta}`"
+  >
+    <button
+      type="button"
+      class="thinking-head"
+      :aria-expanded="expanded"
+      aria-controls="ai-thinking-body"
+      @click="toggle"
+    >
+      <span class="head-glyph" aria-hidden="true">
+        <span v-if="thinking" class="pulse-dots"><i></i><i></i><i></i></span>
+        <span v-else class="head-dot"></span>
+      </span>
+      <span class="head-text">{{ headline }}</span>
+      <span class="head-meta">{{ meta }}</span>
+      <span class="chevron" :class="{ 'is-open': expanded }" aria-hidden="true"></span>
+    </button>
+
+    <div v-show="expanded" id="ai-thinking-body" class="thinking-body">
+      <ol class="steps">
+        <li
+          v-for="step in steps"
+          :key="step.id"
+          class="step"
+          :class="`is-${step.status}`"
+        >
+          <span class="step-dot" aria-hidden="true"></span>
+          <span class="step-label">{{ step.label }}</span>
+          <span v-if="step.elapsedMs !== null && step.elapsedMs !== undefined" class="step-time">
+            {{ formatDuration(step.elapsedMs) }}
+          </span>
+        </li>
+      </ol>
+
+      <div v-if="reasoning" class="reasoning">
+        <p class="reasoning-label">模型推理 · AI 生成，仅供参考</p>
+        <p class="reasoning-text">{{ reasoning }}</p>
+      </div>
+      <p v-else class="reasoning-empty">当前模型未返回推理文本，以上为本次处理的实际步骤。</p>
+    </div>
+  </div>
+</template>
+
 <style scoped>
 .thinking {
-  margin-bottom: 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--border-color-light);
+  margin: 0 0 12px;
+  padding: 2px 12px 4px;
+  border-radius: var(--radius-md);
+  background: #f7f7f8;
   font-size: 12.5px;
+  color: var(--text-regular);
 }
 
 .thinking-head {
@@ -161,10 +165,10 @@ onBeforeUnmount(stopTimer)
   align-items: center;
   gap: 6px;
   width: 100%;
-  padding: 2px 0;
+  padding: 6px 0 4px;
   border: 0;
   background: none;
-  color: var(--text-secondary);
+  color: var(--text-regular);
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -172,7 +176,7 @@ onBeforeUnmount(stopTimer)
 }
 
 .thinking-head:focus-visible {
-  outline: 2px solid var(--brand-primary-border);
+  outline: 2px solid var(--brand-primary-border, #c2d4ff);
   outline-offset: 2px;
 }
 
@@ -193,7 +197,7 @@ onBeforeUnmount(stopTimer)
   width: 3px;
   height: 3px;
   border-radius: 50%;
-  background: var(--brand-primary);
+  background: var(--text-placeholder);
   animation: thinking-pulse 1.15s ease-in-out infinite;
 }
 
@@ -209,17 +213,15 @@ onBeforeUnmount(stopTimer)
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--brand-primary);
-  opacity: 0.75;
-}
-
-.thinking.is-stopped .head-dot,
-.thinking.is-error .head-dot {
   background: var(--text-placeholder);
 }
 
+.thinking.is-degraded .head-dot {
+  background: var(--color-warning, #a44904);
+}
+
 .head-text {
-  color: var(--text-secondary);
+  color: var(--text-regular);
   font-weight: 500;
 }
 
@@ -229,32 +231,30 @@ onBeforeUnmount(stopTimer)
 }
 
 .thinking.is-degraded .head-text {
-  color: var(--color-warning, var(--text-secondary));
+  color: var(--color-warning, #a44904);
 }
 
 .chevron {
   margin-left: auto;
-  width: 0;
-  height: 0;
-  border-top: 4px solid transparent;
-  border-bottom: 4px solid transparent;
-  border-left: 5px solid var(--text-placeholder);
+  width: 6px;
+  height: 6px;
+  border-right: 1.4px solid var(--text-placeholder);
+  border-bottom: 1.4px solid var(--text-placeholder);
+  transform: rotate(45deg);
   transition: transform 0.18s ease;
-  transform: rotate(-90deg);
 }
 
 .chevron.is-open {
-  transform: rotate(0deg);
+  transform: rotate(225deg);
 }
 
 .thinking-body {
-  margin-top: 8px;
-  padding-left: 20px;
+  padding: 2px 0 4px;
 }
 
 .steps {
   margin: 0;
-  padding: 0;
+  padding: 0 0 0 2px;
   list-style: none;
 }
 
@@ -263,8 +263,8 @@ onBeforeUnmount(stopTimer)
   display: flex;
   align-items: baseline;
   gap: 8px;
-  padding: 3px 0 3px 14px;
-  color: var(--text-secondary);
+  padding: 3px 0 3px 16px;
+  color: var(--text-regular);
 }
 
 /* 时间线竖轨：把「执行轨迹」写成可见的顺序，而不是一堆装饰性编号 */
@@ -275,7 +275,7 @@ onBeforeUnmount(stopTimer)
   top: 0;
   bottom: 0;
   width: 1px;
-  background: var(--border-color-light);
+  background: #e7e7ea;
 }
 
 .step:first-child::before {
@@ -293,8 +293,8 @@ onBeforeUnmount(stopTimer)
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  border: 1px solid var(--brand-primary-border);
-  background: var(--bg-fill);
+  border: 1px solid #d4d4d8;
+  background: #f7f7f8;
 }
 
 .step.is-running .step-dot {
@@ -303,13 +303,13 @@ onBeforeUnmount(stopTimer)
 }
 
 .step.is-done .step-dot {
-  background: var(--text-secondary);
-  border-color: var(--text-secondary);
+  background: #a8a8b0;
+  border-color: #a8a8b0;
 }
 
 .step.is-failed .step-dot {
   background: transparent;
-  border-color: var(--color-warning, var(--text-secondary));
+  border-color: var(--color-warning, #a44904);
 }
 
 .step.is-done .step-label {
@@ -317,7 +317,7 @@ onBeforeUnmount(stopTimer)
 }
 
 .step.is-failed .step-label {
-  color: var(--color-warning, var(--text-secondary));
+  color: var(--color-warning, #a44904);
 }
 
 .step-time {
@@ -327,9 +327,10 @@ onBeforeUnmount(stopTimer)
 }
 
 .reasoning {
-  margin-top: 8px;
-  padding: 8px 0 2px 12px;
-  border-left: 2px solid var(--border-color-light);
+  margin: 6px 0 2px 2px;
+  padding: 8px 10px;
+  border-left: 2px solid #dedee3;
+  background: #fbfbfc;
 }
 
 .reasoning-label {
@@ -340,14 +341,14 @@ onBeforeUnmount(stopTimer)
 
 .reasoning-text {
   margin: 0;
-  color: var(--text-secondary);
+  color: var(--text-regular);
   line-height: 19px;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .reasoning-empty {
-  margin: 8px 0 0;
+  margin: 6px 0 2px 2px;
   color: var(--text-placeholder);
   font-size: 11.5px;
 }

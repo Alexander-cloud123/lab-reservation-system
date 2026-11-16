@@ -15,7 +15,7 @@
 - 冲突检测公式：`新开始 < 旧结束 AND 新结束 > 旧开始`
 - 状态流转：待审核(0) → 已通过(1) / 已驳回(2)；待审核 / 已通过 → 已取消(3)
 
-**规模**：323 个后端测试（行覆盖 81.4%）· 41 项接口冒烟 · 127 例 Playwright E2E（Chromium + Edge）· 15 项故障演练 · 7 接口 + 7 页性能基准 · 3 套 GitHub Actions。
+**规模**：323 个后端测试（行覆盖 81.4%）· 41 项接口冒烟 · 128 例 Playwright E2E（Chromium + Edge）· 15 项故障演练 · 7 接口 + 7 页性能基准 · 3 套 GitHub Actions。
 
 ## 演示
 
@@ -60,11 +60,11 @@ AI 助手单独剪了 29 秒片段，展示「参考 DeepSeek 网页端」的思
   </tr>
   <tr>
     <td><img src="docs/images/07-admin-audit.png" width="430" /></td>
-    <td></td>
+    <td><img src="docs/images/08-ai-chat.png" width="430" /></td>
   </tr>
   <tr>
     <td align="center">预约审核（单条审核 + 批量通过 / 驳回）</td>
-    <td></td>
+    <td align="center">AI 预约助手（DeepSeek 式全屏对话 + 思考过程）</td>
   </tr>
 </table>
 
@@ -78,7 +78,7 @@ AI 助手单独剪了 29 秒片段，展示「参考 DeepSeek 网页端」的思
 | 个人中心 | 资料维护、收藏全链路、预约记录查询 |
 | 亮点功能 | 日历总览（FullCalendar）、数据看板（ECharts） |
 | 数据导出 | 预约记录 Excel 导出（EasyExcel） |
-| AI 能力 | 智能推荐、自然语言预约解析、智能问答、合规校验，以及带**思考过程面板**的流式对话（真实执行轨迹 + 推理透传、思考计时、可折叠展开；可一键关闭，关闭不影响核心系统） |
+| AI 能力 | 智能推荐、自然语言预约解析、智能问答、合规校验，以及带**思考过程面板**的 DeepSeek 式全屏对话（真实执行轨迹 + 推理透传、思考计时、可折叠展开；可一键关闭，关闭不影响核心系统） |
 
 ## 技术栈
 
@@ -195,7 +195,7 @@ cd web; npm ci; npm run dev                     # http://127.0.0.1:5173
 |------|------|------|
 | 后端单元 / 集成测试 | 41 个测试类、323 个用例；行覆盖 **81.4%**（指令 82.8% / 分支 75.0%，JaCoCo） | `mvn -f server/pom.xml test` |
 | 接口冒烟回归 | 41 项（鉴权 / 权限 / 预约生命周期 / 冲突 / 校验 / 看板 / 收藏 / AI 降级 / 会话撤销） | `pwsh server/scripts/smoke.ps1` |
-| 前端 E2E | 17 个 spec、127 个用例 × Chromium + Edge | `npm run test:e2e:all`（默认只跑 Chromium） |
+| 前端 E2E | 17 个 spec、128 个用例 × Chromium + Edge | `npm run test:e2e:all`（默认只跑 Chromium） |
 | 无障碍机器代理 | 16/16 项（人工听感按负责人决定不执行） | `node scripts/a11y-acceptance.mjs` |
 | 安全基线自检 | 8 项（默认密钥伪造 / 文档关闭 / 限流 / 响应头 / 越权） | `pwsh server/scripts/security-check.ps1` |
 | 故障演练 | 2 类故障 × 恢复验证，15 项（Redis fail closed / MySQL 有界失败 / 数据复原） | `pwsh server/scripts/chaos-drill.ps1` |
@@ -244,6 +244,7 @@ cd web; node scripts/capture-screens.mjs       # 采集 README 预览截图
 | 可靠性验证（故障演练 / 接口与页面性能基准） | [`docs/可靠性验证.md`](docs/可靠性验证.md) |
 | 演示视频分镜与录制说明 | [`docs/演示视频分镜.md`](docs/演示视频分镜.md) |
 | AI 助手思考过程（事件协议 / 计时口径 / 交互设计） | [`docs/AI思考过程设计.md`](docs/AI思考过程设计.md) |
+| AI 对话界面（DeepSeek 式布局 / 会话状态 / 键盘与读屏） | [`docs/AI对话界面.md`](docs/AI对话界面.md) |
 | 各轮交付四件套（R1–R13） | [`docs/iterations/`](docs/iterations) |
 | QA 收口报告 | [`docs/qa/`](docs/qa) |
 | 软件审查报告与可视化 | [`docs/review/`](docs/review) |

@@ -59,6 +59,13 @@ const routes = [
         name: 'CalendarOverview',
         component: () => import('@/views/student/CalendarOverview.vue'),
         meta: { title: '预约日历总览' }
+      },
+      {
+        // AI 对话页：DeepSeek 式全屏会话界面，仅学生端（AI 关闭时由页面自身提示）
+        path: 'ai',
+        name: 'StudentAiChat',
+        component: () => import('@/views/student/AiChatView.vue'),
+        meta: { title: 'AI 预约助手' }
       }
     ]
   },

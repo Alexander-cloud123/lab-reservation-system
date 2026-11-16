@@ -284,15 +284,16 @@ test('AI 预约助手：默认收起 → 展开侧边对话窗 → 发送问题�
   await expect(ball).toBeVisible()
   await expect(chatInput).toBeHidden()
 
-  // 点击悬浮球 → 展开侧边对话窗（用标题角色定位，避免命中欢迎语气泡中的同名文本）
+  // 点击悬浮球 → 进入全屏对话页（DeepSeek 式左侧会话栏 + 居中正文 + 底部输入框）
   await ball.click()
-  await expect(page.getByRole('heading', { name: 'AI 预约助手' })).toBeVisible()
+  await expect(page).toHaveURL(/\/student\/ai$/)
+  await expect(page.locator('.ai-chat-page')).toBeVisible()
   await expect(chatInput).toBeVisible()
 
   // 发送问题 → SSE 流式渲染回答
   await chatInput.fill('E2E：怎么预约教室？')
   await page.getByRole('button', { name: '发送' }).click()
-  await expect(page.getByText('E2E：怎么预约教室？')).toBeVisible()
+  await expect(page.locator('.chat-msg.user').getByText('E2E：怎么预约教室？')).toBeVisible()
   // 接收期（mock 有 120ms 延迟）：最终答案尚未出现，先处于接收态
   await expect(page.locator('.typing-cursor')).toBeVisible()
   await expect(page.locator('.chat-body .markdown-body').getByText(answer, { exact: true })).toBeHidden()
@@ -739,22 +740,22 @@ test('AI 助手流式：发送中点「停止」中断接收，空气泡移除�
   await page.getByRole('button', { name: '发送' }).click()
   await streamRequest
 
-  await expect(page.getByRole('button', { name: '停止' })).toBeVisible()
-  await page.getByRole('button', { name: '停止' }).click()
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '停止', exact: true }).click()
 
-  // 发送态复位：「发送」按钮回来、打字光标消失；空 AI 气泡被移除，仅余欢迎语 + 用户提问
+  // 发送态复位：「发送」按钮回来、打字光标消失；空 AI 气泡被移除，仅余用户提问
   await expect(page.getByRole('button', { name: '发送' })).toBeVisible()
   await expect(page.locator('.typing-cursor')).toHaveCount(0)
-  await expect(page.locator('.chat-msg')).toHaveCount(2)
+  await expect(page.locator('.chat-msg')).toHaveCount(1)
   await expect(page.locator('.chat-msg.user .chat-bubble')).toContainText('第一次问题')
 
   // 输入框未被锁定：可立即发起第二次发送（再次进入接收态后停止收尾）
   await page.getByPlaceholder('问我：怎么预约 / 怎么取消 / 审核要多久…').fill('E2E-停止：第二次问题')
   await page.getByRole('button', { name: '发送' }).click()
-  await expect(page.getByRole('button', { name: '停止' })).toBeVisible()
-  await page.getByRole('button', { name: '停止' }).click()
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '停止', exact: true }).click()
   await expect(page.getByRole('button', { name: '发送' })).toBeVisible()
-  await expect(page.locator('.chat-msg')).toHaveCount(3)
+  await expect(page.locator('.chat-msg')).toHaveCount(2)
 })
 
 test('AI 助手 Markdown：标题/加粗/列表/链接/代码块渲染正确，HTML 注入被转义不执行', async ({ page }) => {

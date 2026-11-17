@@ -465,6 +465,20 @@ button:focus-visible,
   color: var(--ink-soft);
 }
 
+/* 屏幕阅读器专用文本：绝对定位并裁剪，绝不参与任何布局计算（曾被漏定义，导致 AI 对话页 live region 抢占 flex 空间） */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ---------- 5. 页面原语 ---------- */
 
 /* 页面容器：限宽 + 统一页边距 */

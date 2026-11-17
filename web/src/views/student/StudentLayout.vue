@@ -3,32 +3,25 @@
     <!-- 顶部栏 -->
     <el-header class="student-header">
       <div class="header-left">
-        <div class="logo-badge">
-          <el-icon :size="16"><OfficeBuilding /></el-icon>
-        </div>
+        <div class="logo-badge" aria-hidden="true">A101</div>
         <span class="header-logo">高校实验室预约管理系统</span>
         <span class="role-chip">学生端</span>
       </div>
       <div class="header-right">
         <el-menu mode="horizontal" :default-active="activeMenu" router class="header-menu" :ellipsis="false">
           <el-menu-item index="/student/home">
-            <el-icon><School /></el-icon>
             <span>教室列表</span>
           </el-menu-item>
           <el-menu-item index="/student/my-reservations">
-            <el-icon><Tickets /></el-icon>
             <span>我的预约</span>
           </el-menu-item>
           <el-menu-item index="/student/calendar">
-            <el-icon><Calendar /></el-icon>
             <span>日历总览</span>
           </el-menu-item>
           <el-menu-item v-if="aiReady" index="/student/ai">
-            <el-icon><MagicStick /></el-icon>
             <span>AI 助手</span>
           </el-menu-item>
           <el-menu-item index="/student/profile">
-            <el-icon><User /></el-icon>
             <span>个人中心</span>
           </el-menu-item>
         </el-menu>
@@ -70,16 +63,7 @@
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
-import {
-  CaretBottom,
-  Calendar,
-  MagicStick,
-  OfficeBuilding,
-  School,
-  SwitchButton,
-  Tickets,
-  User
-} from '@element-plus/icons-vue'
+import { CaretBottom, SwitchButton, User } from '@element-plus/icons-vue'
 import AiAssistant from '@/components/ai/AiAssistant.vue'
 import { useUserStore } from '@/stores/user'
 
@@ -155,14 +139,18 @@ async function handleLogout() {
 }
 
 .logo-badge {
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-md);
-  background: var(--brand-primary);
-  color: #fff;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  background: var(--code-bg);
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   justify-content: center;
+  font-family: var(--font-num);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
 }
 
 .header-logo {
@@ -175,10 +163,7 @@ async function handleLogout() {
 .role-chip {
   font-size: 12px;
   line-height: 18px;
-  padding: 1px 6px;
-  border-radius: var(--radius-sm);
-  background: var(--brand-primary-light);
-  color: var(--brand-primary);
+  color: var(--text-placeholder);
   font-weight: 400;
 }
 
@@ -240,7 +225,7 @@ async function handleLogout() {
   background: var(--bg-page);
 }
 .user-avatar {
-  background: var(--brand-primary);
+  background: var(--text-regular);
   color: #fff;
   font-size: 12px;
   font-weight: 500;

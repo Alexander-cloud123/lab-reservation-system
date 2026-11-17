@@ -3,10 +3,10 @@
     <!-- 页面标题栏 -->
     <div class="page-head">
       <span class="page-title">预约记录</span>
-      <span class="page-tip">全量预约记录查询与 Excel 导出</span>
+      <span class="page-sub">全量预约记录查询与 Excel 导出</span>
     </div>
     <!-- 搜索栏：日期范围 / 教室 / 用户 / 状态 多条件筛选（需求文档 2.4 第 12 页） -->
-    <el-card shadow="never" class="search-card">
+    <div class="search-card table-band">
       <el-form :inline="true" :model="query" @submit.prevent>
         <el-form-item label="日期范围">
           <el-date-picker
@@ -57,9 +57,9 @@
           <el-button :icon="Refresh" @click="handleReset">重置</el-button>
         </el-form-item>
       </el-form>
-    </el-card>
+    </div>
 
-    <el-card shadow="never">
+    <div class="table-band">
       <div class="toolbar">
         <span class="toolbar-tip">共 {{ total }} 条记录，可按条件导出 Excel</span>
         <el-button
@@ -73,7 +73,7 @@
         </el-button>
       </div>
 
-      <el-table v-loading="loading" :data="records" stripe>
+      <el-table v-loading="loading" :data="records">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column label="预约人" width="120">
           <template #default="{ row }">
@@ -125,7 +125,7 @@
           @current-change="loadData"
         />
       </div>
-    </el-card>
+    </div>
   </div>
 </template>
 

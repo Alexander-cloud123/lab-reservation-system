@@ -17,7 +17,7 @@
         :aria-label="`${option.startTime}-${option.endTime}，${option.availableCount} 间可用`"
         @click="selectOption(index)"
       >
-        {{ option.startTime }}–{{ option.endTime }} · {{ option.availableCount }} 间
+        {{ option.startTime }}–{{ option.endTime }} {{ option.availableCount }} 间
       </button>
     </div>
 
@@ -26,8 +26,8 @@
         <div class="plan-room">
           <span class="room-name">{{ candidate.name }}</span>
           <span class="room-sub">
-            {{ candidate.building }}<template v-if="candidate.roomNo"> · {{ candidate.roomNo }}</template>
-            · {{ typeText(candidate.type) }} · {{ candidate.capacity }} 人
+            {{ candidate.building }}<template v-if="candidate.roomNo"> {{ candidate.roomNo }}</template>
+            {{ typeText(candidate.type) }}，{{ candidate.capacity }} 人
           </span>
           <span class="room-reason">{{ candidate.reason }}</span>
         </div>
@@ -113,7 +113,7 @@ const detail = computed(() => {
   if (plan.roomType) {
     parts.push(plan.roomType)
   }
-  return parts.join(' · ')
+  return parts.join('，')
 })
 </script>
 

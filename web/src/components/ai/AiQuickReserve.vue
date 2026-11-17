@@ -93,7 +93,7 @@
             <span class="room-pick-name">{{ r.name }}</span>
             <el-tag size="small" type="info" effect="plain">{{ typeText(r.type) }}</el-tag>
           </div>
-          <div class="room-pick-meta">{{ r.building }} · {{ r.roomNo }} · 容量 {{ r.capacity }} 人</div>
+          <div class="room-pick-meta">{{ r.building }} {{ r.roomNo }}，容量 {{ r.capacity }} 人</div>
           <div v-if="r.occupiedSlots && r.occupiedSlots.length" class="room-pick-occupied">
             该日期已约 {{ r.occupiedSlots.length }} 个时段，提交时将实时冲突校验
           </div>

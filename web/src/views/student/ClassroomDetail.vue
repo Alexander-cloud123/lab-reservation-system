@@ -7,14 +7,12 @@
     </div>
 
     <!-- 教室基础信息 -->
-    <el-card shadow="never" class="info-card">
+    <div class="info-card">
       <div class="info-head">
-        <div class="room-type-icon" :class="`type-${classroom.type}`">
-          <el-icon :size="24"><component :is="typeIcon(classroom.type)" /></el-icon>
-        </div>
+        <span class="code-block">{{ classroom.roomNo }}</span>
         <div class="room-name-wrap">
           <h2>{{ classroom.name }}</h2>
-          <span class="room-no">{{ classroom.building }} · {{ classroom.roomNo }}</span>
+          <span class="room-no">{{ classroom.building }} {{ classroom.roomNo }}</span>
         </div>
         <el-tag :type="statusTagType(classroom.statusLabel)" effect="light" round size="small">
           {{ classroom.statusLabel }}
@@ -30,7 +28,7 @@
           {{ favorited ? '已收藏' : '收藏' }}
         </el-button>
       </div>
-      <el-descriptions :column="3" border class="info-table">
+      <el-descriptions :column="3" class="info-table">
         <el-descriptions-item label="教室编号">{{ classroom.roomNo }}</el-descriptions-item>
         <el-descriptions-item label="所属楼栋">{{ classroom.building }}</el-descriptions-item>
         <el-descriptions-item label="教室类型">{{ typeText(classroom.type) }}</el-descriptions-item>
@@ -38,10 +36,10 @@
         <el-descriptions-item label="设备说明">{{ classroom.equipment || '-' }}</el-descriptions-item>
         <el-descriptions-item label="备注描述">{{ classroom.description || '-' }}</el-descriptions-item>
       </el-descriptions>
-    </el-card>
+    </div>
 
     <!-- 时段占用可视化 -->
-    <el-card shadow="never" class="slots-card">
+    <div class="slots-card section">
       <div class="slots-head">
         <span class="slots-title">时段占用（已通过预约）</span>
         <el-date-picker
@@ -79,14 +77,14 @@
       </div>
 
       <!-- 时段明细表 -->
-      <el-table v-if="(classroom.occupiedSlots || []).length" :data="classroom.occupiedSlots" size="small" stripe>
+      <el-table v-if="(classroom.occupiedSlots || []).length" :data="classroom.occupiedSlots" size="small">
         <el-table-column prop="startTime" label="开始时间" width="120" />
         <el-table-column prop="endTime" label="结束时间" width="120" />
         <el-table-column label="预约用途" min-width="200">
           <template #default="{ row }">{{ row.mine ? (row.purpose || '-') : '-' }}</template>
         </el-table-column>
       </el-table>
-    </el-card>
+    </div>
 
     <div class="action-bar">
       <el-button
@@ -218,7 +216,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, Calendar, Notebook, Cpu, School, Star, StarFilled } from '@element-plus/icons-vue'
+import { ArrowLeft, Calendar, Star, StarFilled } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { getClassroomDetail } from '@/api/classroom'
 import { checkConflict, submitReservation } from '@/api/reservation'
@@ -570,11 +568,6 @@ function goBack() {
   router.back()
 }
 
-/** 类型图标 */
-function typeIcon(type) {
-  return { 1: School, 2: Cpu, 3: Notebook }[type] || School
-}
-
 /** 实时状态标签色（R4 三态：空闲绿/使用中红/已结束灰） */
 function statusTagType(label) {
   return { 当前空闲: 'success', 使用中: 'danger', 已结束: 'info' }[label] || 'info'
@@ -604,7 +597,6 @@ onBeforeUnmount(invalidateConflict)
 
 .info-card {
   margin-bottom: 16px;
-  border-radius: var(--radius-lg);
 }
 
 .info-head {
@@ -613,28 +605,10 @@ onBeforeUnmount(invalidateConflict)
   gap: 12px;
   margin-bottom: 16px;
 }
-
-.room-type-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius-lg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.info-head .code-block {
   flex-shrink: 0;
 }
-.room-type-icon.type-1 {
-  background: var(--brand-primary-light);
-  color: var(--brand-primary);
-}
-.room-type-icon.type-2 {
-  background: var(--brand-success-light);
-  color: var(--brand-success);
-}
-.room-type-icon.type-3 {
-  background: var(--brand-warning-light);
-  color: var(--brand-warning);
-}
+
 
 .room-name-wrap {
   flex: 1;
@@ -672,7 +646,6 @@ onBeforeUnmount(invalidateConflict)
 
 .slots-card {
   margin-bottom: 16px;
-  border-radius: var(--radius-lg);
 }
 
 .slots-head {
@@ -683,9 +656,9 @@ onBeforeUnmount(invalidateConflict)
 }
 
 .slots-title {
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 22px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
   color: var(--text-primary);
 }
 

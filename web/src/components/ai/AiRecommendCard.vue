@@ -27,7 +27,7 @@
           <div class="recommend-name">
             <span class="room-name">{{ item.name }}</span>
             <el-tag size="small" type="info" effect="plain" round>{{ typeText(item.type) }}</el-tag>
-            <span class="room-meta">{{ item.building }} · {{ item.roomNo }} · 容量 {{ item.capacity }} 人</span>
+            <span class="room-meta">{{ item.building }} {{ item.roomNo }}，容量 {{ item.capacity }} 人</span>
           </div>
           <p class="recommend-reason">{{ item.reason }}</p>
         </div>

@@ -110,7 +110,7 @@ test.describe('教室列表页 - 筛选与展示', () => {
     for (const room of byBoth) {
       expect(room.building).toBe(BUILDING)
       expect(room.type).toBe(2)
-      await expect(cardByNo(page, room.roomNo).locator('.room-meta .el-tag')).toHaveText('实验室')
+      await expect(cardByNo(page, room.roomNo).locator('.room-type')).toHaveText('实验室')
     }
   })
 
@@ -162,7 +162,7 @@ test.describe('教室列表页 - 筛选与展示', () => {
     await expect(card.locator('.remain-slots')).toContainText('时段可约')
     // 类型标签文案（1-普通教室）
     expect(expected.type).toBe(1)
-    await expect(card.locator('.room-meta .el-tag')).toHaveText('普通教室')
+    await expect(card.locator('.room-type')).toHaveText('普通教室')
     // 备注描述（有则展示，无则「暂无备注」）
     await expect(card.locator('.room-desc')).toHaveText(expected.description || '暂无备注')
   })
@@ -209,7 +209,7 @@ test.describe('教室列表页 - 筛选与展示', () => {
       const apiRoom = byName[room.name]
       expect(apiRoom, `卡片「${room.name}」应存在于接口返回`).toBeTruthy()
       const card = page.locator('.room-card').filter({ hasText: room.roomNo }).first()
-      const status = (await card.locator('.room-card-head .el-tag').innerText()).trim()
+      const status = (await card.locator('.room-card-head .status-cell').innerText()).trim()
       // 状态标签三态之一且与接口一致
       expect(['当前空闲', '使用中', '已结束']).toContain(status)
       expect(status, `「${room.name}」状态标签应与接口一致`).toBe(apiRoom.statusLabel)

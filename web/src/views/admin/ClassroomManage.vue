@@ -3,10 +3,10 @@
     <!-- 页面标题栏 -->
     <div class="page-head">
       <span class="page-title">教室管理</span>
-      <span class="page-tip">新增、编辑、启用/停用与批量管理教室资源</span>
+      <span class="page-sub">新增、编辑、启用/停用与批量管理教室资源</span>
     </div>
     <!-- 搜索栏 -->
-    <el-card shadow="never" class="search-card">
+    <div class="search-card table-band">
       <el-form :inline="true" :model="query" @submit.prevent>
         <el-form-item label="关键词">
           <el-input
@@ -38,10 +38,10 @@
           <el-button :icon="Refresh" @click="handleReset">重置</el-button>
         </el-form-item>
       </el-form>
-    </el-card>
+    </div>
 
     <!-- 教室表格 -->
-    <el-card shadow="never">
+    <div class="table-band">
       <div class="toolbar">
         <el-button type="primary" :icon="Plus" @click="openDialog()">新增教室</el-button>
         <el-button
@@ -67,7 +67,6 @@
       <el-table
         v-loading="loading"
         :data="records"
-        stripe
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="46" />
@@ -123,7 +122,7 @@
           @current-change="loadData"
         />
       </div>
-    </el-card>
+    </div>
 
     <!-- 新增/编辑弹窗 -->
     <el-dialog

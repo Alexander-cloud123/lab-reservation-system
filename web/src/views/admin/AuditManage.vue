@@ -3,10 +3,10 @@
     <!-- 页面标题栏 -->
     <div class="page-head">
       <span class="page-title">预约审核</span>
-      <span class="page-tip">处理待审核预约申请与批量操作</span>
+      <span class="page-sub">处理待审核预约申请与批量操作</span>
     </div>
     <!-- 搜索栏：状态 / 日期范围 / 关键词 -->
-    <el-card shadow="never" class="search-card">
+    <div class="search-card table-band">
       <el-form :inline="true" :model="query" @submit.prevent>
         <el-form-item label="状态">
           <el-select v-model="query.status" placeholder="全部" clearable style="width: 120px">
@@ -41,9 +41,9 @@
           <el-button :icon="Refresh" @click="handleReset">重置</el-button>
         </el-form-item>
       </el-form>
-    </el-card>
+    </div>
 
-    <el-card shadow="never">
+    <div class="table-band">
       <div class="toolbar">
         <el-button
           type="success"
@@ -65,7 +65,7 @@
         </el-button>
       </div>
 
-      <el-table v-loading="loading" :data="records" stripe @selection-change="handleSelectionChange">
+      <el-table v-loading="loading" :data="records" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="46" />
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column label="预约人" width="120">
@@ -150,7 +150,7 @@
           @current-change="loadData"
         />
       </div>
-    </el-card>
+    </div>
 
     <!-- 驳回弹窗（预置快捷原因，单条/批量共用） -->
     <el-dialog

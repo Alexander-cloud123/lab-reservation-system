@@ -166,7 +166,7 @@ test.describe('我的预约', () => {
     await expect(row).toContainText(s.date)
     await expect(row).toContainText(`${s.startTime}-${s.endTime}`)
     await expect(row).toContainText(purpose)
-    await expect(row.locator('.el-tag')).toHaveText('待审核')
+    await expect(row.locator('.status-cell')).toHaveText('待审核')
     await expect(row.locator('td').nth(5)).toHaveText('-')
     // 待审核可取消 → 操作列出现「取消」
     await expect(row.getByRole('button', { name: '取消' })).toBeVisible()
@@ -249,7 +249,7 @@ test.describe('我的预约', () => {
     await expect(page.locator('.el-message-box')).toContainText('取消后不可恢复')
     await page.locator('.el-message-box').getByRole('button', { name: '确定取消' }).click()
     await expect(page.getByText('取消成功')).toBeVisible()
-    await expect(rowBy(page, purpose).locator('.el-tag')).toHaveText('已取消')
+    await expect(rowBy(page, purpose).locator('.status-cell')).toHaveText('已取消')
 
     // 无障碍 C4：确认后触发按钮被移除，焦点必须落到列表区域（role=region），不能悬空到 body
     await expect

@@ -38,15 +38,20 @@
   /* 中性色描边与背景（飞书 Background / Border 表） */
   --border-color: #d0d3d6; /* Border 1：可交互控件描边 */
   --border-color-light: #dee0e3; /* Border 2：卡片描边、分割线 */
-  --bg-page: #f5f6f7; /* Background 2：页面底 */
+  --bg-page: #f4f5f6;
   --bg-card: #ffffff;
   --bg-subtle: #f8f9fa; /* Background 3：分组栏 / 数据组 */
   --bg-fill: #eff0f1; /* Background 1：hover / disable 填充 */
 
-  /* 圆角分级：徽标 4 / 控件 6 / 容器 8 */
-  --radius-lg: 8px;
-  --radius-md: 6px;
-  --radius-sm: 4px;
+  /* 排课表原语：分区线 / 编号块底 / 等宽数字字体栈 */
+  --rule: #dce0e4;
+  --code-bg: #f1f3f5;
+  --font-num: 'SF Mono', 'Cascadia Mono', Consolas, 'Liberation Mono', monospace;
+
+  /* 圆角分级：徽标 2 / 控件 4 / 容器 6（收一档，更像纸质表格） */
+  --radius-lg: 6px;
+  --radius-md: 4px;
+  --radius-sm: 2px;
 
   /* 阴影：飞书透明度只用 #1F2329；卡片不投影，仅浮层使用 */
   --shadow-card: none;
@@ -452,6 +457,140 @@ button:focus-visible,
   line-height: 20px;
   color: var(--text-placeholder);
   margin-top: 4px;
+}
+
+/* ---------- 5. 排课表 / 楼层导视原语 ---------- */
+
+/* 页头：编号 / 标题 / 右侧操作 三段式，底部一条细线；不居中、不加 eyebrow */
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--rule);
+}
+.page-head .page-title {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+  letter-spacing: -0.2px;
+}
+.page-sub,
+.page-tip {
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--text-placeholder);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 分区：用细线分段，不用卡片套卡片；首个分区不画顶线 */
+.section {
+  padding: 20px 0 4px;
+  border-top: 1px solid var(--rule);
+}
+.section:first-of-type {
+  border-top: 0;
+  padding-top: 4px;
+}
+.section-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 22px;
+  color: var(--text-primary);
+}
+.section-note {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-placeholder);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 教室编号块：本系统的签名元素（门牌 / 排课表格子） */
+.code-block {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  background: var(--code-bg);
+  color: var(--text-primary);
+  font-family: var(--font-num);
+  font-size: 12px;
+  line-height: 22px;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.code-block.is-signal {
+  background: var(--brand-primary-lighter);
+  color: var(--brand-primary);
+}
+
+/* 状态点：8px 圆点 + 文案；色彩由业务页通过 is-* 类传入 */
+.status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  vertical-align: 1px;
+  background: var(--text-placeholder);
+}
+.status-dot.is-pending { background: var(--brand-warning); }
+.status-dot.is-approved { background: var(--brand-success); }
+.status-dot.is-rejected { background: var(--brand-danger); }
+.status-dot.is-canceled { background: var(--brand-info); }
+.status-dot.is-today { background: var(--brand-danger); }
+
+/* 细线：分区与表头之间的结构线 */
+.rule {
+  height: 1px;
+  background: var(--rule);
+}
+
+/* 表格带：筛选条与表格同一竖列、细线分隔，替代「每页一张 el-card」 */
+.table-band {
+  border-top: 1px solid var(--rule);
+  padding-top: 12px;
+}
+
+/* 空态：一行说明 + 一个动作，不用插画式装饰 */
+.empty-slate {
+  padding: 32px 0;
+  text-align: left;
+  color: var(--text-placeholder);
+  font-size: 13px;
+  line-height: 20px;
+}
+.empty-slate .empty-action {
+  margin-left: 8px;
+  color: var(--brand-primary);
+  cursor: pointer;
+}
+
+/* 表格去斑马纹：排课表靠细线与对齐读行，不靠底色 */
+.el-table .el-table__row--striped td.el-table__cell,
+.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+  background: transparent;
+}
+
+/* 表格密度与表头：46px 行高、13px 表头、底部细线 */
+.el-table th.el-table__cell {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-regular);
+  background: transparent;
+}
+.el-table .el-table__body tr {
+  height: 46px;
 }
 
 /* ---------- 6. 动效克制 ---------- */

@@ -240,6 +240,7 @@ cd web; node scripts/capture-screens.mjs       # 采集 README 预览截图
 | 技术开发规格书 | [`spec.md`](spec.md) |
 | 协作章程与红线约束 | [`AGENTS.md`](AGENTS.md) |
 | 运行与配置（环境变量 / AI / Redis / 端口） | [`docs/运行与配置.md`](docs/运行与配置.md) |
+| 界面设计规范（排课表视觉体系 / token / 公共原语） | [docs/界面设计规范.md](docs/界面设计规范.md) |
 | 安全基线（部署加固项与验证命令） | [`docs/安全基线.md`](docs/安全基线.md) |
 | 可靠性验证（故障演练 / 接口与页面性能基准） | [`docs/可靠性验证.md`](docs/可靠性验证.md) |
 | 演示视频分镜与录制说明 | [`docs/演示视频分镜.md`](docs/演示视频分镜.md) |

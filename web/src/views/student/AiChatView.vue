@@ -369,7 +369,7 @@ probeAiRecommend().catch(() => {})
         </p>
       </nav>
 
-      <p class="sidebar-foot">仅解答预约相关问题 · 只读不写</p>
+      <p class="sidebar-foot">仅解答预约相关问题，只读不写</p>
     </aside>
 
     <main class="ai-chat-main">
@@ -443,8 +443,7 @@ probeAiRecommend().catch(() => {})
                     </svg>
                   </span>
                   <span class="suggest-text">{{ item.text }}</span>
-                  <span class="suggest-arrow" aria-hidden="true">→</span>
-                </button>
+                          </button>
               </li>
             </ul>
           </div>
@@ -477,7 +476,7 @@ probeAiRecommend().catch(() => {})
           class="chat-tip"
           :class="{ 'is-warning': degradedNotice, 'is-info': aiOff }"
         >
-          {{ degradedNotice || aiOff || 'AI 生成，仅供参考 · 仅解答预约相关问题' }}
+          {{ degradedNotice || aiOff || 'AI 生成，仅供参考；仅解答预约相关问题' }}
         </p>
         <AiChatComposer
           v-model="input"
@@ -964,14 +963,8 @@ probeAiRecommend().catch(() => {})
   min-width: 0;
 }
 
-.suggest-arrow {
-  flex: 0 0 auto;
-  color: var(--text-placeholder);
-  opacity: 0;
-  transition: opacity 0.12s ease;
-}
 
-.suggest-item:hover .suggest-arrow {
+.suggest-item:hover .suggest-arrow-unused {
   opacity: 1;
 }
 

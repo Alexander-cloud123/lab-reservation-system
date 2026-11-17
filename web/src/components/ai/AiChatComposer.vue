@@ -81,8 +81,8 @@ defineExpose({ focus })
       ></textarea>
 
       <div class="composer-bar">
-        <span class="composer-hint">只读 · 不提交预约</span>
-        <span class="composer-kbd">Enter 发送 · Shift + Enter 换行</span>
+        <span class="composer-hint">只读，不提交预约</span>
+        <span class="composer-kbd">Enter 发送，Shift+Enter 换行</span>
         <button
           v-if="sending"
           type="button"

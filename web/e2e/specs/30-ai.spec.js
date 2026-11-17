@@ -107,7 +107,7 @@ test('教室列表：AI 为你推荐卡渲染 Top3，可直达详情且提供重
   await expect(items).toHaveCount(3)
   await expect(items.nth(0)).toContainText('C101报告厅')
   await expect(items.nth(0)).toContainText('普通教室')
-  await expect(items.nth(0)).toContainText('综合楼 · C101 · 容量 120 人')
+  await expect(items.nth(0)).toContainText('综合楼 C101，容量 120 人')
   await expect(items.nth(0)).toContainText('与你常约的报告厅一致')
   await expect(items.nth(1)).toContainText('C201电子实验室')
   await expect(items.nth(1)).toContainText('实验室')
@@ -304,7 +304,7 @@ test('AI 预约助手：默认收起 → 展开侧边对话窗 → 发送问题�
   await expect(page.locator('.typing-cursor')).toHaveCount(0)
 
   // 回答区 AI 标注
-  await expect(page.getByText('AI 生成，仅供参考 · 仅解答预约相关问题')).toBeVisible()
+  await expect(page.getByText('AI 生成，仅供参考；仅解答预约相关问题')).toBeVisible()
 
   expect(calls[AI_PATHS.chat] || 0).toBe(1)
 })
@@ -601,7 +601,7 @@ test('AI 降级提示 · 助手：底栏提示替换为降级原因', async ({ p
   const tip = page.locator('.chat-tip')
   await page.getByRole('button', { name: '打开 AI 预约助手' }).click()
   // 未提问时仍是常规 AI 标注
-  await expect(tip).toContainText('AI 生成，仅供参考 · 仅解答预约相关问题')
+  await expect(tip).toContainText('AI 生成，仅供参考；仅解答预约相关问题')
 
   await page.getByPlaceholder('问我：怎么预约 / 怎么取消 / 审核要多久…').fill('E2E：怎么取消预约？')
   await page.getByRole('button', { name: '发送' }).click()
@@ -677,7 +677,7 @@ test('AI 助手流式：请求带 stream=true，多帧拼接为完整答案', as
 
   // SSE 多帧按序拼接，最终文本完整
   await expect(page.locator('.chat-body .markdown-body').getByText(answer, { exact: true })).toBeVisible()
-  await expect(page.locator('.chat-tip')).toContainText('AI 生成，仅供参考 · 仅解答预约相关问题')
+  await expect(page.locator('.chat-tip')).toContainText('AI 生成，仅供参考；仅解答预约相关问题')
   // 确实走的是流式 URL（pathname 计数仍归 /api/ai/chat）
   expect(calls[AI_PATHS.chat] || 0).toBe(1)
 })
@@ -902,7 +902,7 @@ test('AI 助手思考过程：思考中展示计时与步骤，回答到达后�
   await expect(panel.locator('.thinking-body')).toBeVisible()
   await expect(panel.locator('.step-label')).toHaveText(['确认问题是否属于预约范围', '检索你的预约记录'])
   await expect(panel.locator('.reasoning-text')).toContainText('先确认这个问题是否在预约范围内')
-  await expect(panel.locator('.reasoning-label')).toHaveText('模型推理 · AI 生成，仅供参考')
+  await expect(panel.locator('.reasoning-label')).toHaveText('模型推理，AI 生成，仅供参考')
 })
 
 test('AI 助手思考过程：模型未返回推理时展开区给出说明，不伪造推理文本', async ({ page }) => {
@@ -995,7 +995,7 @@ test('AI 助手思考过程：缓存命中时汇总标注「命中缓存」，�
   await page.getByRole('button', { name: '发送' }).click()
 
   const panel = page.locator('.chat-msg.ai .thinking').last()
-  await expect(panel.locator('.thinking-head')).toContainText('已思考 0.3 秒 · 命中缓存')
+  await expect(panel.locator('.thinking-head')).toContainText('已思考 0.3 秒（命中缓存）')
   await panel.locator('.thinking-head').click()
   await expect(panel.locator('.step-label')).toHaveText(['确认问题是否属于预约范围', '命中最近一次回答'])
   await expect(panel.locator('.step-label')).not.toContainText(['检索'])

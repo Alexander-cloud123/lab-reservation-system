@@ -1,38 +1,35 @@
 <template>
   <div class="calendar-page">
-    <el-card shadow="never">
-      <!-- 顶部工具栏：教室筛选 + 视图切换 + 状态图例 -->
-      <div class="toolbar">
-        <div class="toolbar-left">
-          <span class="page-title">预约日历总览</span>
-          <el-select
-            v-model="selectedClassroomId"
-            placeholder="全部教室"
-            clearable
-            style="width: 220px"
-            @change="handleClassroomChange"
-          >
-            <el-option v-for="c in classrooms" :key="c.id" :label="`${c.name}（${c.roomNo}）`" :value="c.id" />
-          </el-select>
-        </div>
-        <div class="toolbar-right">
-          <div class="legend">
-            <span class="legend-item"><i class="dot dot-pending" />待审核</span>
-            <span class="legend-item"><i class="dot dot-approved" />已通过</span>
-            <span class="legend-item"><i class="dot dot-rejected" />已驳回</span>
-            <span class="legend-item"><i class="dot dot-canceled" />已取消</span>
-          </div>
-          <el-radio-group v-model="viewType" size="small" @change="handleViewChange">
-            <el-radio-button value="dayGridMonth">月视图</el-radio-button>
-            <el-radio-button value="dayGridWeek">周视图</el-radio-button>
-          </el-radio-group>
-        </div>
+    <div class="page-head">
+      <div class="toolbar-left">
+        <span class="page-title">预约日历总览</span>
+        <el-select
+          v-model="selectedClassroomId"
+          placeholder="全部教室"
+          clearable
+          style="width: 220px"
+          @change="handleClassroomChange"
+        >
+          <el-option v-for="c in classrooms" :key="c.id" :label="`${c.name}（${c.roomNo}）`" :value="c.id" />
+        </el-select>
       </div>
+      <div class="toolbar-right">
+        <div class="legend">
+          <span class="legend-item"><span class="status-dot is-pending" />待审核</span>
+          <span class="legend-item"><span class="status-dot is-approved" />已通过</span>
+          <span class="legend-item"><span class="status-dot is-rejected" />已驳回</span>
+          <span class="legend-item"><span class="status-dot is-canceled" />已取消</span>
+        </div>
+        <el-radio-group v-model="viewType" size="small" @change="handleViewChange">
+          <el-radio-button value="dayGridMonth">月视图</el-radio-button>
+          <el-radio-button value="dayGridWeek">周视图</el-radio-button>
+        </el-radio-group>
+      </div>
+    </div>
 
-      <div v-loading="loading" class="calendar-container">
-        <div ref="calendarEl" />
-      </div>
-    </el-card>
+    <div v-loading="loading" class="calendar-container section">
+      <div ref="calendarEl" />
+    </div>
 
     <!-- 快速预约弹窗（点击可预约时段发起，前端实时冲突校验 + 后端二次校验） -->
     <el-dialog
@@ -489,26 +486,10 @@ onBeforeUnmount(() => {
   margin: 0 auto;
 }
 
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
 .toolbar-left {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 28px;
-  color: var(--text-primary);
 }
 
 .toolbar-right {
@@ -529,29 +510,6 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-}
-
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-.dot-pending {
-  background: var(--brand-warning);
-}
-
-.dot-approved {
-  background: var(--brand-success);
-}
-
-.dot-rejected {
-  background: var(--brand-danger);
-}
-
-.dot-canceled {
-  background: var(--brand-info);
 }
 
 .calendar-container {
@@ -674,19 +632,20 @@ onBeforeUnmount(() => {
   font-weight: 600;
 }
 
-/* 事件块：状态浅底 + 同色深色文字（飞书日历口径：整块着色，无侧边色条） */
+/* 事件块：白底 + 左侧 3px 状态色条，颜色只在边线，整块不着色 */
 .calendar-container :deep(.fc .fc-daygrid-event) {
-  border-radius: var(--radius-sm);
-  border: none;
-  background: var(--ev-bg, var(--bg-fill));
-  color: var(--ev-bar, var(--text-regular));
+  border-radius: 0;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ev-bar, var(--text-regular));
+  background: var(--bg-card);
+  color: var(--text-primary);
   padding: 2px 6px;
   cursor: pointer;
   box-shadow: none;
-  transition: filter 0.15s ease;
+  transition: border-color 0.15s ease;
 }
 .calendar-container :deep(.fc .fc-daygrid-event:hover) {
-  filter: brightness(0.96);
+  border-color: var(--ev-bar, var(--text-regular));
 }
 .calendar-container :deep(.fc .fc-event-main) {
   overflow: hidden;
@@ -694,19 +653,15 @@ onBeforeUnmount(() => {
 /* 状态色（与图例 / 状态标签语义一致：0-待审核，1-已通过，2-已驳回，3-已取消） */
 .calendar-container :deep(.fc .fc-event.res-ev-0) {
   --ev-bar: var(--brand-warning);
-  --ev-bg: var(--brand-warning-light);
 }
 .calendar-container :deep(.fc .fc-event.res-ev-1) {
   --ev-bar: var(--brand-success);
-  --ev-bg: var(--brand-success-light);
 }
 .calendar-container :deep(.fc .fc-event.res-ev-2) {
   --ev-bar: var(--brand-danger);
-  --ev-bg: var(--brand-danger-light);
 }
 .calendar-container :deep(.fc .fc-event.res-ev-3) {
   --ev-bar: var(--brand-info);
-  --ev-bg: var(--bg-fill);
 }
 
 /* 事件块内部两行：时段（等宽数字防跳动）+ 教室名（超长省略号） */
@@ -717,6 +672,7 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 .calendar-container :deep(.res-event-time) {
+  font-family: var(--font-num);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;

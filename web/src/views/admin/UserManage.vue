@@ -3,10 +3,10 @@
     <!-- 页面标题栏 -->
     <div class="page-head">
       <span class="page-title">用户管理</span>
-      <span class="page-tip">账号查询、启用/禁用与密码重置</span>
+      <span class="page-sub">账号查询、启用/禁用与密码重置</span>
     </div>
     <!-- 搜索栏 -->
-    <el-card shadow="never" class="search-card">
+    <div class="search-card table-band">
       <el-form :inline="true" :model="query" @submit.prevent>
         <el-form-item label="关键词">
           <el-input
@@ -34,11 +34,11 @@
           <el-button :icon="Refresh" @click="handleReset">重置</el-button>
         </el-form-item>
       </el-form>
-    </el-card>
+    </div>
 
     <!-- 用户表格 -->
-    <el-card shadow="never">
-      <el-table v-loading="loading" :data="records" stripe>
+    <div class="table-band">
+      <el-table v-loading="loading" :data="records">
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="username" label="账号" min-width="110" />
         <el-table-column prop="name" label="姓名" min-width="90" />
@@ -58,7 +58,7 @@
         <el-table-column prop="status" label="状态" width="90">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : 'danger'" size="small">
-              {{ row.status === 1 ? '正常' : '禁用' }}
+              <span class="status-dot" :class="row.status === 1 ? 'is-approved' : 'is-canceled'" />{{ row.status === 1 ? '正常' : '禁用' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -108,7 +108,7 @@
           @current-change="loadData"
         />
       </div>
-    </el-card>
+    </div>
   </div>
 </template>
 

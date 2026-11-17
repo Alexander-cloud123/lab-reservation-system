@@ -55,8 +55,8 @@ const meta = computed(() => {
   const time = formatDuration(elapsed.value)
   if (thinking.value) return time
   if (props.trace.state === 'degraded') return `已思考 ${time}`
-  const suffix = props.trace.summary ? ` · ${props.trace.summary}` : ''
-  return `已思考 ${time}${suffix}`
+  const suffix = props.trace.summary ? `（${props.trace.summary}）` : ''
+  return ` ${time}${suffix}`
 })
 
 const headline = computed(() => {
@@ -142,7 +142,7 @@ onBeforeUnmount(stopTimer)
       </ol>
 
       <div v-if="reasoning" class="reasoning">
-        <p class="reasoning-label">模型推理 · AI 生成，仅供参考</p>
+        <p class="reasoning-label">模型推理，AI 生成，仅供参考</p>
         <p class="reasoning-text">{{ reasoning }}</p>
       </div>
       <p v-else class="reasoning-empty">当前模型未返回推理文本，以上为本次处理的实际步骤。</p>

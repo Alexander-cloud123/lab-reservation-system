@@ -3,9 +3,7 @@
     <!-- 顶部栏 -->
     <el-header class="admin-header">
       <div class="header-left">
-        <div class="logo-badge">
-          <el-icon :size="16"><OfficeBuilding /></el-icon>
-        </div>
+        <div class="logo-badge" aria-hidden="true">A101</div>
         <span class="header-logo">高校实验室预约管理系统</span>
         <span class="role-chip">管理端</span>
       </div>
@@ -35,27 +33,21 @@
       <el-aside width="216px" class="admin-aside">
         <el-menu :default-active="activeMenu" router class="admin-menu">
           <el-menu-item index="/admin/home">
-            <el-icon><HomeFilled /></el-icon>
             <span>首页</span>
           </el-menu-item>
           <el-menu-item index="/admin/users">
-            <el-icon><User /></el-icon>
             <span>用户管理</span>
           </el-menu-item>
           <el-menu-item index="/admin/classrooms">
-            <el-icon><School /></el-icon>
             <span>教室资源管理</span>
           </el-menu-item>
           <el-menu-item index="/admin/audits">
-            <el-icon><Checked /></el-icon>
             <span>预约审核</span>
           </el-menu-item>
           <el-menu-item index="/admin/records">
-            <el-icon><Tickets /></el-icon>
             <span>预约记录</span>
           </el-menu-item>
           <el-menu-item index="/admin/dashboard">
-            <el-icon><DataAnalysis /></el-icon>
             <span>数据看板</span>
           </el-menu-item>
         </el-menu>
@@ -73,17 +65,7 @@
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
-import {
-  CaretBottom,
-  Checked,
-  DataAnalysis,
-  HomeFilled,
-  OfficeBuilding,
-  School,
-  SwitchButton,
-  Tickets,
-  User
-} from '@element-plus/icons-vue'
+import { CaretBottom, SwitchButton } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 
 const route = useRoute()
@@ -154,14 +136,18 @@ async function handleLogout() {
 }
 
 .logo-badge {
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-md);
-  background: var(--brand-primary);
-  color: #fff;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  background: var(--code-bg);
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   justify-content: center;
+  font-family: var(--font-num);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
 }
 
 .header-logo {
@@ -174,10 +160,7 @@ async function handleLogout() {
 .role-chip {
   font-size: 12px;
   line-height: 18px;
-  padding: 1px 6px;
-  border-radius: var(--radius-sm);
-  background: var(--brand-primary-light);
-  color: var(--brand-primary);
+  color: var(--text-placeholder);
   font-weight: 400;
 }
 
@@ -199,7 +182,7 @@ async function handleLogout() {
   background: var(--bg-page);
 }
 .user-avatar {
-  background: var(--brand-primary);
+  background: var(--text-regular);
   color: #fff;
   font-size: 12px;
   font-weight: 500;
@@ -225,9 +208,9 @@ async function handleLogout() {
 
 /* 侧栏：飞书工作台式浅灰面板（选中项蓝底蓝字） */
 .admin-aside {
-  background: var(--bg-page);
-  border-right: 1px solid var(--border-color-light);
-  padding: 8px;
+  background: var(--bg-card);
+  border-right: 1px solid var(--rule);
+  padding: 12px 8px;
 }
 
 .admin-menu {
@@ -235,11 +218,12 @@ async function handleLogout() {
   background: transparent;
 }
 .admin-menu .el-menu-item {
-  height: 36px;
-  line-height: 36px;
-  padding: 0 8px;
-  border-radius: var(--radius-md);
-  margin-bottom: 2px;
+  position: relative;
+  height: 40px;
+  line-height: 40px;
+  padding: 0 12px;
+  border-radius: 0;
+  margin-bottom: 0;
   font-size: 14px;
   color: var(--text-regular);
   font-weight: 400;
@@ -257,8 +241,18 @@ async function handleLogout() {
   color: var(--text-primary);
 }
 .admin-menu .el-menu-item.is-active {
-  background: var(--brand-primary-light);
-  color: var(--brand-primary);
+  background: transparent;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.admin-menu .el-menu-item.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 2px;
+  background: var(--brand-primary);
   font-weight: 500;
 }
 .admin-menu .el-menu-item.is-active .el-icon {

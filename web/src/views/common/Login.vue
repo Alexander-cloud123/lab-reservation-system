@@ -1,20 +1,31 @@
 <template>
   <div class="login-page">
-    <!-- 左侧品牌区（扁平深蓝面板，无渐变/光晕） -->
+    <!-- 左侧导视牌：白底课表网格 + 编号 + 三步流程（母题：教学楼门牌 / 排课表） -->
     <div class="login-brand">
+      <div class="brand-grid" aria-hidden="true" />
       <div class="brand-inner">
-        <div class="brand-logo">
-          <el-icon :size="30"><OfficeBuilding /></el-icon>
+        <div class="brand-code">
+          <span class="code-block is-signal">A101</span>
+          <span class="brand-code-note">教室预约 · 排课台</span>
         </div>
         <h1 class="brand-name">高校实验室预约管理系统</h1>
-        <p class="brand-slogan">让每一间教室，都在最需要的时候被使用</p>
-        <ul class="brand-points">
-          <li><el-icon><CircleCheckFilled /></el-icon>双重冲突校验，预约零冲突</li>
-          <li><el-icon><Calendar /></el-icon>日历总览 + AI 智能推荐</li>
-          <li><el-icon><DataLine /></el-icon>可视化数据看板，资源一目了然</li>
-        </ul>
+        <p class="brand-slogan">把空教室，变成可预约的时段。</p>
+        <ol class="brand-steps">
+          <li>
+            <span class="step-no">01</span>
+            <span class="step-text"><b>找教室</b>按关键词、楼栋、类型、日期筛出可用时段</span>
+          </li>
+          <li>
+            <span class="step-no">02</span>
+            <span class="step-text"><b>提预约</b>填写用途后提交，前后端双重冲突校验</span>
+          </li>
+          <li>
+            <span class="step-no">03</span>
+            <span class="step-text"><b>等审核</b>在「我的预约」跟踪状态，通过后按时到场</span>
+          </li>
+        </ol>
       </div>
-      <div class="brand-footer">@ 2026 高校实验室预约管理系统 · 课程设计项目</div>
+      <div class="brand-footer">2026 课程设计 高校实验室预约管理系统</div>
     </div>
 
     <!-- 右侧登录表单区 -->
@@ -79,7 +90,7 @@
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElNotification } from 'element-plus'
-import { Lock, User, OfficeBuilding, CircleCheckFilled, Calendar, DataLine } from '@element-plus/icons-vue'
+import { Lock, User } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { useUserStore } from '@/stores/user'
 import { getMyReservations } from '@/api/reservation'
@@ -181,12 +192,13 @@ async function handleLogin() {
   background: var(--bg-page);
 }
 
-/* ---- 左侧品牌区：飞书品牌蓝实底 + 排课表细线网格（产品母题，非装饰渐变） ---- */
+/* ---- 左侧导视牌：纸白底 + 课表网格 + 编号 + 三步流程 ---- */
 .login-brand {
   flex: 1.15;
   min-width: 0;
-  background: var(--brand-primary);
-  color: #fff;
+  background: var(--bg-card);
+  border-right: 1px solid var(--rule);
+  color: var(--text-primary);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -194,65 +206,70 @@ async function handleLogin() {
   position: relative;
   overflow: hidden;
 }
-.login-brand::before {
-  content: '';
+/* 课表网格：教室 × 时段的排课格，只做结构不做装饰 */
+.brand-grid {
   position: absolute;
   inset: 0;
-  /* 时段网格：教室 × 时段的产品本体意象，1px 细线示意结构 */
-  background-image: repeating-linear-gradient(
-      to right,
-      rgba(255, 255, 255, 0.1) 0 1px,
-      transparent 1px 64px
-    ),
-    repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.1) 0 1px, transparent 1px 64px);
+  background-image: repeating-linear-gradient(to right, var(--rule) 0 1px, transparent 1px 72px),
+    repeating-linear-gradient(to bottom, var(--rule) 0 1px, transparent 1px 72px);
+  opacity: 0.35;
   pointer-events: none;
 }
 .brand-inner {
   position: relative;
   z-index: 1;
+  max-width: 520px;
 }
-
-.brand-logo {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.24);
+.brand-code {
   display: flex;
   align-items: center;
-  justify-content: center;
-  margin-bottom: 20px;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+.brand-code-note {
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--text-placeholder);
 }
 .brand-name {
-  font-size: 28px;
+  font-size: 30px;
   font-weight: 600;
-  line-height: 36px;
-  margin-bottom: 8px;
+  line-height: 40px;
+  letter-spacing: -0.4px;
+  margin-bottom: 10px;
 }
 .brand-slogan {
-  font-size: 14px;
-  line-height: 22px;
-  color: rgba(255, 255, 255, 0.8);
+  font-size: 15px;
+  line-height: 24px;
+  color: var(--text-regular);
   margin-bottom: 32px;
 }
-.brand-points {
+.brand-steps {
   list-style: none;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  border-top: 1px solid var(--rule);
 }
-.brand-points li {
+.brand-steps li {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  line-height: 22px;
-  color: rgba(255, 255, 255, 0.88);
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--text-regular);
 }
-.brand-points li .el-icon {
-  font-size: 16px;
-  color: rgba(255, 255, 255, 0.7);
+.step-no {
+  flex: none;
+  padding-top: 2px;
+  font-family: var(--font-num);
+  font-size: 12px;
+  color: var(--text-placeholder);
+  font-variant-numeric: tabular-nums;
+}
+.step-text b {
+  margin-right: 8px;
+  color: var(--text-primary);
+  font-weight: 600;
 }
 .brand-footer {
   position: absolute;
@@ -260,7 +277,7 @@ async function handleLogin() {
   left: 7%;
   font-size: 12px;
   line-height: 20px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-placeholder);
   z-index: 1;
 }
 
@@ -273,18 +290,17 @@ async function handleLogin() {
   padding: 32px 24px;
 }
 .login-card {
-  width: 400px;
+  width: 380px;
   max-width: 100%;
-  background: var(--bg-card);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-color-light);
-  padding: 32px;
-  box-shadow: var(--shadow-raised);
+  background: transparent;
+  border: 0;
+  padding: 0;
 }
 .login-title {
   font-size: 24px;
   font-weight: 600;
   line-height: 32px;
+  letter-spacing: -0.2px;
   color: var(--text-primary);
   margin-bottom: 6px;
 }

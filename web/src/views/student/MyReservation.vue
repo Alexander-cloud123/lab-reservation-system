@@ -48,7 +48,7 @@
         <el-table-column prop="purpose" label="用途" min-width="160" show-overflow-tooltip />
         <el-table-column prop="status" label="状态" width="90">
           <template #default="{ row }">
-            <el-tag :type="statusTagType(row.status)" size="small">{{ statusText(row.status) }}</el-tag>
+            <span class="status-cell"><span class="status-dot" :class="statusDotClass(row.status)" />{{ statusText(row.status) }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="auditRemark" label="审核备注" min-width="140" show-overflow-tooltip>
@@ -100,7 +100,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
 import { getMyReservations, cancelReservation } from '@/api/reservation'
-import { statusText, statusTagType } from '@/utils/dict'
+import { statusText } from '@/utils/dict'
 
 const router = useRouter()
 const loading = ref(false)
@@ -151,6 +151,11 @@ function rowClassName({ row }) {
 /** 判断是否为今天 */
 function isToday(date) {
   return date === today
+}
+
+/** 状态圆点色（0 待审核 / 1 已通过 / 2 已驳回 / 3 已取消） */
+function statusDotClass(status) {
+  return { 0: 'is-pending', 1: 'is-approved', 2: 'is-rejected', 3: 'is-canceled' }[status] || 'is-canceled'
 }
 
 /** 切换状态标签页 */
@@ -238,16 +243,25 @@ onMounted(loadData)
   color: var(--text-placeholder);
 }
 
-/* 今日预约置顶突出显示（R4） */
+/* 今日预约置顶：保留品牌竖线标记，不做整行填色 */
 .today-row td {
-  background: var(--brand-primary-lighter) !important;
+  background: var(--bg-subtle) !important;
 }
-.today-row:hover td {
-  background: var(--brand-primary-light) !important;
+.today-row td:first-child {
+  box-shadow: inset 2px 0 0 var(--brand-primary);
 }
 
 .today-tag {
-  margin-left: 6px;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--brand-primary);
+}
+
+.status-cell {
+  display: inline-flex;
+  align-items: center;
 }
 
 .pagination-wrap {

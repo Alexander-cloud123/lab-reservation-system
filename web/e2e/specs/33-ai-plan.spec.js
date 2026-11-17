@@ -191,7 +191,7 @@ test('缺结束时间时给出可选时段，切换后候选与预填时段同�
   // 两档可选 + 估时说明，默认选候选最多的 14:00-15:00
   const chips = card.locator('.plan-time-chip')
   await expect(chips).toHaveCount(2)
-  await expect(chips.first()).toHaveText('14:00–15:00 · 2 间')
+  await expect(chips.first()).toHaveText('14:00–15:00 2 间')
   await expect(chips.first()).toHaveAttribute('aria-pressed', 'true')
   await expect(card.locator('.plan-guess')).toContainText('已按 1 小时估算')
   await expect(card.locator('.room-name')).toHaveText('C101 云机房')

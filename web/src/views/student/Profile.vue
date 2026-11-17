@@ -19,7 +19,7 @@
             <span class="identity-name">{{ displayName }}</span>
             <el-tag size="small" effect="plain" class="identity-role">学生</el-tag>
           </div>
-          <div class="identity-meta">学号 {{ studentNoText }} · 账号 {{ usernameText }}</div>
+          <div class="identity-meta"><span>学号 {{ studentNoText }}</span><span>账号 {{ usernameText }}</span></div>
         </div>
         <el-button text type="primary" class="identity-edit" @click="openEditDialog">
           <el-icon><EditPen /></el-icon>
@@ -48,44 +48,40 @@
     </section>
 
     <!-- ③ 快捷功能宫格（信息分流：高频业务入口前置） -->
-    <el-card shadow="never" class="section-card">
+    <section class="section">
       <div class="section-head">
         <span class="section-title">快捷功能</span>
       </div>
       <div class="quick-grid">
         <div class="quick-item" v-clickable @click="goMyReservations">
-          <div class="quick-icon"><el-icon :size="20"><Tickets /></el-icon></div>
           <div class="quick-info">
             <div class="quick-name">我的预约</div>
             <div class="quick-desc">查看预约记录与审核状态</div>
           </div>
         </div>
         <div class="quick-item" v-clickable @click="goCalendar">
-          <div class="quick-icon"><el-icon :size="20"><Calendar /></el-icon></div>
           <div class="quick-info">
             <div class="quick-name">预约日历</div>
             <div class="quick-desc">按日历总览与发起预约</div>
           </div>
         </div>
         <div class="quick-item" v-clickable @click="scrollToFav">
-          <div class="quick-icon"><el-icon :size="20"><School /></el-icon></div>
           <div class="quick-info">
             <div class="quick-name">常用教室</div>
             <div class="quick-desc">一键直达已收藏教室</div>
           </div>
         </div>
         <div class="quick-item" v-clickable @click="goClassroomList">
-          <div class="quick-icon"><el-icon :size="20"><OfficeBuilding /></el-icon></div>
           <div class="quick-info">
             <div class="quick-name">教室列表</div>
             <div class="quick-desc">浏览全部教室资源</div>
           </div>
         </div>
       </div>
-    </el-card>
+    </section>
 
     <!-- ④ 常用教室（收藏列表） -->
-    <el-card shadow="never" class="section-card" id="favorite-section">
+    <section class="section" id="favorite-section">
       <div class="section-head">
         <span class="section-title">常用教室</span>
         <el-button text type="primary" @click="goClassroomList">去教室列表</el-button>
@@ -98,10 +94,9 @@
           v-clickable
           @click="goDetail(fav.classroomId)"
         >
-          <div class="fav-icon"><el-icon :size="18"><School /></el-icon></div>
           <div class="fav-info">
             <div class="fav-name">{{ fav.name }}</div>
-            <div class="fav-meta">{{ fav.building }}-{{ fav.roomNo }} · {{ typeText(fav.type) }} · {{ fav.capacity }}人</div>
+            <div class="fav-meta">{{ fav.building }}-{{ fav.roomNo }} {{ typeText(fav.type) }} {{ fav.capacity }}人</div>
           </div>
         </div>
         <!-- 收藏空状态（友好引导） -->
@@ -113,10 +108,10 @@
           <el-button type="primary" @click="goClassroomList">去收藏教室</el-button>
         </el-empty>
       </div>
-    </el-card>
+    </section>
 
     <!-- ⑤ 消息通知（图标化消息流：类型图标 + 未读标记） -->
-    <el-card shadow="never" class="section-card">
+    <section class="section">
       <div class="section-head">
         <span class="section-title">消息通知</span>
         <div class="section-actions">
@@ -151,10 +146,10 @@
           <el-button type="primary" @click="goClassroomList">去教室列表</el-button>
         </el-empty>
       </div>
-    </el-card>
+    </section>
 
     <!-- ⑥ 账户与安全（现代化分组设置列表：行点击弹窗编辑，类主流 App 设置形态） -->
-    <el-card shadow="never" class="section-card account-card" id="account-security">
+    <section class="section" id="account-security">
       <div class="section-head">
         <span class="section-title">账户与安全</span>
         <span class="section-hint">修改密码后需重新登录</span>
@@ -165,29 +160,24 @@
         <div class="settings-group-title">个人资料</div>
         <div class="settings-list">
           <div class="settings-row readonly">
-            <div class="settings-icon"><el-icon :size="17"><Key /></el-icon></div>
             <div class="settings-label">登录账号</div>
             <div class="settings-value muted">{{ usernameText }}</div>
           </div>
           <div class="settings-row readonly">
-            <div class="settings-icon"><el-icon :size="17"><Postcard /></el-icon></div>
             <div class="settings-label">学号</div>
             <div class="settings-value muted">{{ studentNoText }}</div>
           </div>
           <div class="settings-row clickable" v-clickable @click="openEditDialog">
-            <div class="settings-icon"><el-icon :size="17"><User /></el-icon></div>
             <div class="settings-label">姓名</div>
             <div class="settings-value">{{ displayName }}</div>
             <el-icon class="settings-chevron"><ArrowRight /></el-icon>
           </div>
           <div class="settings-row clickable" v-clickable @click="openEditDialog">
-            <div class="settings-icon"><el-icon :size="17"><Message /></el-icon></div>
             <div class="settings-label">邮箱</div>
             <div class="settings-value" :class="{ muted: !emailText }">{{ emailText || '未填写' }}</div>
             <el-icon class="settings-chevron"><ArrowRight /></el-icon>
           </div>
           <div class="settings-row clickable" v-clickable @click="openEditDialog">
-            <div class="settings-icon"><el-icon :size="17"><Iphone /></el-icon></div>
             <div class="settings-label">手机号</div>
             <div class="settings-value" :class="{ muted: !phoneText }">{{ phoneText || '未填写' }}</div>
             <el-icon class="settings-chevron"><ArrowRight /></el-icon>
@@ -200,14 +190,13 @@
         <div class="settings-group-title">账号安全</div>
         <div class="settings-list">
           <div class="settings-row clickable" v-clickable @click="openPwdDialog">
-            <div class="settings-icon"><el-icon :size="17"><Lock /></el-icon></div>
             <div class="settings-label">修改密码</div>
             <div class="settings-value muted">定期修改密码，保护账号安全</div>
             <el-icon class="settings-chevron"><ArrowRight /></el-icon>
           </div>
         </div>
       </div>
-    </el-card>
+    </section>
 
     <!-- 编辑资料弹窗（一步直达，减少操作层级） -->
     <el-dialog
@@ -315,24 +304,7 @@
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import {
-  AlarmClock,
-  ArrowRight,
-  Calendar,
-  CircleCheck,
-  CircleClose,
-  Clock,
-  EditPen,
-  Iphone,
-  Key,
-  Lock,
-  Message,
-  OfficeBuilding,
-  Postcard,
-  School,
-  Tickets,
-  User
-} from '@element-plus/icons-vue'
+import { AlarmClock, ArrowRight, CircleCheck, CircleClose, Clock, EditPen } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { getUserStats, updateUserInfo, changePassword } from '@/api/user'
 import { getFavoriteList } from '@/api/favorite'

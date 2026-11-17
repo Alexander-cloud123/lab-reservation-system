@@ -1,7 +1,7 @@
 <template>
   <div class="dashboard-page">
     <!-- 顶部：标题 + 时间范围筛选 -->
-    <el-card shadow="never" class="filter-card">
+    <div class="page-head">
       <div class="filter-bar">
         <span class="page-title">数据看板</span>
         <el-radio-group v-model="quickRange" size="small" @change="handleQuickRange">
@@ -22,30 +22,30 @@
         />
         <el-button type="primary" size="small" :loading="loading" @click="loadAll">刷新</el-button>
       </div>
-    </el-card>
+    </div>
 
     <!-- 三图表：使用率排行柱状图 / 月度趋势折线图 / 热门时段饼图 -->
     <el-row :gutter="16">
       <el-col :span="14">
-        <el-card shadow="never" class="chart-card">
+        <div class="section chart-card">
           <div class="chart-title">教室使用率排行</div>
           <div class="chart-sub">已通过预约占用小时 / 区间可预约小时</div>
           <div ref="usageRateEl" class="chart-box" />
-        </el-card>
+        </div>
       </el-col>
       <el-col :span="10">
-        <el-card shadow="never" class="chart-card">
+        <div class="section chart-card">
           <div class="chart-title">热门时段分布</div>
           <div class="chart-sub">已通过预约按开始时段</div>
           <div ref="timeDistEl" class="chart-box" />
-        </el-card>
+        </div>
       </el-col>
     </el-row>
-    <el-card shadow="never" class="chart-card">
+    <div class="section chart-card">
       <div class="chart-title">月度预约趋势</div>
       <div class="chart-sub">全部状态预约条数</div>
       <div ref="trendEl" class="chart-box chart-box-tall" />
-    </el-card>
+    </div>
   </div>
 </template>
 
@@ -337,11 +337,6 @@ onBeforeUnmount(() => {
   margin: 0 auto;
 }
 
-.filter-card {
-  margin-bottom: 16px;
-  border-radius: var(--radius-lg);
-}
-
 .filter-bar {
   display: flex;
   align-items: center;
@@ -359,12 +354,11 @@ onBeforeUnmount(() => {
 
 .chart-card {
   margin-bottom: 16px;
-  border-radius: var(--radius-lg);
 }
 
 .chart-title {
-  font-size: 14px;
-  line-height: 22px;
+  font-size: 16px;
+  line-height: 24px;
   font-weight: 600;
   color: var(--text-primary);
 }

@@ -15,7 +15,7 @@
     />
 
     <!-- 搜索栏：关键词 / 楼栋 / 类型 / 日期筛选 -->
-    <el-card shadow="never" class="search-card">
+    <div class="search-card table-band">
       <el-form :inline="true" :model="query" @submit.prevent>
         <el-form-item label="关键词">
           <el-input
@@ -54,7 +54,7 @@
           <AiQuickReserve :ai-enabled="aiEnabled" />
         </el-form-item>
       </el-form>
-    </el-card>
+    </div>
 
     <!-- 教室卡片列表（Bento 卡片网格） -->
     <div v-loading="loading" class="card-grid">
@@ -65,41 +65,32 @@
         @click="goDetail(room)"
       >
         <div class="room-card-head">
-          <div class="room-type-icon" :class="`type-${room.type}`">
-            <el-icon :size="22"><component :is="typeIcon(room.type)" /></el-icon>
-          </div>
           <div class="room-name-wrap">
             <span class="room-name">{{ room.name }}</span>
             <span class="room-no">{{ room.roomNo }}</span>
           </div>
-          <el-tag :type="statusTagType(room.statusLabel)" effect="light" size="small" round>
+          <span class="status-cell">
             <span class="status-dot" :class="statusDot(room.statusLabel)"></span>
             {{ room.statusLabel }}
-          </el-tag>
+          </span>
         </div>
 
         <div class="room-meta">
-          <span class="meta-item">
-            <el-icon><Location /></el-icon>{{ room.building || '-' }} 楼栋
-          </span>
-          <span class="meta-item">
-            <el-icon><User /></el-icon>容量 {{ room.capacity }} 人
-          </span>
-          <el-tag :type="typeTagType(room.type)" size="small" effect="plain" round>{{ typeText(room.type) }}</el-tag>
+          <span class="meta-item room-type">{{ typeText(room.type) }}</span>
+          <span class="meta-item">{{ room.building || '-' }} 楼栋</span>
+          <span class="meta-item">容量 {{ room.capacity }} 人</span>
         </div>
 
         <!-- 今日剩余可预约时段（需求 1.3 冲优项；后端返回 null/undefined 时隐藏，向后兼容） -->
         <div v-if="room.todayRemainingSlots !== undefined && room.todayRemainingSlots !== null" class="remain-slots">
-          <el-icon><Clock /></el-icon>今日剩余 <b>{{ room.todayRemainingSlots }}</b> 时段可约
+          今日剩余 <b>{{ room.todayRemainingSlots }}</b> 时段可约
         </div>
 
         <div v-if="query.date && room.occupiedSlots && room.occupiedSlots.length" class="occupied-bar">
           <span>{{ query.date }} 当天已有 <b>{{ room.occupiedSlots.length }}</b> 个时段被预约</span>
         </div>
 
-        <p class="room-equipment" v-if="room.equipment">
-          <el-icon><Monitor /></el-icon>设备：{{ room.equipment }}
-        </p>
+        <p class="room-equipment" v-if="room.equipment">设备：{{ room.equipment }}</p>
         <p class="room-desc">{{ room.description || '暂无备注' }}</p>
 
         <div class="room-foot">
@@ -134,8 +125,7 @@
 <script setup>
 import { onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Clock, Location, Monitor, Refresh, Search, User } from '@element-plus/icons-vue'
-import { Notebook, Cpu, School } from '@element-plus/icons-vue'
+import { Refresh, Search } from '@element-plus/icons-vue'
 import { listClassrooms } from '@/api/classroom'
 import AiRecommendCard from '@/components/ai/AiRecommendCard.vue'
 import AiQuickReserve from '@/components/ai/AiQuickReserve.vue'
@@ -279,24 +269,12 @@ function goDetail(room) {
   router.push(`/student/classrooms/${room.id}`)
 }
 
-/** 类型标签色 */
-function typeTagType(type) {
-  return { 1: 'primary', 2: 'success', 3: 'warning' }[type] || 'info'
-}
 
-/** 类型图标 */
-function typeIcon(type) {
-  return { 1: School, 2: Cpu, 3: Notebook }[type] || School
-}
 
-/** 实时状态标签色（R4 三态：空闲绿/使用中红/已结束灰） */
-function statusTagType(label) {
-  return { 当前空闲: 'success', 使用中: 'danger', 已结束: 'info' }[label] || 'info'
-}
 
 /** 状态圆点 */
 function statusDot(label) {
-  return { 当前空闲: 'dot-free', 使用中: 'dot-busy', 已结束: 'dot-done' }[label] || 'dot-done'
+  return { 当前空闲: 'is-approved', 使用中: 'is-pending', 已结束: 'is-canceled' }[label] || 'is-canceled'
 }
 
 /** 筛选条件变化时自动记忆（还原后不再触发保存的抖动已由条件一致规避） */
@@ -360,27 +338,7 @@ onMounted(() => {
   margin-bottom: 12px;
 }
 
-.room-type-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.room-type-icon.type-1 {
-  background: var(--brand-primary-light);
-  color: var(--brand-primary);
-}
-.room-type-icon.type-2 {
-  background: var(--brand-success-light);
-  color: var(--brand-success);
-}
-.room-type-icon.type-3 {
-  background: var(--brand-warning-light);
-  color: var(--brand-warning);
-}
+
 
 .room-name-wrap {
   flex: 1;
@@ -399,9 +357,14 @@ onMounted(() => {
   text-overflow: ellipsis;
 }
 .room-no {
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--text-placeholder);
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 2px;
+  background: var(--code-bg);
+  font-family: var(--font-num);
+  font-size: 11px;
+  line-height: 18px;
+  color: var(--text-primary);
 }
 
 .status-dot {
@@ -420,6 +383,14 @@ onMounted(() => {
 }
 .dot-done {
   background: var(--brand-info);
+}
+
+.status-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-regular);
 }
 
 .room-meta {

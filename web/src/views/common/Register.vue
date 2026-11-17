@@ -1,20 +1,31 @@
 <template>
   <div class="register-page">
-    <!-- 左侧品牌区（与登录页统一：扁平深蓝面板） -->
+    <!-- 左侧导视牌：与登录页同一母题 -->
     <div class="register-brand">
+      <div class="brand-grid" aria-hidden="true" />
       <div class="brand-inner">
-        <div class="brand-logo">
-          <el-icon :size="30"><OfficeBuilding /></el-icon>
+        <div class="brand-code">
+          <span class="code-block is-signal">NEW</span>
+          <span class="brand-code-note">学生注册 · 一次填完</span>
         </div>
         <h1 class="brand-name">高校实验室预约管理系统</h1>
-        <p class="brand-slogan">注册学生账号，开启高效预约体验</p>
-        <ul class="brand-points">
-          <li><el-icon><CircleCheckFilled /></el-icon>学号实名认证，预约安全可信</li>
-          <li><el-icon><Calendar /></el-icon>日历总览 + AI 智能推荐</li>
-          <li><el-icon><DataLine /></el-icon>可视化数据看板，资源一目了然</li>
-        </ul>
+        <p class="brand-slogan">注册学生账号，凭学号实名预约。</p>
+        <ol class="brand-steps">
+          <li>
+            <span class="step-no">01</span>
+            <span class="step-text"><b>填资料</b>学号、姓名、账号与密码，一次填完</span>
+          </li>
+          <li>
+            <span class="step-no">02</span>
+            <span class="step-text"><b>即登录</b>注册成功后直接回到登录页</span>
+          </li>
+          <li>
+            <span class="step-no">03</span>
+            <span class="step-text"><b>开始约</b>双重冲突校验，只看真正可用的时段</span>
+          </li>
+        </ol>
       </div>
-      <div class="brand-footer">@ 2026 高校实验室预约管理系统 · 课程设计项目</div>
+      <div class="brand-footer">2026 课程设计 高校实验室预约管理系统</div>
     </div>
 
     <!-- 右侧注册表单区 -->
@@ -62,7 +73,6 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { OfficeBuilding, CircleCheckFilled, Calendar, DataLine } from '@element-plus/icons-vue'
 import { register as registerApi } from '@/api/user'
 
 // 为满足 multi-word 规则并便于 devtools 辨识
@@ -143,12 +153,13 @@ async function handleRegister() {
   background: var(--bg-page);
 }
 
-/* ---- 左侧品牌区（与登录页统一：飞书品牌蓝 + 排课表细线网格） ---- */
+/* ---- 左侧导视牌：纸白底 + 课表网格 + 编号 + 三步流程 ---- */
 .register-brand {
   flex: 1.15;
   min-width: 0;
-  background: var(--brand-primary);
-  color: #fff;
+  background: var(--bg-card);
+  border-right: 1px solid var(--rule);
+  color: var(--text-primary);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -156,65 +167,69 @@ async function handleRegister() {
   position: relative;
   overflow: hidden;
 }
-.register-brand::before {
-  content: '';
+.brand-grid {
   position: absolute;
   inset: 0;
-  /* 时段网格：教室 × 时段的产品本体意象，1px 细线示意结构 */
-  background-image: repeating-linear-gradient(
-      to right,
-      rgba(255, 255, 255, 0.1) 0 1px,
-      transparent 1px 64px
-    ),
-    repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.1) 0 1px, transparent 1px 64px);
+  background-image: repeating-linear-gradient(to right, var(--rule) 0 1px, transparent 1px 72px),
+    repeating-linear-gradient(to bottom, var(--rule) 0 1px, transparent 1px 72px);
+  opacity: 0.35;
   pointer-events: none;
 }
 .brand-inner {
   position: relative;
   z-index: 1;
+  max-width: 520px;
 }
-
-.brand-logo {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.24);
+.brand-code {
   display: flex;
   align-items: center;
-  justify-content: center;
-  margin-bottom: 20px;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+.brand-code-note {
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--text-placeholder);
 }
 .brand-name {
-  font-size: 28px;
+  font-size: 30px;
   font-weight: 600;
-  line-height: 36px;
-  margin-bottom: 8px;
+  line-height: 40px;
+  letter-spacing: -0.4px;
+  margin-bottom: 10px;
 }
 .brand-slogan {
-  font-size: 14px;
-  line-height: 22px;
-  color: rgba(255, 255, 255, 0.8);
+  font-size: 15px;
+  line-height: 24px;
+  color: var(--text-regular);
   margin-bottom: 32px;
 }
-.brand-points {
+.brand-steps {
   list-style: none;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  border-top: 1px solid var(--rule);
 }
-.brand-points li {
+.brand-steps li {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  line-height: 22px;
-  color: rgba(255, 255, 255, 0.88);
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--text-regular);
 }
-.brand-points li .el-icon {
-  font-size: 16px;
-  color: rgba(255, 255, 255, 0.7);
+.step-no {
+  flex: none;
+  padding-top: 2px;
+  font-family: var(--font-num);
+  font-size: 12px;
+  color: var(--text-placeholder);
+  font-variant-numeric: tabular-nums;
+}
+.step-text b {
+  margin-right: 8px;
+  color: var(--text-primary);
+  font-weight: 600;
 }
 .brand-footer {
   position: absolute;
@@ -222,7 +237,7 @@ async function handleRegister() {
   left: 7%;
   font-size: 12px;
   line-height: 20px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-placeholder);
   z-index: 1;
 }
 

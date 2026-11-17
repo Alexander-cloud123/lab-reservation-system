@@ -27,6 +27,8 @@
 
 AI 助手单独剪了约 48 秒片段（时长随上游吐字波动），展示「参考 DeepSeek 网页端」的思考体验——三点脉冲等待动画、逐条真实执行轨迹、服务端实测计时，回答到达后自动折叠为「已思考 X.X 秒」并可展开查看推理原文：[AI 助手思考片段](https://github.com/Alexander-cloud123/lab-reservation-system/releases/download/v1.1.0/demo-ai-thinking.mp4)。
 
+> 说明：上面三段演示视频录制于全站视觉重构前；当前界面（排课表式）见下方「项目预览」实拍截图。
+
 录制脚本 [`web/scripts/capture-demo-video.mjs`](web/scripts/capture-demo-video.mjs) 会在录制前复位种子库、按固定锚点造出待审核与冲突数据，任意时刻重录结果一致；分镜、参数与验收清单见 [`docs/演示视频分镜.md`](docs/演示视频分镜.md)。
 
 ## 项目预览

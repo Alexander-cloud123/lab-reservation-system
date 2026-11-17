@@ -1,8 +1,24 @@
 <template>
-  <div class="ai-plan" role="group" :aria-label="`预约方案：${plan.date || ''} ${plan.startTime || ''}-${plan.endTime || ''}`">
+  <div class="ai-plan" role="group" :aria-label="`预约方案：${plan.date || ''} ${plan.startTime || ''}-${currentEnd}`">
     <div class="plan-head">
       <p class="plan-title">预约方案</p>
       <p class="plan-meta">{{ detail }}</p>
+    </div>
+
+    <!-- R15-2：用户没说结束时间时，这里给出可选时段；切换只在本卡片内完成，不再发请求 -->
+    <div v-if="options.length > 1" class="plan-time-options" role="group" aria-label="可选结束时间">
+      <button
+        v-for="(option, index) in options"
+        :key="option.endTime"
+        type="button"
+        class="plan-time-chip"
+        :class="{ 'is-active': index === activeIndex, 'is-empty': !option.availableCount }"
+        :aria-pressed="index === activeIndex"
+        :aria-label="`${option.startTime}-${option.endTime}，${option.availableCount} 间可用`"
+        @click="selectOption(index)"
+      >
+        {{ option.startTime }}–{{ option.endTime }} · {{ option.availableCount }} 间
+      </button>
     </div>
 
     <ol v-if="candidates.length" class="plan-list">
@@ -18,8 +34,8 @@
         <button
           type="button"
           class="plan-go"
-          :aria-label="`去预约 ${candidate.name}`"
-          @click="emit('reserve', candidate)"
+          :aria-label="`去预约 ${candidate.name}，时段 ${currentEnd}`"
+          @click="emit('reserve', candidate, currentEnd)"
         >
           去预约
         </button>
@@ -28,30 +44,68 @@
 
     <p v-else class="plan-empty">{{ plan.clarify || '这个时段没有可预约的教室。' }}</p>
 
-    <p v-if="plan.moreAvailable" class="plan-more">另有 {{ plan.moreAvailable }} 间同条件的教室可用</p>
+    <p v-if="current.moreAvailable || plan.moreAvailable" class="plan-more">
+      另有 {{ current.moreAvailable || plan.moreAvailable }} 间同条件的教室可用
+    </p>
+    <p v-if="plan.endTimeGuessed" class="plan-guess">
+      未说明结束时间，已按 {{ plan.guessHours || 2 }} 小时估算，可在上方切换时段
+    </p>
     <p v-if="candidates.length && plan.clarify" class="plan-clarify">{{ plan.clarify }}</p>
     <p class="plan-note">AI 只给出方案，点「去预约」后需在确认页手动提交</p>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { typeText } from '@/utils/dict'
 
 const props = defineProps({
-  /** 后端 plan 事件载荷：{ date, startTime, endTime, capacity, roomType, purpose, candidates, moreAvailable, clarify } */
+  /**
+   * 后端 plan 事件载荷：{ date, startTime, endTime, capacity, roomType, purpose, candidates,
+   * moreAvailable, clarify, endTimeGuessed, guessHours, timeOptions }
+   */
   plan: { type: Object, required: true }
 })
 const emit = defineEmits(['reserve'])
 
-const candidates = computed(() => (props.plan && props.plan.candidates) || [])
+/** 可选结束时间档位（endTime 明确时为空数组） */
+const options = computed(() => (props.plan && props.plan.timeOptions) || [])
+
+/** 默认选中后端回填的默认档（按 endTime 对齐），找不到就用第一档 */
+const activeIndex = ref(0)
+watch(
+  () => props.plan,
+  (plan) => {
+    const list = (plan && plan.timeOptions) || []
+    const target = list.findIndex((option) => option.endTime === (plan && plan.endTime))
+    activeIndex.value = target >= 0 ? target : 0
+  },
+  { immediate: true }
+)
+
+/** 当前生效的时段：有档位用档位数据，否则回落到 plan 本身（旧载荷/明确时段） */
+const current = computed(() => options.value[activeIndex.value] || props.plan || {})
+const candidates = computed(() => current.value.candidates || [])
+const currentEnd = computed(() => current.value.endTime || (props.plan && props.plan.endTime) || '')
+
+function selectOption(index) {
+  const option = options.value[index]
+  if (!option || !option.availableCount) {
+    return
+  }
+  activeIndex.value = index
+}
 
 /** 方案条件副标题：日期 + 时段 + 人数/类型（缺项不占位） */
 const detail = computed(() => {
   const plan = props.plan || {}
   const parts = []
   if (plan.date) {
-    parts.push(plan.startTime && plan.endTime ? `${plan.date} ${plan.startTime}-${plan.endTime}` : plan.date)
+    parts.push(
+      plan.startTime && currentEnd.value
+        ? `${plan.date} ${plan.startTime}-${currentEnd.value}`
+        : plan.date
+    )
   }
   if (plan.capacity) {
     parts.push(`${plan.capacity} 人`)
@@ -84,6 +138,36 @@ const detail = computed(() => {
   margin: 4px 0 0;
   font-size: 12.5px;
   color: var(--text-regular);
+}
+.plan-time-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+.plan-time-chip {
+  border: 1px solid var(--border-color-light);
+  background: var(--bg-subtle);
+  color: var(--text-regular);
+  font-size: 12.5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.plan-time-chip:hover {
+  border-color: var(--brand-primary-border, #c2d4ff);
+  color: var(--brand-primary);
+}
+.plan-time-chip.is-active {
+  border-color: var(--brand-primary);
+  background: var(--brand-primary-lighter, #f0f4ff);
+  color: var(--brand-primary);
+  font-weight: 600;
+}
+.plan-time-chip.is-empty {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 .plan-list {
   margin: 0;
@@ -145,10 +229,14 @@ const detail = computed(() => {
   line-height: 1.7;
   color: var(--text-regular);
 }
-.plan-more {
+.plan-more,
+.plan-guess {
   margin: 8px 0 0;
   font-size: 12px;
   color: var(--text-placeholder);
+}
+.plan-guess {
+  color: var(--text-regular);
 }
 .plan-note {
   margin: 10px 0 0;

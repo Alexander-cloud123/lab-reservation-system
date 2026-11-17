@@ -4,6 +4,7 @@ import com.example.reservation.ai.config.AiConstants;
 import com.example.reservation.ai.dto.AiParseVO;
 import com.example.reservation.ai.dto.AiPlanCandidateVO;
 import com.example.reservation.ai.dto.AiPlanVO;
+import com.example.reservation.ai.support.AiParseFallback;
 import com.example.reservation.ai.service.AiConfigService;
 import com.example.reservation.ai.service.AiParseService;
 import com.example.reservation.common.PageResult;
@@ -63,6 +64,8 @@ class AiBookingPlanServiceImplTest {
         service = new AiBookingPlanServiceImpl();
         ReflectionTestUtils.setField(service, "aiConfigService", aiConfigService);
         ReflectionTestUtils.setField(service, "aiParseService", aiParseService);
+        // R15-2：本地规则是真实现（纯正则、无外部依赖），用于验证「模型缺结束时间」时的兜底
+        ReflectionTestUtils.setField(service, "aiParseFallback", new AiParseFallback());
         ReflectionTestUtils.setField(service, "classroomService", classroomService);
         ReflectionTestUtils.setField(service, "reservationMapper", reservationMapper);
         ReflectionTestUtils.setField(service, "classroomMapper", classroomMapper);
@@ -109,6 +112,22 @@ class AiBookingPlanServiceImplTest {
                 any(), any())).thenReturn(page(rooms));
     }
 
+    @Test
+    @DisplayName("用户没提结束时间时，模型自填的 endTime 不算数，仍走估时档位")
+    void ignoresModelInventedEndTime() {
+        when(aiConfigService.isAiEnabled()).thenReturn(true);
+        // 模型解析出了 14:00-15:00，但原文只说「下午两点」——按未指定结束时间处理
+        when(aiParseService.parse("帮我约明天下午两点的机房，30 人左右")).thenReturn(parsed());
+        stubQuery(List.of(room(1L, "B201 实验室", "实验楼", 3, 60, List.of())));
+
+        AiPlanVO vo = service.plan(2L, "帮我约明天下午两点的机房，30 人左右");
+
+        assertTrue(vo.isEndTimeGuessed());
+        assertEquals(3, vo.getTimeOptions().size());
+        assertTrue(vo.getTimeOptions().stream().anyMatch(option -> "15:00".equals(option.getEndTime())));
+        assertEquals("14:00", vo.getStartTime());
+        assertEquals(LocalDate.now().plusDays(1).toString(), vo.getDate());
+    }
     @Test
     @DisplayName("排序取 Top3，并统计更多可用数与排除数")
     void returnsTop3AndMoreAvailable() {
@@ -246,5 +265,86 @@ class AiBookingPlanServiceImplTest {
 
         assertEquals(1, plan.getCandidates().size());
         assertEquals("信息楼机房", plan.getCandidates().get(0).getName());
+    }
+
+    /** 只给日期 + 开始时间（14:00），不给结束时间 */
+    private AiParseVO parsedStartOnly(String start) {
+        AiParseVO vo = new AiParseVO();
+        vo.setDate(LocalDate.now().plusDays(1).toString());
+        vo.setStartTime(start);
+        vo.setCapacity(30);
+        vo.setRoomType(AiConstants.ROOM_TYPE_COMPUTER);
+        return vo;
+    }
+
+    @Test
+    @DisplayName("缺结束时间：按 1/2/3 小时估时，默认档回填到主字段")
+    void estimatesThreeDurationsWhenEndMissing() {
+        when(aiConfigService.isAiEnabled()).thenReturn(true);
+        when(aiParseService.parse(any())).thenReturn(parsedStartOnly("14:00"));
+        stubQuery(List.of(room(1L, "机房一", "信息楼", 3, 40, List.of())));
+
+        AiPlanVO plan = service.plan(7L, "帮我约明天下午两点的机房，30人");
+
+        assertTrue(plan.isEndTimeGuessed());
+        assertEquals(3, plan.getTimeOptions().size());
+        assertEquals("15:00", plan.getTimeOptions().get(0).getEndTime());
+        assertEquals("16:00", plan.getTimeOptions().get(1).getEndTime());
+        assertEquals("17:00", plan.getTimeOptions().get(2).getEndTime());
+        assertEquals("14:00", plan.getStartTime());
+        // 三档候选数相同时默认取 2 小时档
+        assertEquals("16:00", plan.getEndTime());
+        assertEquals(2, plan.getGuessHours());
+        assertEquals(1, plan.getCandidates().size());
+    }
+
+    @Test
+    @DisplayName("开始时间较晚：时长档位按 22:00 上限截断")
+    void truncatesDurationsNearClosing() {
+        when(aiConfigService.isAiEnabled()).thenReturn(true);
+        when(aiParseService.parse(any())).thenReturn(parsedStartOnly("20:00"));
+        stubQuery(List.of(room(1L, "机房一", "信息楼", 3, 40, List.of())));
+
+        AiPlanVO plan = service.plan(7L, "帮我约明天晚上八点的机房");
+
+        assertEquals(2, plan.getTimeOptions().size());
+        assertEquals("21:00", plan.getTimeOptions().get(0).getEndTime());
+        assertEquals("22:00", plan.getTimeOptions().get(1).getEndTime());
+        // 两档候选数相同：默认取 2 小时档（21:00 后的 22:00 结束）
+        assertEquals("22:00", plan.getEndTime());
+        assertEquals(2, plan.getGuessHours());
+    }
+
+    @Test
+    @DisplayName("开始时间太晚（连 1 小时都排不下）：按澄清处理，不出方案")
+    void clarifiesWhenNoDurationFits() {
+        when(aiConfigService.isAiEnabled()).thenReturn(true);
+        when(aiParseService.parse(any())).thenReturn(parsedStartOnly("21:30"));
+
+        AiPlanVO plan = service.plan(7L, "帮我约明天晚上九点半的机房");
+
+        assertEquals(AiConstants.PLAN_CLARIFY, plan.getClarify());
+        assertTrue(plan.getTimeOptions().isEmpty());
+        assertTrue(plan.getCandidates().isEmpty());
+        verify(classroomService, never()).pageClassroomsForStudent(anyLong(), anyLong(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("各档独立复核冲突：1 小时可用、2 小时冲突的教室只出现在 1 小时档")
+    void optionsCheckConflictsIndependently() {
+        when(aiConfigService.isAiEnabled()).thenReturn(true);
+        when(aiParseService.parse(any())).thenReturn(parsedStartOnly("14:00"));
+        stubQuery(List.of(
+                room(1L, "一小时后被占", "信息楼", 3, 40, List.of(slot("15:00", "16:00"))),
+                room(2L, "两小时都空", "信息楼", 3, 40, List.of())));
+
+        AiPlanVO plan = service.plan(7L, "帮我约明天下午两点的机房");
+
+        assertEquals(2, plan.getTimeOptions().get(0).getAvailableCount());
+        assertEquals(1, plan.getTimeOptions().get(1).getAvailableCount());
+        assertTrue(plan.getTimeOptions().get(0).getCandidates().stream()
+                .anyMatch(c -> c.getName().equals("一小时后被占")));
+        assertTrue(plan.getTimeOptions().get(1).getCandidates().stream()
+                .noneMatch(c -> c.getName().equals("一小时后被占")));
     }
 }

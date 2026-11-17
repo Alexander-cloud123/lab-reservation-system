@@ -7,15 +7,15 @@
 ![Java](https://img.shields.io/badge/Java-21-blue.svg)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.10-6DB33F.svg)
 ![Vue](https://img.shields.io/badge/Vue-3.4-4FC08D.svg)
-![Backend Tests](https://img.shields.io/badge/backend%20tests-347-brightgreen.svg)
-![E2E](https://img.shields.io/badge/E2E-138%20%28Chromium%20%2B%20Edge%29-brightgreen.svg)
+![Backend Tests](https://img.shields.io/badge/backend%20tests-343-brightgreen.svg)
+![E2E](https://img.shields.io/badge/E2E-139%20%28Chromium%20%2B%20Edge%29-brightgreen.svg)
 
 前后端分离的高校实验室/教室预约管理系统，覆盖 R1–R13 共 13 轮迭代。核心是预约提交的**「前端实时校验 + 后端二次冲突检测」双重校验**，以及**严格的预约状态流转**：
 
 - 冲突检测公式：`新开始 < 旧结束 AND 新结束 > 旧开始`
 - 状态流转：待审核(0) → 已通过(1) / 已驳回(2)；待审核 / 已通过 → 已取消(3)
 
-**规模**：347 个后端测试（行覆盖 81.7%）· 41 项接口冒烟 · 138 例 Playwright E2E（Chromium + Edge）· 15 项故障演练 · 7 接口 + 7 页性能基准 · 3 套 GitHub Actions。
+**规模**：343 个后端测试（行覆盖 81.5%）· 41 项接口冒烟 · 138 例 Playwright E2E（Chromium + Edge）· 15 项故障演练 · 7 接口 + 7 页性能基准 · 3 套 GitHub Actions。
 
 ## 演示
 
@@ -78,7 +78,7 @@ AI 助手单独剪了约 48 秒片段（时长随上游吐字波动），展示�
 | 个人中心 | 资料维护、收藏全链路、预约记录查询 |
 | 亮点功能 | 日历总览（FullCalendar）、数据看板（ECharts） |
 | 数据导出 | 预约记录 Excel 导出（EasyExcel） |
-| AI 能力 | 智能推荐、自然语言预约解析、智能问答、合规校验，以及带**思考过程面板**的 DeepSeek 式全屏对话（左栏会话历史本地持久化、搜索与日期分组、真实执行轨迹 + 推理透传、思考计时、可折叠展开）；**预约规划智能体**（一句话生成 2–3 间可预约教室方案，点「去预约」进入确认弹窗，AI 只读不写）；可一键关闭，关闭不影响核心系统 |
+| AI 能力 | 智能推荐、自然语言预约解析、智能问答、合规校验，以及带**思考过程面板**的 DeepSeek 式全屏对话（左栏会话历史本地持久化、搜索与日期分组、真实执行轨迹 + 推理透传、思考计时、可折叠展开）；**预约规划智能体**（一句话生成 2–3 间可预约教室方案，只说「下午两点」时会按 1/2/3 小时估出可选结束时间供切换，点「去预约」进入确认弹窗，AI 只读不写）；可一键关闭，关闭不影响核心系统 |
 
 ## 技术栈
 
@@ -193,9 +193,9 @@ cd web; npm ci; npm run dev                     # http://127.0.0.1:5173
 
 | 层次 | 规模 | 入口 |
 |------|------|------|
-| 后端单元 / 集成测试 | 45 个测试类、347 个用例；行覆盖 **81.7%**（指令 83.4% / 分支 74.8%，JaCoCo） | `mvn -f server/pom.xml test` |
+| 后端单元 / 集成测试 | 43 个测试类、343 个用例；行覆盖 **81.5%**（指令 83.3% / 分支 74.2%，JaCoCo） | `mvn -f server/pom.xml test` |
 | 接口冒烟回归 | 41 项（鉴权 / 权限 / 预约生命周期 / 冲突 / 校验 / 看板 / 收藏 / AI 降级 / 会话撤销） | `pwsh server/scripts/smoke.ps1` |
-| 前端 E2E | 19 个 spec、138 个用例 × Chromium + Edge | `npm run test:e2e:all`（默认只跑 Chromium） |
+| 前端 E2E | 19 个 spec、139 个用例 × Chromium + Edge | `npm run test:e2e:all`（默认只跑 Chromium） |
 | 无障碍机器代理 | 16/16 项（人工听感按负责人决定不执行） | `node scripts/a11y-acceptance.mjs` |
 | 安全基线自检 | 8 项（默认密钥伪造 / 文档关闭 / 限流 / 响应头 / 越权） | `pwsh server/scripts/security-check.ps1` |
 | 故障演练 | 2 类故障 × 恢复验证，15 项（Redis fail closed / MySQL 有界失败 / 数据复原） | `pwsh server/scripts/chaos-drill.ps1` |
@@ -219,7 +219,7 @@ cd web; node scripts/capture-screens.mjs       # 采集 README 预览截图
 | `server-ci.yml` | push / PR（`server/**`、`database/init_db.sql`）+ 手动 | 起 MySQL 8.0 / Redis 7.0 → 导入种子数据 → `mvn test`（347 项）→ 上传 JaCoCo 报告 |
 | `stack-smoke.yml` | push / PR（`server/**`、`web/**`、`database/init_db.sql`）+ 手动 | **smoke**：打包 jar 起后端 → 41 项接口冒烟；**e2e**：独立栈 + Chromium → 138 例 Playwright（两 job 各自独立 MySQL / Redis，互不污染数据） |
 
-已实测（2026-11-16）：`stack-smoke` 的 smoke **41/41**、e2e **138 passed**（Chromium，AI 开启口径）；`server-ci` 口径下 `mvn test` **347 项通过**并上传 `jacoco-report`。
+已实测（2026-11-16）：`stack-smoke` 的 smoke **41/41**、e2e **139 passed**（Chromium，AI 开启口径）；`server-ci` 口径下 `mvn test` **347 项通过**并上传 `jacoco-report`。
 
 ## 迭代历程（里程碑）
 

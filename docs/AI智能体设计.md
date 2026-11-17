@@ -27,7 +27,11 @@
 ## 3. 检索与排序口径
 
 1. **一次分页拿全量**：`ClassroomService.pageClassroomsForStudent(1, 500, null, null, type, date)` 返回的每个教室都带 `occupiedSlots`（当日已通过时段），因此在内存里做过滤，不逐间调冲突接口（避免 N+1）。
-2. **解析**：复用 `AiParseService.parse(text)`（模型解析 + 规则降级），得到日期、时段、人数、类型、用途；解析失败或缺少日期/时段 → 只输出澄清话术，不出方案卡。
+2. **解析**：复用 `AiParseService.parse(text)`（模型解析 + 规则降级），得到日期、时段、人数、类型、用途；解析失败或缺少日期/开始时间 → 只输出澄清话术，不出方案卡。
+3. **结束时间可以由交互层兜底**（R15-2）：用户只说「明天下午两点」时，不要求这句话把结束时间也说全，而是按 1 / 2 / 3 小时三档估算（`PLAN_DURATION_HOURS`），每档独立做容量与冲突过滤，再在方案卡里让用户切换；先按「候选最多」选默认档，并列时优先 2 小时。
+   - 上限与预约表单一致：结束时间不超过 `Constants.DAILY_SLOT_END`（22:00），所以 20:00 起只有 21:00 / 22:00 两档，21:00 之后起没有任何合法档位 → 澄清，不再查库。
+   - 估时只用于**生成建议**，不会写进任何业务数据；用户切换档位只在本地方案卡内重排候选，不再发请求，也不会再消耗一次模型额度。
+   - **以用户原文为准**：模型有时会自行补一个 endTime（例如「两点」补成 14:00-15:00），这属于模型的隐性假设。`AiBookingIntent.mentionsEndTime` 会检查原文是否出现两个时间点、时段连接词（到/至/-）或时长（两小时），没出现就一律按「未指定」走估时，避免把估算伪装成真实需求。
 3. **过滤**：容量不足（教室容量 < 需求人数）或与已通过预约重叠的教室直接排除，并累计排除数（`excludedCount`）。重叠判定与后端同口径：`start < slotEnd && end > slotStart`，首尾相接（10:00 结束、10:00 开始）不算冲突。
 4. **排序**（纯规则打分，不再调模型，避免多一次 429 风险）：
    - 类型精确匹配 +100（普通教室 / 实验室 / 机房）；
@@ -53,6 +57,9 @@ SSE 事件名 `plan`，出现在 `meta` 之后、正文 `delta` 之前（思考�
   "moreAvailable": 1,
   "excludedCount": 2,
   "clarify": "",
+  "endTimeGuessed": false,
+  "guessHours": 0,
+  "timeOptions": [],
   "candidates": [
     {
       "classroomId": 9,
@@ -68,6 +75,7 @@ SSE 事件名 `plan`，出现在 `meta` 之后、正文 `delta` 之前（思考�
 ```
 
 - `candidates` 为空时**不发 plan 帧**，正文直接给 `clarify`（说清缺什么、怎么改口）。
+- `endTimeGuessed=true` 时，顶层 `endTime` / `candidates` 是后端回填的**默认档**，真正的可选档位在 `timeOptions` 里（每档 `{ startTime, endTime, availableCount, excludedCount, candidates }`，最多 3 档）；`guessHours` 是默认档的估算小时数。前端把默认档直接渲染出来，用户切换后再点「去预约」，`reserve` 事件带上所选档的 `endTime`。
 - 后端 `ChatStreamSink.plan(...)` 是 default 方法，既有测试桩与其它三个结构化流式入口不受影响。
 - 前端把方案挂在最后一条 AI 消息的 `plan` 字段上，并随会话历史持久化（`aiChatStorage` 有专用 `sanitizePlan`：候选 ≤10、字段截断；方案是展示数据，恢复后按钮仍需重新判冲突）。
 
@@ -79,6 +87,7 @@ SSE 事件名 `plan`，出现在 `meta` 之后、正文 `delta` 之前（思考�
 2. `pickRoom` 触发既有的实时冲突校验，页面显示「该时段可预约」或冲突原因；
 3. 用户点「提交预约」→ 后端再次校验（`SELECT ... FOR UPDATE` + 冲突公式），与手动预约完全同一条链路；
 4. 没有候选时方案卡只有澄清文案，不出现任何可点按钮。
+5. 缺结束时间时，方案卡顶部有 1–3 个时段按钮（如「14:00–15:00 · 2 间」），切换即换一组候选；「去预约」把**当前选中档**的结束时间写进确认页，用户仍可手动改时间，提交前照旧实时判冲突。
 
 ## 6. 失败矩阵
 
@@ -86,7 +95,9 @@ SSE 事件名 `plan`，出现在 `meta` 之后、正文 `delta` 之前（思考�
 |---|---|---|
 | AI 总开关关闭 | `meta.enabled=false` + 关闭话术 | 否 |
 | 意图未命中（如「我明天有哪些预约」） | 走普通问答 | 否 |
-| 解析失败 / 缺日期时段 | 正文澄清话术 | 否 |
+| 解析失败 / 缺日期或开始时间 | 正文澄清话术 | 否 |
+| 缺结束时间（如「明天下午两点」） | 按 1/2/3 小时估时，方案卡出现时段切换 | 是（含 `timeOptions`） |
+| 开始时间过晚（21:00 之后） | 没有合法档位，正文澄清 | 否 |
 | 日期早于今天 | `PLAN_DATE_PAST` 文案 | 否 |
 | 该时段无满足条件的教室 | `PLAN_EMPTY` 文案 | 否（空列表） |
 | 模型 429 / 超时 | 解析降级为规则解析，仍可出方案 | 视解析结果 |
@@ -99,7 +110,7 @@ SSE 事件名 `plan`，出现在 `meta` 之后、正文 `delta` 之前（思考�
 & 'C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.3\plugins\maven\lib\maven3\bin\mvn.cmd' `
   -f server/pom.xml -q -Dtest=AiBookingIntentTest,AiBookingPlanServiceImplTest,AiChatStreamServiceTest test
 
-# E2E（浏览器层 mock，不调真实模型）：方案卡渲染、去预约预填、空方案
+# E2E（浏览器层 mock，不调真实模型）：方案卡渲染、去预约预填、空方案、缺结束时间时切换时段
 cd web; npx playwright test specs/33-ai-plan.spec.js --project=chromium
 ```
 
@@ -110,4 +121,5 @@ cd web; npx playwright test specs/33-ai-plan.spec.js --project=chromium
 - 一次只规划一个**连续时段**，不支持「周三下午或周五上午都行」这类多方案折中；用户可连续发问。
 - 候选上限 3 间、一次扫描 500 间教室（当前 12 间规模下远超所需），不做分页与跨页检索。
 - 排序偏好只看近 30 条预约的楼栋/类型，不学人数习惯；容量不足的教室直接排除，不提示「邻近教室可加座」。
+- 缺结束时间时的估时只有 1/2/3 小时三档，且不超过 22:00；不接受用户自定义时长（可在确认页手动改，但那时已离开方案卡）。
 - AI 不写库：没有对话快照、没有「一键下单」，所有结果都要人点「提交预约」。

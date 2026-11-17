@@ -39,4 +39,17 @@ class AiBookingIntentTest {
         assertFalse(AiBookingIntent.matches(null));
         assertFalse(AiBookingIntent.matches("  "));
     }
+@Test
+    @DisplayName("结束时间以用户原文为准：没说结束时间就交给方案卡估时")
+    void detectsMissingEndTime() {
+        assertFalse(AiBookingIntent.mentionsEndTime("帮我约明天下午两点的机房，30 人左右"));
+        assertFalse(AiBookingIntent.mentionsEndTime("给我订一间明天上午的教室"));
+        assertFalse(AiBookingIntent.mentionsEndTime("要约后天晚上的实验室"));
+        assertFalse(AiBookingIntent.mentionsEndTime(null));
+
+        assertTrue(AiBookingIntent.mentionsEndTime("约明天下午 2 点到 4 点的机房"));
+        assertTrue(AiBookingIntent.mentionsEndTime("帮我约明天下午两点至四点的实验室"));
+        assertTrue(AiBookingIntent.mentionsEndTime("帮我约明天下午两点，开两个小时"));
+        assertTrue(AiBookingIntent.mentionsEndTime("订明天下午 3 小时的机房"));
+    }
 }

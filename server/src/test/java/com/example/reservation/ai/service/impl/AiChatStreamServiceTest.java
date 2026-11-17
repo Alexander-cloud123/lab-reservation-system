@@ -4,6 +4,7 @@ import com.example.reservation.ai.config.AgnesClient;
 import com.example.reservation.ai.config.AiConstants;
 import com.example.reservation.ai.dto.AiChatVO;
 import com.example.reservation.ai.dto.AiPlanCandidateVO;
+import com.example.reservation.ai.dto.AiPlanTimeOptionVO;
 import com.example.reservation.ai.dto.AiPlanVO;
 import com.example.reservation.ai.service.AiBookingPlanService;
 import com.example.reservation.ai.service.AiConfigService;
@@ -744,9 +745,55 @@ class AiChatStreamServiceTest {
         assertEquals(List.of("meta(true,false,null)", "plan", "delta", "done(stop)"), collapseDeltas(sink.events));
         assertEquals(1, sink.plans.size());
         assertEquals(9L, sink.plans.get(0).getCandidates().get(0).getClassroomId());
+        // R15-2：用户说了结束时间，不应出现「估算」提示
+        assertFalse(sink.text.toString().contains("估算"));
         verify(agnesClient, never()).chatStream(anyLong(), anyString(), anyList(), anyString(),
                 any(Runnable.class), any(), any());
         verify(aiResultCache, never()).buildKey(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("预约规划缺结束时间：thinking 含估时步骤，plan 帧携带 timeOptions，正文说明按几小时估算")
+    void planBranchEstimatesEndTimeWhenMissing() {
+        when(aiConfigService.isAiEnabled()).thenReturn(true);
+        AiPlanVO plan = new AiPlanVO();
+        plan.setEnabled(true);
+        plan.setDate("2026-11-18");
+        plan.setStartTime("14:00");
+        plan.setEndTime("16:00");
+        plan.setEndTimeGuessed(true);
+        plan.setGuessHours(2);
+        plan.setCapacity(30);
+        plan.setRoomType("机房");
+        AiPlanCandidateVO candidate = new AiPlanCandidateVO();
+        candidate.setClassroomId(9L);
+        candidate.setName("B301 计算机机房");
+        candidate.setCapacity(40);
+        plan.setCandidates(List.of(candidate));
+        int[] hours = {15, 16, 17};
+        for (int endHour : hours) {
+            AiPlanTimeOptionVO option = new AiPlanTimeOptionVO();
+            option.setStartTime("14:00");
+            option.setEndTime(String.format("%02d:00", endHour));
+            option.setAvailableCount(1);
+            option.setCandidates(List.of(candidate));
+            plan.getTimeOptions().add(option);
+        }
+        when(bookingPlanService.plan(anyLong(), anyString())).thenReturn(plan);
+        RecordingSink sink = new RecordingSink();
+
+        service.streamChat(7L, "帮我约明天下午两点的机房，30人", List.of(), sink);
+
+        assertEquals(List.of("thinking:scene", "thinking:scene", "thinking:parse", "thinking:parse",
+                        "thinking:plan-time", "thinking:plan-time",
+                        "thinking:retrieve", "thinking:retrieve", "thinking:verify", "thinking:verify",
+                        "thinking:summary", "meta", "plan", "delta", "done"), collapseDeltas(sink.timeline));
+        assertEquals(1, sink.plans.size());
+        assertEquals(3, sink.plans.get(0).getTimeOptions().size());
+        assertTrue(sink.plans.get(0).isEndTimeGuessed());
+        assertTrue(sink.text.toString().contains("2 小时估算"), "正文要说明估时口径：" + sink.text);
+        verify(agnesClient, never()).chatStream(anyLong(), anyString(), anyList(), anyString(),
+                any(Runnable.class), any(), any());
     }
 
     @Test

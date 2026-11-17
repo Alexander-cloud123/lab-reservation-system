@@ -178,6 +178,16 @@ public final class AiConstants {
     public static final String PLAN_EMPTY =
             "这个时段没有满足条件的教室，可以换个时段，或者放宽人数/类型；需要我按明天上午再找一轮吗？";
 
+    /* ===== 预约规划：缺结束时间时的估时档位（R15-2）===== */
+    /** 可选时长档位（小时）：用户只说开始时间时按 1/2/3 小时各检索一次 */
+    public static final int[] PLAN_DURATION_HOURS = {1, 2, 3};
+    /** 步骤：估算可选结束时间 */
+    public static final String THINK_STEP_PLAN_TIME = "plan-time";
+    /** 步骤文案：估算可选结束时间 */
+    public static final String THINK_LABEL_PLAN_TIME = "估算可选的结束时间";
+    /** 估时提示模板（占位符：默认时长小时数，StrUtil.format 的 {} 语法） */
+    public static final String PLAN_GUESS_HINT = "未说明结束时间，已按 {} 小时估算，可在方案卡里切换时段。";
+
     /* ===== 智能推荐（spec.md 6.2 推荐口径）===== */
     /** 推荐目标日期偏移（天）：默认推荐明天（当日时段过半后意义降低，固定偏移保证可复跑） */
     public static final int RECOMMEND_DATE_OFFSET_DAYS = 1;

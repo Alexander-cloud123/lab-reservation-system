@@ -53,6 +53,15 @@ public class AiPlanVO {
     /** 该时段因冲突/容量/类型被排除的教室数（供文案展示） */
     private int excludedCount;
 
+    /** 是否因用户没说结束时间而按 1/2/3 小时估时（true 时前端展示时段切换按钮） */
+    private boolean endTimeGuessed;
+
+    /** 估时时默认采用的小时数（仅 endTimeGuessed=true 时有意义） */
+    private int guessHours;
+
+    /** 可选结束时间档位（最多 3 档；endTime 明确时为空列表） */
+    private List<AiPlanTimeOptionVO> timeOptions = new ArrayList<>();
+
     /** AI 关闭时的友好返回 */
     public static AiPlanVO disabled() {
         AiPlanVO vo = new AiPlanVO();

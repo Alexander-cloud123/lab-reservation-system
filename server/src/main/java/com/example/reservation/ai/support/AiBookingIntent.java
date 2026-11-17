@@ -1,5 +1,8 @@
 package com.example.reservation.ai.support;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 /**
  * 预约意图识别（R15-1 对话内预约规划）——纯字符串规则，不调模型。
  *
@@ -8,6 +11,8 @@ package com.example.reservation.ai.support;
  * 也不在「查询/规则」类问题上误触发（避免给出与问题无关的方案卡）。
  *
  * <p>规则：必须同时命中「请求动作词」与「预约线索词」，且不含「查询/规则类」词。
+ * R15-2 另提供 {@link #mentionsEndTime(String)}：判断用户是否**明确说了结束时间**，
+ * 避免模型自行补一个结束时间后，方案卡把「估算」伪装成用户的真实需求。
  *
  * @author hyr
  */
@@ -37,6 +42,18 @@ public final class AiBookingIntent {
             "怎么", "如何", "为什么", "规则", "流程", "要多久", "需要多久", "多久"
     };
 
+    /** 时间点：「下午两点」「14 点」「晚上七点半」 */
+    private static final Pattern TIME_TOKEN =
+            Pattern.compile("(上午|下午|晚上|中午)?\\s*(\\d{1,2}|十[一二]?|[两二三四五六七八九])\\s*点");
+
+    /** 时段连接词：「到 / 至 / - 」——配合两个时间点即「14:00 到 16:00」 */
+    private static final Pattern TIME_RANGE =
+            Pattern.compile("(到|至|—|~|-)\\s*(上午|下午|晚上|中午)?\\s*(\\d{1,2}|十[一二]?|[两二三四五六七八九])\\s*点");
+
+    /** 时长表达：「两个小时」「3 小时」「一小时」「钟头」——等价于明确给了结束时间 */
+    private static final Pattern DURATION =
+            Pattern.compile("(\\d{1,2}|[两二三四五六七八九十])\\s*(个)?\\s*(小时|钟头)");
+
     /**
      * 是否为「请帮我预约」类意图
      *
@@ -53,6 +70,38 @@ public final class AiBookingIntent {
             }
         }
         return containsAny(question, REQUEST_CUES) && containsAny(question, BOOKING_CUES);
+    }
+
+    /**
+     * 用户是否明确说了结束时间（R15-2）
+     *
+     * <p>模型解析有时会自行补「结束 = 开始 + 1 小时」，这对用户是隐性的假设；
+     * 这里以用户原文为准：出现两个时间点、时段连接词，或直接说了时长，才算明确。
+     * 不明确时方案卡改为「1/2/3 小时可选档」，让用户自己挑。
+     *
+     * @param question 用户原文（可为空）
+     * @return true=用户已经说了结束时间（或等效的时长）
+     */
+    public static boolean mentionsEndTime(String question) {
+        if (question == null || question.isBlank()) {
+            return false;
+        }
+        if (DURATION.matcher(question).find()) {
+            return true;
+        }
+        Matcher token = TIME_TOKEN.matcher(question);
+        if (countMatches(token) >= 2) {
+            return true;
+        }
+        return TIME_RANGE.matcher(question).find();
+    }
+
+    private static int countMatches(Matcher matcher) {
+        int count = 0;
+        while (matcher.find()) {
+            count++;
+        }
+        return count;
     }
 
     private static boolean containsAny(String text, String[] cues) {

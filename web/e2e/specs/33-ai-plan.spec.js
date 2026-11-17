@@ -107,7 +107,7 @@ test('一句话生成预约方案卡，候选与提示完整', async ({ page }) 
   await expect(card.locator('.plan-more')).toContainText('另有 1 间')
   // 方案只是建议，按钮语义必须点名教室，避免读屏时「去预约」不可区分
   await expect(card.locator('.plan-go')).toHaveCount(2)
-  await expect(card.locator('.plan-go').first()).toHaveAttribute('aria-label', '去预约 C101 云机房')
+  await expect(card.locator('.plan-go').first()).toHaveAttribute('aria-label', /去预约 C101 云机房/)
   await expect(card.locator('.plan-note')).toContainText('需在确认页手动提交')
 })
 
@@ -152,4 +152,65 @@ test('没有候选时只出澄清文案，不给可点按钮', async ({ page }) 
   await expect(card.locator('.plan-empty')).toContainText('没有满足条件的教室')
   await expect(card.locator('.plan-go')).toHaveCount(0)
   await expect(card.locator('.plan-row')).toHaveCount(0)
+})
+
+/** 缺结束时间：后端给 1/2/3 小时三档（此处取两档），方案卡内切换即可，不再回一句澄清 */
+function guessPlanPayload() {
+  return {
+    enabled: true,
+    date: tomorrow(),
+    startTime: '14:00',
+    endTime: '15:00',
+    capacity: 30,
+    roomType: '机房',
+    purpose: '算法实验课',
+    moreAvailable: 0,
+    clarify: '',
+    excludedCount: 2,
+    // 默认档由后端按「候选最多」回填，方案卡按 endTime 对齐选中
+    endTimeGuessed: true,
+    guessHours: 1,
+    candidates: [TWO_ROOMS[0]],
+    timeOptions: [
+      { startTime: '14:00', endTime: '15:00', availableCount: 2, excludedCount: 1, candidates: [TWO_ROOMS[0]] },
+      { startTime: '14:00', endTime: '16:00', availableCount: 1, excludedCount: 2, candidates: [TWO_ROOMS[1]] }
+    ]
+  }
+}
+
+test('缺结束时间时给出可选时段，切换后候选与预填时段同步', async ({ page }) => {
+  await mockPlanChat(page, guessPlanPayload())
+  await loginAs(page, { who: 'student', path: '/student/ai', aiEnabled: true })
+
+  await page.locator('#ai-chat-input').fill('帮我约明天下午两点的机房，30 人左右')
+  await page.locator('.composer-send').click()
+
+  const card = page.locator('.ai-plan')
+  await expect(card).toBeVisible({ timeout: 15000 })
+
+  // 两档可选 + 估时说明，默认选候选最多的 14:00-15:00
+  const chips = card.locator('.plan-time-chip')
+  await expect(chips).toHaveCount(2)
+  await expect(chips.first()).toHaveText('14:00–15:00 · 2 间')
+  await expect(chips.first()).toHaveAttribute('aria-pressed', 'true')
+  await expect(card.locator('.plan-guess')).toContainText('已按 1 小时估算')
+  await expect(card.locator('.room-name')).toHaveText('C101 云机房')
+
+  // 切到 16:00 档：候选列表随之替换，选中态只有一个
+  await chips.nth(1).click()
+  await expect(chips.nth(1)).toHaveAttribute('aria-pressed', 'true')
+  await expect(chips.first()).toHaveAttribute('aria-pressed', 'false')
+  await expect(card.locator('.room-name')).toHaveText('C201 云机房')
+
+  // 去预约：弹窗结束时间必须等于所选档，仍由用户手动提交
+  await card.locator('.plan-go').click()
+  const dialog = page.locator('.el-dialog')
+  await expect(dialog).toBeVisible()
+  await expect(dialog.locator('.picked-room')).toContainText('C201 云机房')
+  // Element Plus 的 el-time-select 把选中值渲染在 span 里，input.value 恒为空，断言展示文本
+  await expect(dialog.locator('.el-form-item').filter({ hasText: '结束时间' })).toContainText('16:00')
+  await expect(dialog.locator('.conflict-tip')).toContainText('该时段可预约', { timeout: 15000 })
+  await dialog.getByRole('button', { name: '取消', exact: true }).click()
+  await expect(dialog).toBeHidden()
+  await expect(page.locator('.chat-msg.user')).toHaveCount(1)
 })

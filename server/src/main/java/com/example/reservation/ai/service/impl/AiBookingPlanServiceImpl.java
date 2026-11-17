@@ -5,10 +5,13 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.reservation.ai.config.AiConstants;
 import com.example.reservation.ai.dto.AiParseVO;
 import com.example.reservation.ai.dto.AiPlanCandidateVO;
+import com.example.reservation.ai.dto.AiPlanTimeOptionVO;
 import com.example.reservation.ai.dto.AiPlanVO;
 import com.example.reservation.ai.service.AiBookingPlanService;
 import com.example.reservation.ai.service.AiConfigService;
 import com.example.reservation.ai.service.AiParseService;
+import com.example.reservation.ai.support.AiBookingIntent;
+import com.example.reservation.ai.support.AiParseFallback;
 import com.example.reservation.common.Constants;
 import com.example.reservation.common.PageResult;
 import com.example.reservation.common.TimeUtil;
@@ -34,10 +37,13 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 对话内预约规划实现（R15-1）
+ * 对话内预约规划实现（R15-1 / R15-2）
  *
  * <p>只读：本类不注入任何写服务、不调用提交/审核接口，仅「解析 + 检索 + 排序 + 生成理由」。
  * 用户确认后由既有确认弹窗自行提交，提交路径不受本类影响。
+ *
+ * <p>R15-2：用户没说结束时间时，按 1 / 2 / 3 小时三档各检索一次，把三档交给交互层
+ * （方案卡的时段按钮）让用户自己选，不再退回「请补充结束时间」的澄清。
  *
  * @author hyr
  */
@@ -52,6 +58,10 @@ public class AiBookingPlanServiceImpl implements AiBookingPlanService {
     /** 自然语言解析（模型 + 本地规则降级） */
     @Resource
     private AiParseService aiParseService;
+
+    /** R15-2：模型没解析出结束时间时，用本地规则补日期/开始时间（只读正则，不额外调模型） */
+    @Resource
+    private AiParseFallback aiParseFallback;
 
     /** 学生端教室分页（一次拿到占用时段，避免逐间查冲突的 N+1） */
     @Resource
@@ -74,63 +84,195 @@ public class AiBookingPlanServiceImpl implements AiBookingPlanService {
         AiPlanVO vo = new AiPlanVO();
         vo.setEnabled(true);
 
-        // 1) 解析需求：失败（含非法时段）走澄清，不抛给上层
-        AiParseVO parse;
+        // 1) 解析需求。模型输出缺结束时间会被整体判非法（parse 返回 error），
+        //    这里再用本地规则补出「日期 + 开始时间」，把结束时间交给交互层选（R15-2）。
+        AiParseVO parse = null;
         try {
             parse = aiParseService.parse(text);
         } catch (RuntimeException e) {
             log.warn("预约方案解析失败：{}", e.getMessage());
+        }
+        PartialIntent intent = resolveIntent(text, parse);
+        if (intent == null) {
             vo.setClarify(AiConstants.PLAN_CLARIFY);
             return vo;
         }
-        if (parse == null || StrUtil.isNotBlank(parse.getError())) {
-            vo.setClarify(AiConstants.PLAN_CLARIFY);
-            return vo;
-        }
-        String date = parse.getDate();
-        String start = parse.getStartTime();
-        String end = parse.getEndTime();
-        if (StrUtil.isBlank(date) || StrUtil.isBlank(start) || StrUtil.isBlank(end)) {
-            vo.setClarify(AiConstants.PLAN_CLARIFY);
-            return vo;
-        }
+        vo.setCapacity(intent.capacity);
+        vo.setRoomType(intent.roomType);
+        vo.setPurpose(intent.purpose);
+        vo.setDate(intent.day.toString());
+        vo.setStartTime(TimeUtil.formatTime(intent.start));
 
         // 2) 日期/时段合法性（与后端校验同口径：不早于今天、开始早于结束）
-        LocalDate day;
-        LocalTime startTime;
-        LocalTime endTime;
-        try {
-            day = TimeUtil.parseDate(date);
-            startTime = TimeUtil.parseTime(start);
-            endTime = TimeUtil.parseTime(end);
-        } catch (RuntimeException e) {
-            vo.setClarify(AiConstants.PLAN_CLARIFY);
-            return vo;
-        }
-        if (day.isBefore(LocalDate.now())) {
+        if (intent.day.isBefore(LocalDate.now())) {
             vo.setClarify(AiConstants.PLAN_DATE_PAST);
             return vo;
         }
-        if (!startTime.isBefore(endTime)) {
+
+        // 3) 检索该日期该类型的全部教室（一次分页，三档估时复用同一份占用数据）
+        List<Integer> durations = intent.end == null ? validDurations(intent.start) : List.of();
+        if (intent.end == null && durations.isEmpty()) {
+            // 开始时间太晚：连 1 小时都排不下，直接澄清，不做无意义的分页查询
             vo.setClarify(AiConstants.PLAN_CLARIFY);
             return vo;
         }
-
-        Integer capacity = parse.getCapacity() != null && parse.getCapacity() > 0 ? parse.getCapacity() : null;
-        Integer type = typeOf(parse.getRoomType());
-        vo.setDate(day.toString());
-        vo.setStartTime(start);
-        vo.setEndTime(end);
-        vo.setCapacity(capacity);
-        vo.setRoomType(parse.getRoomType());
-        vo.setPurpose(parse.getPurpose());
-
-        // 3) 检索该日期该类型的全部可用教室（含已通过预约占用时段）
         PageResult<ClassroomVO> page = classroomService.pageClassroomsForStudent(
-                1, AiConstants.PLAN_SCAN_SIZE, null, null, type, date);
-        List<ClassroomVO> rooms = page.getRecords() == null ? List.of() : page.getRecords();
+                1, AiConstants.PLAN_SCAN_SIZE, null, null, typeOf(intent.roomType), intent.day.toString());
+        List<ClassroomVO> rooms = page == null || page.getRecords() == null ? List.of() : page.getRecords();
         Map<String, Integer> buildingPref = historyPreference(userId);
 
+        if (intent.end == null) {
+            return estimateOption(vo, intent, rooms, buildingPref, durations);
+        }
+
+        SearchResult result = search(rooms, intent.day, intent.start, intent.end,
+                intent.capacity, typeOf(intent.roomType), buildingPref);
+        apply(vo, result, intent.end);
+        if (vo.getCandidates().isEmpty()) {
+            vo.setClarify(AiConstants.PLAN_EMPTY);
+        }
+        return vo;
+    }
+
+    /** 占位：保持 vo 复用（便于后续扩展用户维度的默认值，当前无字段需要） */
+    private AiPlanVO userAdjusted(AiPlanVO vo, Long userId) {
+        return vo;
+    }
+
+    /** 有效的估时档位：结束时间不得超过 22:00 业务上限（超出的档位直接剔除） */
+    private List<Integer> validDurations(LocalTime start) {
+        List<Integer> durations = new ArrayList<>();
+        for (int hours : AiConstants.PLAN_DURATION_HOURS) {
+            LocalTime end = start.plusHours(hours);
+            if (start.isBefore(end) && !end.isAfter(Constants.DAILY_SLOT_END)) {
+                durations.add(hours);
+            }
+        }
+        return durations;
+    }
+
+    /**
+     * 估时分支：1 / 2 / 3 小时三档各检索一次，默认档取候选最多的一档（并列优先 2 小时）。
+     */
+    private AiPlanVO estimateOption(AiPlanVO vo, PartialIntent intent,
+                                    List<ClassroomVO> rooms, Map<String, Integer> buildingPref,
+                                    List<Integer> durations) {
+        Integer type = typeOf(intent.roomType);
+        List<AiPlanTimeOptionVO> options = new ArrayList<>();
+        List<Integer> optionHours = new ArrayList<>();
+        for (int hours : durations) {
+            LocalTime end = intent.start.plusHours(hours);
+            if (end.isAfter(Constants.DAILY_SLOT_END) || !intent.start.isBefore(end)) {
+                continue;
+            }
+            SearchResult result = search(rooms, intent.day, intent.start, end,
+                    intent.capacity, type, buildingPref);
+            AiPlanTimeOptionVO option = new AiPlanTimeOptionVO();
+            option.setStartTime(TimeUtil.formatTime(intent.start));
+            option.setEndTime(TimeUtil.formatTime(end));
+            option.setAvailableCount(result.available);
+            option.setExcludedCount(result.excluded);
+            option.setCandidates(result.candidates);
+            options.add(option);
+            optionHours.add(hours);
+        }
+        if (options.isEmpty()) {
+            vo.setClarify(AiConstants.PLAN_CLARIFY);
+            return vo;
+        }
+        // 默认档：候选最多优先；并列时取时长最接近 2 小时的档（多数实验课两学时）
+        AiPlanTimeOptionVO best = options.get(0);
+        int bestHours = optionHours.get(0);
+        long bestWeight = Long.MIN_VALUE;
+        for (int i = 0; i < options.size(); i++) {
+            long weight = (long) options.get(i).getAvailableCount() * 10 - Math.abs(optionHours.get(i) - 2);
+            if (weight >= bestWeight) {
+                best = options.get(i);
+                bestHours = optionHours.get(i);
+                bestWeight = weight;
+            }
+        }
+        vo.setEndTimeGuessed(true);
+        vo.setGuessHours(bestHours);
+        vo.setTimeOptions(options);
+        apply(vo, new SearchResult(best.getCandidates(), best.getAvailableCount(), best.getExcludedCount()),
+                TimeUtil.parseTime(best.getEndTime()));
+        if (vo.getCandidates().isEmpty()) {
+            vo.setClarify(AiConstants.PLAN_EMPTY);
+        }
+        return vo;
+    }
+
+    /** 把检索结果写回 VO（显式时段与默认估时档共用） */
+    private void apply(AiPlanVO vo, SearchResult result, LocalTime end) {
+        vo.setEndTime(TimeUtil.formatTime(end));
+        vo.setCandidates(result.candidates);
+        vo.setMoreAvailable(Math.max(0, result.available - AiConstants.PLAN_TOP_COUNT));
+        vo.setExcludedCount(result.excluded);
+    }
+
+    /**
+     * 统一解析入口：优先模型结果（含完整结束时间），否则用本地规则补日期 + 开始时间。
+     * 返回 null 表示连日期/开始时间都没有，需要澄清。
+     *
+     * <p>R15-2：结束时间以**用户原文**为准。用户没明确说结束时间（如「明天下午两点」）时，
+     * 即便模型自行补了一个 endTime，也按「未指定」处理并交给方案卡给可选档——
+     * 否则「估算」会被伪装成用户真实需求。
+     */
+    private PartialIntent resolveIntent(String text, AiParseVO parse) {
+        boolean endGiven = AiBookingIntent.mentionsEndTime(text);
+        if (parse != null && StrUtil.isBlank(parse.getError())
+                && StrUtil.isNotBlank(parse.getDate()) && StrUtil.isNotBlank(parse.getStartTime())) {
+            LocalDate day = safeDate(parse.getDate());
+            LocalTime start = safeTime(parse.getStartTime());
+            LocalTime end = !endGiven || StrUtil.isBlank(parse.getEndTime()) ? null : safeTime(parse.getEndTime());
+            if (day != null && start != null && (end == null || start.isBefore(end))) {
+                return new PartialIntent(day, start, end, parse.getCapacity(), parse.getRoomType(), parse.getPurpose());
+            }
+        }
+        // 模型没给出可用的开始时间（典型：只说「明天下午两点」，缺结束时间被判非法）→ 本地规则兜底
+        AiParseVO fallback;
+        try {
+            fallback = aiParseFallback.parseFallback(text);
+        } catch (RuntimeException e) {
+            log.warn("预约方案本地降级解析失败：{}", e.getMessage());
+            return null;
+        }
+        return partialOf(fallback);
+    }
+
+    /** 本地规则结果 → PartialIntent（结束时间一律视为「未指定」，交给交互层选） */
+    private PartialIntent partialOf(AiParseVO fallback) {
+        if (fallback == null || StrUtil.isBlank(fallback.getDate()) || StrUtil.isBlank(fallback.getStartTime())) {
+            return null;
+        }
+        LocalDate day = safeDate(fallback.getDate());
+        LocalTime start = safeTime(fallback.getStartTime());
+        if (day == null || start == null) {
+            return null;
+        }
+        return new PartialIntent(day, start, null, fallback.getCapacity(), fallback.getRoomType(), fallback.getPurpose());
+    }
+
+    private LocalDate safeDate(String text) {
+        try {
+            return TimeUtil.parseDate(text);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private LocalTime safeTime(String text) {
+        try {
+            return TimeUtil.parseTime(text);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** 单次检索：容量 + 类型 + 冲突过滤，排序取 Top3 */
+    private SearchResult search(List<ClassroomVO> rooms, LocalDate day, LocalTime start, LocalTime end,
+                                Integer capacity, Integer type, Map<String, Integer> buildingPref) {
         List<Scored> available = new ArrayList<>();
         int excluded = 0;
         for (ClassroomVO room : rooms) {
@@ -138,30 +280,21 @@ public class AiBookingPlanServiceImpl implements AiBookingPlanService {
                 excluded++;
                 continue;
             }
-            if (overlaps(room.getOccupiedSlots(), startTime, endTime)) {
+            if (overlaps(room.getOccupiedSlots(), start, end)) {
                 excluded++;
                 continue;
             }
             available.add(new Scored(room, score(room, type, capacity, buildingPref)));
         }
-
-        // 4) 排序取 Top3：画像分高者优先；同分时容量更贴合、ID 更小者优先（保证可复跑）
         available.sort(Comparator.comparingInt(Scored::score).reversed()
                 .thenComparingInt(s -> Math.abs((s.room().getCapacity() == null ? 0 : s.room().getCapacity())
                         - (capacity == null ? 0 : capacity)))
                 .thenComparingLong(s -> s.room().getId()));
-
-        vo.setExcludedCount(excluded);
         List<AiPlanCandidateVO> candidates = new ArrayList<>();
         for (int i = 0; i < available.size() && i < AiConstants.PLAN_TOP_COUNT; i++) {
             candidates.add(toCandidate(available.get(i).room(), type, capacity, buildingPref));
         }
-        vo.setCandidates(candidates);
-        vo.setMoreAvailable(Math.max(0, available.size() - AiConstants.PLAN_TOP_COUNT));
-        if (candidates.isEmpty()) {
-            vo.setClarify(AiConstants.PLAN_EMPTY);
-        }
-        return vo;
+        return new SearchResult(candidates, available.size(), excluded);
     }
 
     /** 需求类型文案 → DB 类型值；未指定返回 null（不限类型） */
@@ -285,5 +418,14 @@ public class AiBookingPlanServiceImpl implements AiBookingPlanService {
 
     /** 排序中间态（record 保持不可变，便于排序后仍能取回教室） */
     private record Scored(ClassroomVO room, int score) {
+    }
+
+    /** 单次检索结果 */
+    private record SearchResult(List<AiPlanCandidateVO> candidates, int available, int excluded) {
+    }
+
+    /** 解析中间态：end 为 null 表示「用户没说结束时间」 */
+    private record PartialIntent(LocalDate day, LocalTime start, LocalTime end,
+                                 Integer capacity, String roomType, String purpose) {
     }
 }

@@ -59,7 +59,7 @@ async function copyAnswer() {
     <AiPlanCard
       v-if="message.plan && !streaming"
       :plan="message.plan"
-      @reserve="(candidate) => emit('reserve', candidate)"
+      @reserve="(candidate, endTime) => emit('reserve', candidate, endTime)"
     />
     <span v-if="streaming" class="typing-cursor" aria-hidden="true"></span>
 

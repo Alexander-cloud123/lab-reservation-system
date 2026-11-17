@@ -106,14 +106,23 @@ function sanitizePlan(raw) {
     ? raw.candidates
         .filter((item) => item && typeof item === 'object')
         .slice(0, 10)
+        .map(toCandidate)
+    : []
+  const timeOptions = Array.isArray(raw.timeOptions)
+    ? raw.timeOptions
+        .filter((item) => item && typeof item === 'object')
+        .slice(0, 3)
         .map((item) => ({
-          classroomId: toNumber(item.classroomId),
-          name: clip(item.name, 40),
-          building: clip(item.building, 20),
-          roomNo: clip(item.roomNo, 20),
-          type: toNumber(item.type),
-          capacity: toNumber(item.capacity),
-          reason: clip(item.reason, 80)
+          startTime: clip(item.startTime, 10),
+          endTime: clip(item.endTime, 10),
+          availableCount: toNumber(item.availableCount) || 0,
+          excludedCount: toNumber(item.excludedCount) || 0,
+          candidates: Array.isArray(item.candidates)
+            ? item.candidates
+                .filter((candidate) => candidate && typeof candidate === 'object')
+                .slice(0, 10)
+                .map(toCandidate)
+            : []
         }))
     : []
   return {
@@ -127,7 +136,23 @@ function sanitizePlan(raw) {
     clarify: clip(raw.clarify, 120),
     moreAvailable: toNumber(raw.moreAvailable) || 0,
     excludedCount: toNumber(raw.excludedCount) || 0,
+    endTimeGuessed: raw.endTimeGuessed === true,
+    guessHours: toNumber(raw.guessHours) || 0,
+    timeOptions,
     candidates
+  }
+}
+
+/** 方案候选教室：字段截断 + 数值兜底（历史恢复时直接渲染） */
+function toCandidate(item) {
+  return {
+    classroomId: toNumber(item.classroomId),
+    name: clip(item.name, 40),
+    building: clip(item.building, 20),
+    roomNo: clip(item.roomNo, 20),
+    type: toNumber(item.type),
+    capacity: toNumber(item.capacity),
+    reason: clip(item.reason, 80)
   }
 }
 

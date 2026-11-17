@@ -196,6 +196,12 @@ public class AiChatServiceImpl implements AiChatService {
         trace.end(AiConstants.THINK_STEP_PARSE);
 
         boolean hasCandidates = plan != null && plan.getCandidates() != null && !plan.getCandidates().isEmpty();
+        boolean hasOptions = plan != null && plan.getTimeOptions() != null && !plan.getTimeOptions().isEmpty();
+        if (hasOptions) {
+            // R15-2：用户没说结束时间时，规划服务按 1/2/3 小时各检索了一次，如实上报「估时」步骤
+            trace.begin(AiConstants.THINK_STEP_PLAN_TIME, AiConstants.THINK_LABEL_PLAN_TIME);
+            trace.end(AiConstants.THINK_STEP_PLAN_TIME);
+        }
         if (hasCandidates) {
             // 检索与冲突校验是真实步骤（由规划服务内部完成），此处如实上报两步耗时
             trace.begin(AiConstants.THINK_STEP_RETRIEVE, AiConstants.THINK_LABEL_PLAN_SEARCH);
@@ -215,7 +221,7 @@ public class AiChatServiceImpl implements AiChatService {
                 ? AiConstants.PLAN_CLARIFY : plan.getClarify());
         try {
             sink.meta(true, false, null);
-            if (hasCandidates) {
+            if (hasCandidates || hasOptions) {
                 sink.plan(plan);
             }
             emitChunks(sink, text);
@@ -229,10 +235,12 @@ public class AiChatServiceImpl implements AiChatService {
     private String planSummaryText(AiPlanVO plan) {
         String demand = plan.getCapacity() == null ? ""
                 : plan.getCapacity() + " 人" + (plan.getRoomType() == null ? "" : "、" + plan.getRoomType());
+        String guess = plan.isEndTimeGuessed()
+                ? StrUtil.format(AiConstants.PLAN_GUESS_HINT, plan.getGuessHours()) : "";
         return StrUtil.format(
-                "按「{} {}-{}」{}，我找到 {} 间可预约教室。选一间点「去预约」，在确认弹窗里核对后再提交，提交时会再校验一次冲突。",
+                "按「{} {}-{}」{}，我找到 {} 间可预约教室。{}选一间点「去预约」，在确认弹窗里核对后再提交，提交时会再校验一次冲突。",
                 plan.getDate(), plan.getStartTime(), plan.getEndTime(), demand,
-                plan.getCandidates() == null ? 0 : plan.getCandidates().size());
+                plan.getCandidates() == null ? 0 : plan.getCandidates().size(), guess);
     }
 
     @Override

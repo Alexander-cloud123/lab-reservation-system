@@ -27,8 +27,9 @@ public class AiParseFallback {
 
     /** HH:mm 形式时间（14:00 / 14：00） */
     private static final Pattern P_TIME_DIGIT = Pattern.compile("(\\d{1,2})[:：](\\d{2})");
-    /** 中文时间（下午2点 / 2点半 / 14点） */
-    private static final Pattern P_TIME_CN = Pattern.compile("(上午|下午|晚上|中午)?(\\d{1,2})点(半|一刻|三刻|45|30)?");
+    /** 中文时间（下午2点 / 2点半 / 14点 / 下午两点 / 十一点半） */
+    private static final Pattern P_TIME_CN = Pattern.compile(
+            "(上午|下午|晚上|中午)?(\\d{1,2}|十[一二]?|[两二三四五六七八九])点(半|一刻|三刻|45|30)?");
     /** 数字日期（2026-09-12 / 2026年9月12日） */
     private static final Pattern P_DATE_FULL = Pattern.compile("(\\d{4})[年-](\\d{1,2})[月-](\\d{1,2})日?");
     /** 月日（9月12日） */
@@ -141,6 +142,41 @@ public class AiParseFallback {
     }
 
     /**
+     * 小时文本 → 数字：支持阿拉伯数字（2 / 14）与中文数字（两 / 二 / 十 / 十一 / 十二）。
+     * R15-2：模型常把「两点」原样丢弃，本地规则补上中文数字识别，避免整句解析失败。
+     */
+    private Integer hourOf(String raw) {
+        if (raw == null || raw.isEmpty()) {
+            return null;
+        }
+        if (raw.chars().allMatch(Character::isDigit)) {
+            return Integer.parseInt(raw);
+        }
+        if (raw.startsWith("十")) {
+            if (raw.length() == 1) {
+                return 10;
+            }
+            return 10 + switch (raw.charAt(1)) {
+                case '一' -> 1;
+                case '二' -> 2;
+                default -> 0;
+            };
+        }
+        return switch (raw.charAt(0)) {
+            case '两', '二' -> 2;
+            case '三' -> 3;
+            case '四' -> 4;
+            case '五' -> 5;
+            case '六' -> 6;
+            case '七' -> 7;
+            case '八' -> 8;
+            case '九' -> 9;
+            case '一' -> 1;
+            default -> null;
+        };
+    }
+
+    /**
      * 时间段解析：识别文本中所有时间点，取首尾为 [开始, 结束]；
      * 仅识别到开始时间时默认 +2 小时（截断至 22:00）
      */
@@ -157,8 +193,8 @@ public class AiParseFallback {
         m = P_TIME_CN.matcher(text);
         while (m.find()) {
             String period = m.group(1);
-            int h = Integer.parseInt(m.group(2));
-            if (h < 0 || h > 24) {
+            Integer h = hourOf(m.group(2));
+            if (h == null || h < 0 || h > 24) {
                 continue;
             }
             int min = 0;

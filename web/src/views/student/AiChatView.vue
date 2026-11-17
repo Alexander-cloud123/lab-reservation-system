@@ -36,11 +36,13 @@ function canRegenerateMessage(message) {
 const quickReserveRef = ref(null)
 
 /** 方案卡「去预约」：把方案与候选教室交给既有确认弹窗（第 3 步预填 + 冲突检测），不代提交 */
-function onReserve(candidate, message) {
+function onReserve(candidate, endTime, message) {
   if (!candidate || !quickReserveRef.value) {
     return
   }
-  quickReserveRef.value.openWithPlan(message && message.plan ? message.plan : {}, candidate)
+  const plan = message && message.plan ? message.plan : {}
+  // R15-2：结束时间由用户在方案卡里选的时段决定，覆盖 plan 里回填的默认档
+  quickReserveRef.value.openWithPlan(endTime ? { ...plan, endTime } : plan, candidate)
 }
 
 const lastMessageId = computed(() => (messages.value.length ? messages.value[messages.value.length - 1].id : ''))
@@ -387,7 +389,7 @@ probeAiRecommend().catch(() => {})
             :streaming="sending && message.id === lastMessageId"
             :can-regenerate="canRegenerateMessage(message)"
             @regenerate="onRegenerate"
-            @reserve="(candidate) => onReserve(candidate, message)"
+            @reserve="(candidate, endTime) => onReserve(candidate, endTime, message)"
           />
 
           <p v-if="aiOff && hasMessages" class="ai-chat-banner is-inline">{{ aiOff }}</p>

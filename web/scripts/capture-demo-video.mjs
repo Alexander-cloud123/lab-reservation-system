@@ -162,6 +162,48 @@ async function tap(page, target, { delay = 240 } = {}) {
   await sleep(delay)
 }
 
+/** 轮询等待一个页面内条件（比 locator.waitFor 更适合「元素已存在但可能被折叠」的场景） */
+async function waitUntil(page, fn, label, timeout = 8000) {
+  try {
+    await page.waitForFunction(fn, { timeout })
+  } catch {
+    throw new Error(`断言失败：${label} 未出现`)
+  }
+}
+
+/**
+ * 点击「会移动」的元素（AI 思考面板头）：对话正文自动贴底时元素位置持续变化，
+ * 直接按坐标点击可能落空。先试带轨迹的 tap，再校验 aria-expanded 是否真的翻转，
+ * 未翻转则退化为 force 点击（force 仍会触发 mousemove，合成光标动画不受影响）。
+ */
+async function toggleThinkingHead(page, head) {
+  const before = await head.getAttribute('aria-expanded')
+  const flipped = async () => (await head.getAttribute('aria-expanded')) !== before
+
+  // 1) 先走带轨迹的 tap（画面里的光标动画）；正文贴底滚动时坐标可能落空
+  try {
+    await tap(page, head, { delay: 200 })
+  } catch {
+    // 拿不到坐标就直接进入下一步
+  }
+  await sleep(300)
+  if (await flipped()) return true
+
+  // 2) Playwright 点击：会先滚动并等待元素稳定，能命中移动中的面板头
+  try {
+    await head.click({ timeout: 5000 })
+  } catch (error) {
+    log(`面板头常规点击失败（${error.message.split('\n')[0]}），改用 DOM 点击`)
+  }
+  await sleep(320)
+  if (await flipped()) return true
+
+  // 3) DOM 点击兜底：绕过指针拦截，保证展开/折叠一定发生
+  await head.evaluate(el => el.click())
+  await sleep(320)
+  return await flipped()
+}
+
 /** 设置底部字幕（页面内叠加，跨导航由 sessionStorage 保留） */
 async function setCaption(page, text) {
   await page.evaluate(t => {
@@ -508,11 +550,11 @@ async function segEndCard(page) {
     if (typeof window.__demoEndCard === 'function') window.__demoEndCard(payload)
   }, {
     product: '高校实验室预约管理系统',
-    subtitle: 'Spring Boot 3 + Vue 3 · 8 周课程设计作品',
+    subtitle: 'Spring Boot 3 + Vue 3，8 周课程设计作品',
     stats: [
-      '309 项后端测试（JUnit）· 80.6% 行覆盖率',
-      '41 项接口冒烟 · 120 项 E2E（Chromium + Edge）',
-      '3 条 CI 流水线 · 双重冲突校验 · AI 可降级'
+      '347 项后端测试（JUnit），行覆盖 81.6%',
+      '41 项接口冒烟，141 例 E2E（Chromium + Edge）',
+      '3 套 GitHub Actions，双重冲突校验，AI 可降级'
     ],
     repo: 'github.com/Alexander-cloud123/lab-reservation-system'
   })
@@ -523,6 +565,18 @@ async function segEndCard(page) {
  * 预热推荐缓存（服务端 60 秒 TTL）：首屏探测命中缓存可以让悬浮球与推荐卡立即出现。
  * 真实模型首次生成推荐可能需要数秒到数十秒，直接录会让片头长时间空等。
  */
+/**
+ * 清空 AI 结果缓存（Redis `cache:ai:*`）：避免录到「命中缓存」的秒回版本，
+ * 保证等待动画与逐步轨迹真实出现在画面里（推荐缓存随后会重新预热）。
+ */
+function clearAiCache() {
+  const result = spawnSync(
+    'docker',
+    ['compose', 'exec', '-T', 'redis', 'sh', '-lc', "redis-cli --scan --pattern 'cache:ai:*' | xargs -r redis-cli del"],
+    { cwd: ROOT, encoding: 'utf8' }
+  )
+  if (result.status !== 0) log(`清空 AI 缓存跳过（redis-cli 退出码 ${result.status}）`)
+}
 async function warmRecommendCache() {
   const student = await apiLogin('zhangsan', '123456', 0)
   const started = Date.now()
@@ -557,16 +611,24 @@ async function segAiAssistant(page) {
   await tap(page, page.locator('.composer-send'), { delay: 260 })
   await setCaption(page, '思考过程先展开：步骤来自真实执行轨迹，不是伪造的思维链')
 
-  const panel = drawer.locator('.thinking')
-  await mustSee(panel.first(), '思考面板')
-  await mustSee(drawer.locator('.pulse-dots'), '思考等待动画')
-  await sleep(1400)
+  const panel = drawer.locator('.thinking').first()
+  await mustSee(panel, '思考面板')
 
-  const head = panel.first().locator('.thinking-head')
-  if ((await head.getAttribute('aria-expanded')) === 'false') {
-    await tap(page, head, { delay: 200 })
+  // 等待动画：真实模型一般有 1 秒以上思索，但命中缓存时可能一闪而过，故只做尽力捕获
+  try {
+    await mustSee(drawer.locator('.pulse-dots').first(), '思考等待动画', 6000)
+  } catch {
+    log('未捕获到等待动画（本次回答命中缓存，首包过快）')
   }
-  await mustSee(drawer.locator('.step-label').first(), '思考步骤')
+
+  // 步骤一旦下发就存在于 DOM（面板可能已自动折叠），先等数量，再确保展开后断言可见
+  await waitUntil(page, () => document.querySelectorAll('.ai-chat-page .thinking .step-label').length >= 1, '思考步骤')
+  const head = panel.locator('.thinking-head')
+  // 思考中面板默认就是展开的，步骤会随真实轨迹逐条出现。
+  // 这里不能手动点开：手动展开会标记 userExpanded，回答到达后就不再自动折叠，画面里看不到「已思考 X.X 秒」的收敛过程。
+  if ((await head.getAttribute('aria-expanded')) === 'true') {
+    await mustSee(drawer.locator('.step-label').first(), '思考步骤')
+  }
   await setCaption(page, '场景判断 → 检索预约记录 → 调用模型 → 校验回答，每步带真实耗时')
   await sleep(1800)
 
@@ -590,24 +652,34 @@ async function segAiAssistant(page) {
     await sleep(2000)
   } else {
     await setCaption(page, '回答到达后自动折叠为「已思考 X.X 秒」，可随时展开回看')
-    await sleep(1600)
-    if ((await head.getAttribute('aria-expanded')) !== 'true') {
-      await tap(page, head, { delay: 220 })
+    await sleep(1200)
+    await waitUntil(
+      page,
+      () => document.querySelector('.ai-chat-page .thinking-head')?.getAttribute('aria-expanded') === 'false',
+      '回答后自动折叠'
+    )
+    await sleep(900)
+    const expanded = await toggleThinkingHead(page, head)
+    let bodyVisible = false
+    try {
+      await panel.locator('.thinking-body').first().waitFor({ state: 'visible', timeout: 5000 })
+      bodyVisible = true
+    } catch {
+      log(`思考面板展开未成功（aria 翻转=${expanded}），跳过推理区展示`)
     }
-    await sleep(1600)
+    if (!bodyVisible) log('警告：本次录制未展示展开后的推理区，片段仍可用')
+    await sleep(600)
     if (await drawer.locator('.reasoning-text').count()) {
-      await setCaption(page, '上游返回推理原文时原样展示，并固定标注「模型推理 · 仅供参考」')
+      await setCaption(page, '上游返回推理原文时原样展示，并固定标注「模型推理，AI 生成，仅供参考」')
     } else {
       await setCaption(page, '模型未返回推理时明确说明「以上为本次处理的实际步骤」，不编造内容')
     }
     await drawer.locator('.ai-chat-scroll').evaluate(el => { el.scrollTop = el.scrollHeight }).catch(() => {})
-    await sleep(2200)
+    await sleep(2400)
   }
 
   await setCaption(page, 'AI 只读不写：业务操作仍由你手动确认；生成内容固定标注「仅供参考」')
   await sleep(2200)
-  await page.locator('.topbar-back').click().catch(() => {})
-  await sleep(600)
 }
 
 /* ============================ 页内叠加层 ============================ */
@@ -636,8 +708,8 @@ const OVERLAY_SCRIPT = `(() => {
       marginTop: '-8px',
       borderRadius: '999px',
       background: 'rgba(255,255,255,0.92)',
-      border: '2px solid #0f172a',
-      boxShadow: '0 0 0 5px rgba(15,23,42,0.12)',
+      border: '2px solid #1b3f8f',
+      boxShadow: '0 0 0 5px rgba(27,63,143,0.16)',
       pointerEvents: 'none',
       zIndex: '2147483600',
       transition: 'transform 160ms ease-out, width 120ms, height 120ms'
@@ -653,8 +725,8 @@ const OVERLAY_SCRIPT = `(() => {
       maxWidth: '900px',
       padding: '9px 16px',
       borderRadius: '8px',
-      background: 'rgba(15,23,42,0.90)',
-      color: '#f8fafc',
+      background: 'rgba(21,26,33,0.92)',
+      color: '#f5f6f8',
       fontFamily: '"Microsoft YaHei", "Segoe UI", "PingFang SC", sans-serif',
       fontSize: '15px',
       lineHeight: '1.5',
@@ -731,7 +803,7 @@ const OVERLAY_SCRIPT = `(() => {
       Object.assign(wrap.style, {
         position: 'fixed',
         inset: '0',
-        background: 'rgba(10,15,26,0.94)',
+        background: 'rgba(21,26,33,0.94)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -743,14 +815,14 @@ const OVERLAY_SCRIPT = `(() => {
       const box = document.createElement('div')
       Object.assign(box.style, {
         width: '720px',
-        color: '#f8fafc',
+        color: '#f5f6f8',
         fontFamily: '"Microsoft YaHei", "Segoe UI", "PingFang SC", sans-serif',
         textAlign: 'left'
       })
 
       const brand = document.createElement('div')
-      brand.textContent = '课程设计作品 · 2026'
-      Object.assign(brand.style, { fontSize: '13px', letterSpacing: '2px', color: '#94a3b8', marginBottom: '14px' })
+      brand.textContent = '课程设计作品，2026'
+      Object.assign(brand.style, { fontSize: '13px', letterSpacing: '2px', color: '#bdcce3', marginBottom: '14px' })
 
       const title = document.createElement('div')
       title.textContent = payload.product
@@ -758,7 +830,7 @@ const OVERLAY_SCRIPT = `(() => {
 
       const subtitle = document.createElement('div')
       subtitle.textContent = payload.subtitle
-      Object.assign(subtitle.style, { fontSize: '15px', color: '#cbd5e1', marginBottom: '26px' })
+      Object.assign(subtitle.style, { fontSize: '15px', color: 'rgba(255,255,255,0.72)', marginBottom: '26px' })
 
       box.appendChild(brand)
       box.appendChild(title)
@@ -770,9 +842,9 @@ const OVERLAY_SCRIPT = `(() => {
         Object.assign(row.style, {
           fontSize: '15px',
           lineHeight: '1.9',
-          color: '#e2e8f0',
+          color: 'rgba(255,255,255,0.88)',
           paddingLeft: '14px',
-          borderLeft: '2px solid #475569'
+          borderLeft: '2px solid #1b3f8f'
         })
         box.appendChild(row)
       }
@@ -844,6 +916,8 @@ function encodeMp4(webm, out) {
 
 async function runGif(page, seed) {
   const started = Date.now()
+  const warmMs = await warmRecommendCache()
+  log(`推荐缓存预热完成（${(warmMs / 1000).toFixed(1)}s）`)
   await openLogin(page)
   await sleep(300)
   await segLogin(page, { role: 0, account: 'zhangsan', password: '123456', fast: true })
@@ -861,8 +935,10 @@ async function runGif(page, seed) {
 
 async function runFull(page, seed) {
   const started = Date.now()
+  const warmMs = await warmRecommendCache()
+  log(`推荐缓存预热完成（${(warmMs / 1000).toFixed(1)}s）`)
   await openLogin(page)
-  await setCaption(page, '高校实验室预约管理系统 · Spring Boot 3 + Vue 3')
+  await setCaption(page, '高校实验室预约管理系统，Spring Boot 3 + Vue 3')
   await sleep(2500)
 
   await segLogin(page, { role: 0, account: 'zhangsan', password: '123456' })
@@ -896,6 +972,7 @@ async function runFull(page, seed) {
 /** AI 片段（ai 模式）：约 40–70 秒，可单独上传为 Release 资产或作为视频尾部彩蛋 */
 async function runAi(page, seed) {
   const started = Date.now()
+  clearAiCache()
   const warmMs = await warmRecommendCache()
   log(`推荐缓存预热完成（${(warmMs / 1000).toFixed(1)}s）`)
   await openLogin(page)
@@ -905,7 +982,7 @@ async function runAi(page, seed) {
   log('段 1/3：学生登录完成')
   await segAiAssistant(page)
   log('段 2/3：AI 思考过程展示完成')
-  await setCaption(page, 'AI 生成，仅供参考 · 所有写操作由用户手动确认')
+  await setCaption(page, 'AI 生成，仅供参考；所有写操作由用户手动确认')
   await sleep(2400)
   log(`AI 演示录制完成，用时 ${((Date.now() - started) / 1000).toFixed(1)}s`)
 }

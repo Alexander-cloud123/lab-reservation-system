@@ -14,11 +14,24 @@ import com.example.reservation.ai.dto.AiPlanVO;
 public interface AiBookingPlanService {
 
     /**
-     * 生成预约方案
+     * 生成预约方案（无页面上下文；R15-3 起旧调用方零改动）
      *
      * @param userId 当前用户 ID（用于个人偏好加权，可为空）
      * @param text   用户原始问题（一句话，≤200 字）
      * @return 方案（解析失败 / 无候选时由 clarify 说明，candidates 为空列表）
      */
-    AiPlanVO plan(Long userId, String text);
+    default AiPlanVO plan(Long userId, String text) {
+        return plan(userId, text, null);
+    }
+
+    /**
+     * 生成预约方案（带页面上下文）
+     *
+     * @param userId               当前用户 ID（用于个人偏好加权，可为空）
+     * @param text                 用户原始问题（一句话，≤200 字）
+     * @param preferredClassroomId 用户当前正在浏览的教室 ID（可为空）：仅当它满足容量/类型/时段时加权排前，
+     *                             不满足时不特殊照顾（不硬塞进候选）
+     * @return 方案（解析失败 / 无候选时由 clarify 说明，candidates 为空列表）
+     */
+    AiPlanVO plan(Long userId, String text, Long preferredClassroomId);
 }

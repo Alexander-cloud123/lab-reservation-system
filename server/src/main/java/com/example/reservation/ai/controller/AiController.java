@@ -124,7 +124,8 @@ public class AiController {
     @Operation(summary = "AI-预约智能问答", description = "场景绝对限定：仅回答预约/教室/个人记录相关问题；无关问题返回预设话术")
     @PostMapping(value = "/chat", params = "stream!=true")
     public Result<AiChatVO> chat(@RequestBody AiChatRequest request) {
-        return withinDeadline(() -> Result.success(aiChatService.chat(request.getQuestion(), request.getHistory())));
+        return withinDeadline(() -> Result.success(
+                aiChatService.chat(request.getQuestion(), request.getHistory(), request.getContext())));
     }
 
     /**
@@ -144,7 +145,8 @@ public class AiController {
         return SseStreams.<ChatStreamSink>start(
                 deadline, aiStreamExecutor, "流式问答", userId,
                 SseChatStreamSink::new,
-                sink -> aiChatService.streamChat(userId, request.getQuestion(), request.getHistory(), sink),
+                sink -> aiChatService.streamChat(userId, request.getQuestion(), request.getHistory(),
+                        request.getContext(), sink),
                 "AI 响应超时，请稍后再试", "AI 服务繁忙，请稍后再试", "服务暂时不可用，请稍后再试");
     }
 

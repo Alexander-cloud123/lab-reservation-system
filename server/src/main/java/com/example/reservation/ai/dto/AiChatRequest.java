@@ -20,4 +20,10 @@ public class AiChatRequest {
      * 缺省/空列表时退化为单轮问答，旧调用方零感知；后端不信任前端，统一二次裁剪。
      */
     private List<AiChatHistoryMessage> history;
+
+    /**
+     * 页面上下文（可选，R15-3）：用户从教室详情页进入对话时带上「正在查看的教室」。
+     * 只影响回答措辞与预约方案的排序偏好，不改变冲突判定，也不会被持久化进会话历史。
+     */
+    private AiChatContext context;
 }

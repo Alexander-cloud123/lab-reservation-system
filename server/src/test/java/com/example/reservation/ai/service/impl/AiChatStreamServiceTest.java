@@ -734,7 +734,7 @@ class AiChatStreamServiceTest {
         candidate.setBuilding("实验楼");
         candidate.setCapacity(40);
         plan.setCandidates(List.of(candidate));
-        when(bookingPlanService.plan(7L, "帮我约明天下午 2 点到 4 点的机房")).thenReturn(plan);
+        when(bookingPlanService.plan(eq(7L), eq("帮我约明天下午 2 点到 4 点的机房"), any())).thenReturn(plan);
         RecordingSink sink = new RecordingSink();
 
         service.streamChat(7L, "帮我约明天下午 2 点到 4 点的机房", List.of(), sink);
@@ -779,7 +779,7 @@ class AiChatStreamServiceTest {
             option.setCandidates(List.of(candidate));
             plan.getTimeOptions().add(option);
         }
-        when(bookingPlanService.plan(anyLong(), anyString())).thenReturn(plan);
+        when(bookingPlanService.plan(anyLong(), anyString(), any())).thenReturn(plan);
         RecordingSink sink = new RecordingSink();
 
         service.streamChat(7L, "帮我约明天下午两点的机房，30人", List.of(), sink);
@@ -803,7 +803,7 @@ class AiChatStreamServiceTest {
         AiPlanVO plan = new AiPlanVO();
         plan.setEnabled(true);
         plan.setClarify(AiConstants.PLAN_CLARIFY);
-        when(bookingPlanService.plan(anyLong(), anyString())).thenReturn(plan);
+        when(bookingPlanService.plan(anyLong(), anyString(), any())).thenReturn(plan);
         RecordingSink sink = new RecordingSink();
 
         service.streamChat(7L, "帮我约个教室", List.of(), sink);
@@ -823,7 +823,7 @@ class AiChatStreamServiceTest {
         plan.setEnabled(true);
         plan.setCandidates(List.of());
         plan.setClarify(AiConstants.PLAN_EMPTY);
-        when(bookingPlanService.plan(anyLong(), anyString())).thenReturn(plan);
+        when(bookingPlanService.plan(anyLong(), anyString(), any())).thenReturn(plan);
         RecordingSink sink = new RecordingSink();
 
         service.streamChat(7L, "帮我约明天下午的机房", List.of(), sink);
@@ -833,6 +833,77 @@ class AiChatStreamServiceTest {
         assertEquals(List.of("meta(true,false,null)", "delta", "done(stop)"), collapseDeltas(sink.events));
     }
 
+    @Test
+    @DisplayName("页面上下文：把「正在查看的教室」注入模型请求，回答才能理解「这间」")
+    void contextInjectedIntoUserMessage() {
+        stubEmptyUserContext();
+        stubCacheKey();
+        when(aiConfigService.isAiEnabled()).thenReturn(true);
+        when(aiResultCache.get(anyString(), any(TypeReference.class))).thenReturn(null);
+        com.example.reservation.entity.Classroom viewing = new com.example.reservation.entity.Classroom();
+        viewing.setId(3L);
+        viewing.setName("A201 物理实验室");
+        viewing.setBuilding("信息楼");
+        viewing.setRoomNo("A201");
+        viewing.setType(2);
+        viewing.setCapacity(60);
+        viewing.setStatus(1);
+        stubMediaClassroom(viewing);
+        String[] captured = new String[1];
+        when(agnesClient.chatStream(anyLong(), anyString(), anyList(), anyString(), any(Runnable.class), any(), any()))
+                .thenAnswer(inv -> {
+                    captured[0] = inv.getArgument(3, String.class);
+                    inv.getArgument(4, Runnable.class).run();
+                    inv.getArgument(6, java.util.function.Consumer.class).accept("这间教室在信息楼。");
+                    return new AgnesClient.StreamChatHandle(true, null, "stop");
+                });
+        RecordingSink sink = new RecordingSink();
+        com.example.reservation.ai.dto.AiChatContext context = new com.example.reservation.ai.dto.AiChatContext();
+        context.setClassroomId(3L);
+
+        service.streamChat(7L, "这间教室在哪个楼", java.util.List.of(), context, sink);
+
+        org.assertj.core.api.Assertions.assertThat(captured[0])
+                .contains("【用户当前查看】")
+                .contains("A201 物理实验室")
+                .contains("信息楼");
+    }
+
+    @Test
+    @DisplayName("页面上下文：教室不存在或已停用时静默忽略，不写入上下文、不抛异常")
+    void contextUnknownClassroomIgnored() {
+        stubEmptyUserContext();
+        stubCacheKey();
+        when(aiConfigService.isAiEnabled()).thenReturn(true);
+        when(aiResultCache.get(anyString(), any(TypeReference.class))).thenReturn(null);
+        com.example.reservation.entity.Classroom disabled = new com.example.reservation.entity.Classroom();
+        disabled.setId(99L);
+        disabled.setName("已停用教室");
+        disabled.setStatus(0);
+        stubMediaClassroom(disabled);
+        String[] captured = new String[1];
+        when(agnesClient.chatStream(anyLong(), anyString(), anyList(), anyString(), any(Runnable.class), any(), any()))
+                .thenAnswer(inv -> {
+                    captured[0] = inv.getArgument(3, String.class);
+                    inv.getArgument(4, Runnable.class).run();
+                    inv.getArgument(6, java.util.function.Consumer.class).accept("好的");
+                    return new AgnesClient.StreamChatHandle(true, null, "stop");
+                });
+        RecordingSink sink = new RecordingSink();
+        com.example.reservation.ai.dto.AiChatContext context = new com.example.reservation.ai.dto.AiChatContext();
+        context.setClassroomId(99L);
+
+        service.streamChat(7L, "怎么预约", java.util.List.of(), context, sink);
+
+        org.assertj.core.api.Assertions.assertThat(captured[0]).doesNotContain("【用户当前查看】").doesNotContain("已停用教室");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void stubMediaClassroom(com.example.reservation.entity.Classroom classroom) {
+        com.example.reservation.mapper.ClassroomMapper classroomMapper =
+                (com.example.reservation.mapper.ClassroomMapper) ReflectionTestUtils.getField(service, "classroomMapper");
+        org.mockito.Mockito.when(classroomMapper.selectById(classroom.getId())).thenReturn(classroom);
+    }
     /** 回答按 20 字分段发送：把连续 delta 折叠成 1 个，便于断言「步骤 → meta → plan → 正文 → done」结构 */
     private static List<String> collapseDeltas(List<String> events) {
         List<String> collapsed = new ArrayList<>();

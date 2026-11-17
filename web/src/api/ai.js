@@ -285,11 +285,17 @@ export function aiComplianceCheckStream(data, handlers, signal) {
  *        onMeta({enabled,degraded,message}) / onDelta(text) / onReset({text,message}) / onDone({finishReason}) / onError(message)
  * @param {AbortSignal} signal 抽屉关闭/组件卸载/停止生成/重复发送时中断
  */
-export function aiChatStream({ question, history }, handlers, signal) {
+export function aiChatStream({ question, history, context }, handlers, signal) {
   const { onThinking, onReasoning, onPlan, onMeta, onDelta, onReset, onDone, onError } = handlers || {}
+  // 页面上下文只在有教室时才带上（裸对象会多一层噪音，也让后端少一次空值判断）
+  const classroomId = context && context.classroomId ? context.classroomId : undefined
   return ssePost('/ai/chat',
     // 空历史不带字段：后端缺省即单轮，请求体保持最小
-    { question, history: history && history.length ? history : undefined },
+    {
+      question,
+      history: history && history.length ? history : undefined,
+      context: classroomId ? { classroomId } : undefined
+    },
     {
       thinking: d => onThinking && onThinking(d),
       reasoning: d => onReasoning && onReasoning(d.text || ''),

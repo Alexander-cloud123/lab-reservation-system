@@ -32,7 +32,13 @@ onMounted(() => {
 })
 
 function openChat() {
-  router.push('/student/ai')
+  // R15-3：从教室详情页进入对话时带上「正在查看的教室」，AI 才能听懂「这间教室」
+  const current = router.currentRoute.value
+  const roomId = current.name === 'ClassroomDetail' ? current.params.id : ''
+  router.push({
+    path: '/student/ai',
+    query: roomId ? { roomId: String(roomId) } : {}
+  })
 }
 
 /** 鼠标悬停显示一行极简文字提示（不遮挡内容，不打断阅读） */

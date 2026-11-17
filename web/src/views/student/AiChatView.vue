@@ -1,15 +1,17 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { probeAiRecommend } from '@/utils/aiProbe'
 import { getStoredUser } from '@/utils/auth'
+import { getClassroomDetail } from '@/api/classroom'
 import { useAiChat } from '@/composables/useAiChat'
 import AiChatMessage from '@/components/ai/AiChatMessage.vue'
 import AiQuickReserve from '@/components/ai/AiQuickReserve.vue'
 import AiChatComposer from '@/components/ai/AiChatComposer.vue'
 
 const router = useRouter()
+const route = useRoute()
 
 const chat = useAiChat()
 const { conversations, activeConversation, activeId, messages, hasMessages, input, sending, liveStatus, offNotice, degradedNotice } = chat
@@ -34,6 +36,48 @@ function canRegenerateMessage(message) {
 }
 
 const quickReserveRef = ref(null)
+
+/**
+ * R15-3 页面上下文：从教室详情页的悬浮球进入时带 roomId，让 AI 听懂「这间教室」。
+ * 只存在内存里，不写进会话历史——恢复历史后「这间」不应再指向在此之前浏览的教室。
+ */
+const pageContext = ref(null)
+const contextRoomName = ref('')
+
+async function loadPageContext(roomId) {
+  const id = Number(roomId)
+  if (!Number.isInteger(id) || id <= 0) {
+    pageContext.value = null
+    contextRoomName.value = ''
+    return
+  }
+  pageContext.value = { classroomId: id }
+  try {
+    const room = await getClassroomDetail(id)
+    contextRoomName.value = room && room.name ? room.name : ''
+  } catch {
+    // 教室查不到（已删除/已停用）就不显示名字，上下文交给后端二次校验后静默忽略
+    contextRoomName.value = ''
+  }
+}
+
+function removeContext() {
+  pageContext.value = null
+  contextRoomName.value = ''
+}
+
+const contextLabel = computed(() => {
+  if (!pageContext.value) {
+    return ''
+  }
+  return contextRoomName.value || `教室 #${pageContext.value.classroomId}`
+})
+
+watch(
+  () => route.query.roomId,
+  (roomId) => loadPageContext(roomId),
+  { immediate: true }
+)
 
 /** 方案卡「去预约」：把方案与候选教室交给既有确认弹窗（第 3 步预填 + 冲突检测），不代提交 */
 function onReserve(candidate, endTime, message) {
@@ -93,13 +137,21 @@ function formatDate(value) {
   return `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
-const suggestions = [
+const baseSuggestions = [
   { icon: 'spark', text: '明天下午有哪些空教室？' },
   { icon: 'calendar', text: '怎么取消一条已通过的预约？' },
   { icon: 'shield', text: '预约冲突是怎么判定的？' },
   { icon: 'clock', text: '管理员审核一般要多久？' },
   { icon: 'spark', text: '帮我约明天的机房，30 人左右' }
 ]
+
+/** 带着教室上下文进来时，把「这间教室」放进建议里（仍由用户点击，不自动提问） */
+const suggestions = computed(() => {
+  if (!pageContext.value) {
+    return baseSuggestions
+  }
+  return [{ icon: 'spark', text: '这间教室明天下午有空吗？' }, ...baseSuggestions]
+})
 
 async function onDeleteConversation(conversation) {
   try {
@@ -196,7 +248,7 @@ async function ask(question) {
   if (sending.value) {
     return
   }
-  await chat.send(question, { onFirstDelta: scrollToBottom })
+  await chat.send(question, { onFirstDelta: scrollToBottom, context: pageContext.value })
 }
 
 function onSend() {
@@ -210,7 +262,7 @@ function onSend() {
 
 /** 重新生成：删除最后一条回答并用同一提问重发，输入框保持聚焦 */
 function onRegenerate() {
-  chat.regenerate({ onFirstDelta: scrollToBottom })
+  chat.regenerate({ onFirstDelta: scrollToBottom, context: pageContext.value })
   nextTick(() => composerRef.value && composerRef.value.focus())
 }
 
@@ -335,6 +387,21 @@ probeAiRecommend().catch(() => {})
         <span class="topbar-title">{{ title }}</span>
         <span class="topbar-state">{{ sending ? '回答中…' : '就绪' }}</span>
       </header>
+
+      <div v-if="contextLabel" class="ai-context-bar">
+        <span class="ai-context-chip">
+          <span class="context-mark" aria-hidden="true">◎</span>
+          <span class="context-text">正在查看：{{ contextLabel }}</span>
+          <button
+            type="button"
+            class="context-remove"
+            aria-label="移除当前教室上下文"
+            @click="removeContext"
+          >
+            ×
+          </button>
+        </span>
+      </div>
 
       <p v-if="aiOff" class="ai-chat-banner">{{ aiOff }}</p>
 
@@ -702,6 +769,63 @@ probeAiRecommend().catch(() => {})
 
 .ai-chat-back:hover {
   background: var(--bg-fill, #eff0f1);
+}
+
+/* R15-3 页面上下文：安静地挂在顶栏下方，可一键移除 */
+.ai-context-bar {
+  display: flex;
+  padding: 8px 16px 0;
+}
+
+.ai-context-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 6px 4px 9px;
+  border: 1px solid var(--border-color-light);
+  border-radius: 999px;
+  background: var(--bg-subtle, #f8f9fa);
+  color: var(--text-regular);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.context-mark {
+  color: var(--brand-primary);
+  font-size: 12px;
+}
+
+.context-text {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--text-placeholder);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.context-remove:hover {
+  background: var(--bg-fill, #eff0f1);
+  color: var(--text-primary);
+}
+
+.context-remove:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 1px;
 }
 
 .ai-chat-back:focus-visible {

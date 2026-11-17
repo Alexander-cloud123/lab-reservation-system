@@ -76,7 +76,7 @@ public class AiBookingPlanServiceImpl implements AiBookingPlanService {
     private ClassroomMapper classroomMapper;
 
     @Override
-    public AiPlanVO plan(Long userId, String text) {
+    public AiPlanVO plan(Long userId, String text, Long preferredClassroomId) {
         // 双开关关闭：与其余 AI 入口一致，返回 enabled=false 的友好提示
         if (!aiConfigService.isAiEnabled()) {
             return AiPlanVO.disabled();
@@ -122,11 +122,11 @@ public class AiBookingPlanServiceImpl implements AiBookingPlanService {
         Map<String, Integer> buildingPref = historyPreference(userId);
 
         if (intent.end == null) {
-            return estimateOption(vo, intent, rooms, buildingPref, durations);
+            return estimateOption(vo, intent, rooms, buildingPref, durations, preferredClassroomId);
         }
 
         SearchResult result = search(rooms, intent.day, intent.start, intent.end,
-                intent.capacity, typeOf(intent.roomType), buildingPref);
+                intent.capacity, typeOf(intent.roomType), buildingPref, preferredClassroomId);
         apply(vo, result, intent.end);
         if (vo.getCandidates().isEmpty()) {
             vo.setClarify(AiConstants.PLAN_EMPTY);
@@ -156,7 +156,7 @@ public class AiBookingPlanServiceImpl implements AiBookingPlanService {
      */
     private AiPlanVO estimateOption(AiPlanVO vo, PartialIntent intent,
                                     List<ClassroomVO> rooms, Map<String, Integer> buildingPref,
-                                    List<Integer> durations) {
+                                    List<Integer> durations, Long preferredClassroomId) {
         Integer type = typeOf(intent.roomType);
         List<AiPlanTimeOptionVO> options = new ArrayList<>();
         List<Integer> optionHours = new ArrayList<>();
@@ -166,7 +166,7 @@ public class AiBookingPlanServiceImpl implements AiBookingPlanService {
                 continue;
             }
             SearchResult result = search(rooms, intent.day, intent.start, end,
-                    intent.capacity, type, buildingPref);
+                    intent.capacity, type, buildingPref, preferredClassroomId);
             AiPlanTimeOptionVO option = new AiPlanTimeOptionVO();
             option.setStartTime(TimeUtil.formatTime(intent.start));
             option.setEndTime(TimeUtil.formatTime(end));
@@ -272,7 +272,8 @@ public class AiBookingPlanServiceImpl implements AiBookingPlanService {
 
     /** 单次检索：容量 + 类型 + 冲突过滤，排序取 Top3 */
     private SearchResult search(List<ClassroomVO> rooms, LocalDate day, LocalTime start, LocalTime end,
-                                Integer capacity, Integer type, Map<String, Integer> buildingPref) {
+                                Integer capacity, Integer type, Map<String, Integer> buildingPref,
+                                Long preferredClassroomId) {
         List<Scored> available = new ArrayList<>();
         int excluded = 0;
         for (ClassroomVO room : rooms) {
@@ -284,15 +285,21 @@ public class AiBookingPlanServiceImpl implements AiBookingPlanService {
                 excluded++;
                 continue;
             }
-            available.add(new Scored(room, score(room, type, capacity, buildingPref)));
+            available.add(new Scored(room, score(room, type, capacity, buildingPref, preferredClassroomId)));
         }
-        available.sort(Comparator.comparingInt(Scored::score).reversed()
+        // R15-3：正在查看的教室只要满足硬条件（容量/类型/时段），直接排第一——
+        // 用户问「这间教室」时期待先看到它，评分加权不足以覆盖「容量刚好」的差距。
+        Comparator<Scored> preferredFirst = Comparator.comparing(
+                s -> preferredClassroomId != null && preferredClassroomId.equals(s.room().getId()));
+        available.sort(preferredFirst.reversed()
+                .thenComparing(Comparator.comparingInt(Scored::score).reversed())
                 .thenComparingInt(s -> Math.abs((s.room().getCapacity() == null ? 0 : s.room().getCapacity())
                         - (capacity == null ? 0 : capacity)))
                 .thenComparingLong(s -> s.room().getId()));
         List<AiPlanCandidateVO> candidates = new ArrayList<>();
         for (int i = 0; i < available.size() && i < AiConstants.PLAN_TOP_COUNT; i++) {
-            candidates.add(toCandidate(available.get(i).room(), type, capacity, buildingPref));
+            candidates.add(toCandidate(available.get(i).room(), type, capacity, buildingPref,
+                    preferredClassroomId));
         }
         return new SearchResult(candidates, available.size(), excluded);
     }
@@ -356,11 +363,13 @@ public class AiBookingPlanServiceImpl implements AiBookingPlanService {
     }
 
     /** 画像分：类型精确匹配 > 常用楼栋 > 容量贴合 > 剩余时段（口径写进 docs/AI智能体设计.md） */
-    private int score(ClassroomVO room, Integer type, Integer capacity, Map<String, Integer> buildingPref) {
+    private int score(ClassroomVO room, Integer type, Integer capacity, Map<String, Integer> buildingPref,
+                      Long preferredClassroomId) {
         int score = 0;
         if (type != null && type.equals(room.getType())) {
             score += 100;
         }
+
         if (StrUtil.isNotBlank(room.getBuilding()) && buildingPref.getOrDefault(room.getBuilding(), 0) > 0) {
             score += 30;
         }
@@ -388,7 +397,8 @@ public class AiBookingPlanServiceImpl implements AiBookingPlanService {
     }
 
     private AiPlanCandidateVO toCandidate(ClassroomVO room, Integer type, Integer capacity,
-                                          Map<String, Integer> buildingPref) {
+                                          Map<String, Integer> buildingPref,
+                                          Long preferredClassroomId) {
         AiPlanCandidateVO candidate = new AiPlanCandidateVO();
         candidate.setClassroomId(room.getId());
         candidate.setName(room.getName());
@@ -396,13 +406,17 @@ public class AiBookingPlanServiceImpl implements AiBookingPlanService {
         candidate.setRoomNo(room.getRoomNo());
         candidate.setType(room.getType());
         candidate.setCapacity(room.getCapacity());
-        candidate.setReason(reason(room, type, capacity, buildingPref));
+        candidate.setReason(reason(room, type, capacity, buildingPref, preferredClassroomId));
         return candidate;
     }
 
     /** 推荐理由：模板句，不额外调模型（避免为一句理由再花一次额度） */
-    private String reason(ClassroomVO room, Integer type, Integer capacity, Map<String, Integer> buildingPref) {
+    private String reason(ClassroomVO room, Integer type, Integer capacity, Map<String, Integer> buildingPref,
+                          Long preferredClassroomId) {
         List<String> parts = new ArrayList<>();
+        if (preferredClassroomId != null && preferredClassroomId.equals(room.getId())) {
+            parts.add("你正在看这间");
+        }
         if (type != null && type.equals(room.getType())) {
             parts.add("类型匹配");
         }

@@ -347,4 +347,36 @@ class AiBookingPlanServiceImplTest {
         assertTrue(plan.getTimeOptions().get(1).getCandidates().stream()
                 .noneMatch(c -> c.getName().equals("一小时后被占")));
     }
+
+    @Test
+    @DisplayName("页面上下文：正在浏览的教室满足条件时加权排前，理由写明「你正在看这间」")
+    void prefersClassroomUserIsViewing() {
+        when(aiConfigService.isAiEnabled()).thenReturn(true);
+        when(aiParseService.parse(any())).thenReturn(parsed());
+        stubQuery(List.of(
+                room(1L, "A101 教室", "信息楼", 3, 60, List.of()),
+                room(2L, "B201 机房", "实验楼", 3, 60, List.of())));
+
+        AiPlanVO plan = service.plan(7L, "帮我约明天下午 2 点到 4 点的机房", 2L);
+
+        AiPlanCandidateVO first = plan.getCandidates().get(0);
+        assertEquals(Long.valueOf(2L), first.getClassroomId());
+        assertTrue(first.getReason().contains("你正在看这间"));
+    }
+
+    @Test
+    @DisplayName("页面上下文：正在浏览的教室容量不足时不特殊照顾，也不硬塞进候选")
+    void doesNotForceClassroomThatCannotFit() {
+        when(aiConfigService.isAiEnabled()).thenReturn(true);
+        when(aiParseService.parse(any())).thenReturn(parsed());
+        stubQuery(List.of(
+                room(1L, "A101 教室", "信息楼", 3, 60, List.of()),
+                room(2L, "小机房", "实验楼", 3, 20, List.of())));
+
+        AiPlanVO plan = service.plan(7L, "帮我约明天下午 2 点到 4 点的机房", 2L);
+
+        assertEquals(1, plan.getCandidates().size());
+        assertEquals(Long.valueOf(1L), plan.getCandidates().get(0).getClassroomId());
+        assertTrue(plan.getCandidates().stream().noneMatch(c -> Long.valueOf(2L).equals(c.getClassroomId())));
+    }
 }

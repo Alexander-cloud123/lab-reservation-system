@@ -220,7 +220,7 @@ export function useAiChat() {
    * 发送一条提问。onFirstDelta 在首个正文片段到达时回调（页面用它强制贴底滚动）。
    * 返回 Promise，流结束或中断后 resolve。
    */
-  async function send(question, { onFirstDelta, appendUser = true } = {}) {
+  async function send(question, { onFirstDelta, appendUser = true, context = null } = {}) {
     const text = (question || '').trim()
     if (!text || sending.value) {
       return
@@ -296,7 +296,10 @@ export function useAiChat() {
     try {
       await aiChatStream(
         // 首轮不带 history 字段（字段缺省，与后端契约定)；后续轮次按最近 10 条回传
-        history.length ? { question: text, history } : { question: text },
+        // R15-3：context 只随当次请求发送，不写进会话历史（历史恢复后「这间」不该再指向旧教室）
+        history.length
+          ? { question: text, history, context }
+          : { question: text, context },
         {
           onThinking: (payload) => {
             if (!payload || !bubble.thinking) {
@@ -448,7 +451,7 @@ export function useAiChat() {
    * 重新生成：删掉最后一条回答，用同一提问重发（DeepSeek 的「重新生成」语义）。
    * 用户提问只保留一条，不重复追加气泡。
    */
-  async function regenerate({ onFirstDelta } = {}) {
+  async function regenerate({ onFirstDelta, context = null } = {}) {
     if (sending.value) {
       return
     }
@@ -459,7 +462,7 @@ export function useAiChat() {
     }
     const question = conversation.messages[index].content
     conversation.messages.splice(index + 1)
-    await send(question, { onFirstDelta, appendUser: false })
+    await send(question, { onFirstDelta, appendUser: false, context })
   }
 
   /** 停止生成：中断流式接收；已收到的片段原样保留，空气泡在 send() 收尾时移除 */

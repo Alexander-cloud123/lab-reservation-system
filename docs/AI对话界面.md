@@ -86,7 +86,21 @@
 - 边界：方案不写库、不缓存（规划分支跳过结果缓存），每次提问都重新解析与检索；可选档位最多三档且不越过 22:00。
 - 设计依据与意图/排序口径见 [`docs/AI智能体设计.md`](AI智能体设计.md)。
 
-## 7. 对既有 E2E 的兼容
+## 7. 页面上下文（R15-3）
+
+在教室详情页点悬浮球，进入对话时会带 `?roomId=<id>`，让 AI 知道「你在看哪间教室」：
+
+- 来源与展示：`AiChatView` 读取 `route.query.roomId`，校验为正整数后拉一次教室详情；成功后顶栏下方出现
+  `.ai-context-chip`（「正在查看：A101 多媒体教室」+ ×），教室不存在 / 停用 / 请求失败时静默不显示。
+  欢迎屏会把首个建议换成「这间教室明天下午有空吗？」。
+- 请求：`context: { classroomId }` 只带结构化 id（不带任意文本，避免 Prompt 注入）；点 × 移除后，后续请求不再带该字段；
+  刷新页面会按 URL 恢复上下文；历史会话本身不存上下文（避免「这间」指向过期对象）。
+- 后端：只接收 `AiChatContext.classroomId`，查库校验存在且启用后，才在模型上下文里写「【用户当前查看】…（楼栋 编号 类型 容量）」，
+  并提示「用户说这间 / 这个教室时指它」；规划分支里，这间教室只要满足容量 / 类型 / 时段就直接排第一（理由写「你正在看这间」），
+  不满足则照常排序，不硬塞。
+- 隐私：教室信息本就是公开资源列表，上下文只用于这一次请求，不落库、不写历史、不进日志。
+
+## 8. 对既有 E2E 的兼容
 
 既有 `30-ai.spec.js` 用旧抽屉的选择器写断言，本次在不改断言主体的前提下做了类名兼容层：
 
@@ -105,7 +119,7 @@
 历史持久化另有 `web/e2e/specs/32-ai-history.spec.js` 4 条：刷新后会话与思考面板恢复、两条会话按最近活动排序、
 删除（二次确认）后刷新消失、退出登录清空本地历史。
 
-## 8. 验证命令
+## 9. 验证命令
 
 ```powershell
 # 前端静态检查与构建（Windows 下 esbuild 临时目录需指向工作区）
@@ -114,13 +128,13 @@ npm run lint
 $env:TEMP="$PWD\..\.devtmp\tmp"; $env:TMP=$env:TEMP; npm run build
 
 # AI 相关用例（Playwright 自动起 Vite；后端需在 8080）
-npx playwright test specs/30-ai.spec.js specs/32-ai-history.spec.js specs/33-ai-plan.spec.js --project=chromium
+npx playwright test specs/30-ai.spec.js specs/32-ai-history.spec.js specs/33-ai-plan.spec.js specs/34-ai-context.spec.js --project=chromium
 
 # 全量 Chromium 回归（跑前复位种子，避免历史预约干扰造数）
 npx playwright test --project=chromium
 ```
 
-## 9. 已知边界
+## 10. 已知边界
 
 - 会话只存浏览器本地（`localStorage` 单机单浏览器），不落库、不跨设备；换浏览器或清缓存即丢失。
   未新增会话表：`需求设计文档.md` 没有消息中心/会话存储条款，动表结构需先变更需求。

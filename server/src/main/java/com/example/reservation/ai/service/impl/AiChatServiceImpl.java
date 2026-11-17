@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.reservation.ai.config.AgnesClient;
 import com.example.reservation.ai.config.AiConstants;
 import com.example.reservation.ai.config.AiPrompts;
+import com.example.reservation.ai.dto.AiChatContext;
 import com.example.reservation.ai.dto.AiChatHistoryMessage;
 import com.example.reservation.ai.dto.AiChatVO;
 import com.example.reservation.ai.dto.AiPlanVO;
@@ -122,7 +123,7 @@ public class AiChatServiceImpl implements AiChatService {
             "继续", "那", "它", "这个", "那个", "几点", "何时", "哪里", "哪个", "呢", "后来", "上面");
 
     @Override
-    public AiChatVO chat(String question, List<AiChatHistoryMessage> history) {
+    public AiChatVO chat(String question, List<AiChatHistoryMessage> history, AiChatContext context) {
         // M11 修复：AI 入参长度上限（流式/非流式共用 validateQuestion，口径保持一致）
         validateQuestion(question);
         // 双开关关闭：返回友好提示，不报 500（前端隐藏悬浮助手）
@@ -138,7 +139,7 @@ public class AiChatServiceImpl implements AiChatService {
         }
 
         // 1. 尝试大模型问答（检索增强注入个人预约上下文）；失败/非法输出统一由 AiInvoker 降级
-        String userMessage = buildContext(userId) + "\n【用户问题】" + question;
+        String userMessage = buildContext(userId, context) + "\n【用户问题】" + question;
         // 个人答案双重隔离：namespace 显式保留 literal userId，fingerprint 使用完整 SHA-256。
         String cacheKey = aiResultCache.buildKey(
                 chatCacheNamespace(userId),
@@ -182,11 +183,13 @@ public class AiChatServiceImpl implements AiChatService {
      * 让用户补充条件或换时段；有候选时发 1 个 plan 帧，前端渲染方案卡，用户点「去预约」后
      * 进入既有确认弹窗手动提交（提交动作不经过 AI）。
      */
-    private void handlePlan(Long userId, String question, AiThinkingTrace trace, ChatStreamSink sink) {
+    private void handlePlan(Long userId, String question, AiChatContext context,
+                            AiThinkingTrace trace, ChatStreamSink sink) {
         trace.begin(AiConstants.THINK_STEP_PARSE, AiConstants.THINK_LABEL_PARSE);
         AiPlanVO plan;
         try {
-            plan = bookingPlanService.plan(userId, question);
+            Classroom viewing = contextClassroom(context);
+            plan = bookingPlanService.plan(userId, question, viewing == null ? null : viewing.getId());
         } catch (RuntimeException e) {
             log.warn("预约方案生成失败：{}", e.getMessage());
             plan = new AiPlanVO();
@@ -244,7 +247,8 @@ public class AiChatServiceImpl implements AiChatService {
     }
 
     @Override
-    public void streamChat(Long userId, String question, List<AiChatHistoryMessage> history, ChatStreamSink sink) {
+    public void streamChat(Long userId, String question, List<AiChatHistoryMessage> history,
+                           AiChatContext context, ChatStreamSink sink) {
         // R13-3：历史归一化（AI 关闭分支虽不使用历史，但归一化是纯函数，提前执行无副作用）
         List<AgnesClient.ChatMessage> normalizedHistory = normalizeHistory(history);
         // 1. AI 双开关关闭：meta 告知后直接 done（不查缓存、不调上游）
@@ -279,7 +283,7 @@ public class AiChatServiceImpl implements AiChatService {
         // R15-1 预约规划：命中「帮我预约」类意图时只生成可确认方案（不读缓存、不调 chat completion）。
         // 方案由前端渲染为方案卡，用户点「去预约」进入既有确认弹窗手动提交——AI 只读不写。
         if (AiBookingIntent.matches(question)) {
-            handlePlan(userId, question, trace, sink);
+            handlePlan(userId, question, context, trace, sink);
             return;
         }
 
@@ -309,7 +313,7 @@ public class AiChatServiceImpl implements AiChatService {
 
         // 3. 检索个人预约记录：这一步有真实的 DB 往返，耗时如实上报
         trace.begin(AiConstants.THINK_STEP_RETRIEVE, AiConstants.THINK_LABEL_RETRIEVE);
-        String userMessage = buildContext(userId) + "\n【用户问题】" + question;
+        String userMessage = buildContext(userId, context) + "\n【用户问题】" + question;
         trace.end(AiConstants.THINK_STEP_RETRIEVE);
         trace.begin(AiConstants.THINK_STEP_GENERATE, AiConstants.THINK_LABEL_GENERATE);
         if (trace.isClosed()) {
@@ -507,9 +511,9 @@ public class AiChatServiceImpl implements AiChatService {
     }
 
     /**
-     * 构建个人上下文（检索增强：最近 5 条预约 + 预约总数），供模型回答个人记录类问题
+     * 构建个人上下文（检索增强：最近 5 条预约 + 预约总数 + 页面上下文），供模型回答个人记录类问题
      */
-    private String buildContext(Long userId) {
+    private String buildContext(Long userId, AiChatContext context) {
         if (userId == null) {
             return "【用户信息】未获取到当前登录用户";
         }
@@ -530,6 +534,18 @@ public class AiChatServiceImpl implements AiChatService {
                 .append("（Asia/Shanghai，星期")
                 .append("一二三四五六日".charAt(now.getDayOfWeek().getValue() - 1))
                 .append("）\n");
+        // R15-3 页面上下文：用户从教室详情页进入对话时，告诉他「这间教室」指哪一间。
+        // 只查公开的教室信息；查不到或已停用就静默忽略（不报错、不把客户端文本拼进 Prompt）。
+        Classroom viewing = contextClassroom(context);
+        if (viewing != null) {
+            sb.append("【用户当前查看】").append(viewing.getName())
+                    .append("（").append(StrUtil.blankToDefault(viewing.getBuilding(), "未填楼栋"))
+                    .append(" ").append(StrUtil.blankToDefault(viewing.getRoomNo(), "未填编号"))
+                    .append("，").append(roomTypeText(viewing.getType()))
+                    .append("，容量 ").append(viewing.getCapacity() == null ? "-" : viewing.getCapacity())
+                    .append(" 人）\n")
+                    .append("用户说「这间教室 / 这个教室」时，指的就是上面这间。\n");
+        }
         sb.append("【用户预约概况】共 ").append(total).append(" 条预约记录");
         if (recent.isEmpty()) {
             sb.append("；暂无预约记录");
@@ -548,6 +564,34 @@ public class AiChatServiceImpl implements AiChatService {
                         + "（" + statusText(r.getStatus()) + "）")
                 .collect(Collectors.joining("；")));
         return sb.toString();
+    }
+
+    /**
+     * 解析页面上下文：只接受正数教室 ID，且必须查得到、处于可用状态。
+     * 查不到 / 停用 / 客户端乱传一律返回 null（静默忽略，不抛异常、不影响主流程）。
+     */
+    private Classroom contextClassroom(AiChatContext context) {
+        if (context == null || context.getClassroomId() == null || context.getClassroomId() <= 0) {
+            return null;
+        }
+        Classroom room = classroomMapper.selectById(context.getClassroomId());
+        if (room == null || room.getStatus() == null || room.getStatus() != 1) {
+            return null;
+        }
+        return room;
+    }
+
+    /** 教室类型文案（与前端字典口径一致：1-普通教室，2-实验室，3-机房） */
+    private String roomTypeText(Integer type) {
+        if (type == null) {
+            return "教室";
+        }
+        return switch (type) {
+            case 1 -> "普通教室";
+            case 2 -> "实验室";
+            case 3 -> "机房";
+            default -> "教室";
+        };
     }
 
     /** 状态文案（与前端三态标签口径一致） */

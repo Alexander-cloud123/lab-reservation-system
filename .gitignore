@@ -1,5 +1,6 @@
 # ===== 本地临时与构建产物 =====
 .devtmp/
+.dsh-vision-router/
 target/
 dist/
 dist-ssr/

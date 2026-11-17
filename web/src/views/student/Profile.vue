@@ -17,7 +17,7 @@
         <div class="identity-main">
           <div class="identity-name-line">
             <span class="identity-name">{{ displayName }}</span>
-            <el-tag size="small" effect="plain" class="identity-role">学生</el-tag>
+            <span class="identity-role">学生</span>
           </div>
           <div class="identity-meta"><span>学号 {{ studentNoText }}</span><span>账号 {{ usernameText }}</span></div>
         </div>
@@ -96,7 +96,7 @@
         >
           <div class="fav-info">
             <div class="fav-name">{{ fav.name }}</div>
-            <div class="fav-meta">{{ fav.building }}-{{ fav.roomNo }} {{ typeText(fav.type) }} {{ fav.capacity }}人</div>
+            <div class="fav-meta">{{ fav.building }} {{ fav.roomNo }}，{{ typeText(fav.type) }}，{{ fav.capacity }} 人</div>
           </div>
         </div>
         <!-- 收藏空状态（友好引导） -->
@@ -666,7 +666,7 @@ onMounted(async () => {
 <style scoped>
 /* ---- 页面标题栏 ---- */
 .page-sub {
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 20px;
   color: var(--text-regular);
   margin-top: 4px;
@@ -689,8 +689,8 @@ onMounted(async () => {
 
 .identity-avatar {
   background: var(--brand-primary);
-  color: #fff;
-  font-size: 20px;
+  color: var(--surface);
+  font-size: var(--text-lg);
   font-weight: 600;
   flex-shrink: 0;
 }
@@ -708,7 +708,7 @@ onMounted(async () => {
 }
 
 .identity-name {
-  font-size: 20px;
+  font-size: var(--text-lg);
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -720,7 +720,7 @@ onMounted(async () => {
 }
 
 .identity-meta {
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 20px;
   color: var(--text-regular);
 }
@@ -748,7 +748,7 @@ onMounted(async () => {
 }
 
 .overview-value {
-  font-size: 24px;
+  font-size: var(--text-lg);
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.2;
@@ -759,7 +759,7 @@ onMounted(async () => {
 }
 
 .overview-value-sm {
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-weight: 600;
   letter-spacing: 0;
   white-space: normal;
@@ -767,7 +767,7 @@ onMounted(async () => {
 }
 
 .overview-label {
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 20px;
   color: var(--text-regular);
   margin-top: 4px;
@@ -796,13 +796,13 @@ onMounted(async () => {
 }
 
 .section-title {
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--text-primary);
 }
 
 .section-hint {
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--text-placeholder);
 }
 
@@ -847,14 +847,14 @@ onMounted(async () => {
 }
 
 .quick-name {
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--text-primary);
   margin-bottom: 4px;
 }
 
 .quick-desc {
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
@@ -903,7 +903,7 @@ onMounted(async () => {
 }
 
 .fav-name {
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--text-primary);
   margin-bottom: 4px;
@@ -913,7 +913,7 @@ onMounted(async () => {
 }
 
 .fav-meta {
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
@@ -989,13 +989,13 @@ onMounted(async () => {
 }
 
 .msg-title {
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--text-primary);
 }
 
 .msg-content {
-  font-size: 14px;
+  font-size: var(--text-sm);
   line-height: 22px;
   color: var(--text-regular);
   margin: 2px 0;
@@ -1003,7 +1003,7 @@ onMounted(async () => {
 }
 
 .msg-time {
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 20px;
   color: var(--text-placeholder);
 }
@@ -1034,7 +1034,7 @@ onMounted(async () => {
 .msg-detail-room {
   flex: 1;
   min-width: 0;
-  font-size: 15px;
+  font-size: var(--text-base);
   font-weight: 600;
   color: var(--text-primary);
   overflow: hidden;
@@ -1051,7 +1051,7 @@ onMounted(async () => {
   display: flex;
   gap: 12px;
   padding: 8px 0;
-  font-size: 14px;
+  font-size: var(--text-sm);
   line-height: 22px;
 }
 
@@ -1084,7 +1084,7 @@ onMounted(async () => {
 }
 
 .settings-group-title {
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 20px;
   font-weight: 500;
   color: var(--text-regular);
@@ -1137,7 +1137,7 @@ onMounted(async () => {
 }
 
 .settings-label {
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--text-primary);
   flex-shrink: 0;
@@ -1146,7 +1146,7 @@ onMounted(async () => {
 .settings-value {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
+  font-size: var(--text-sm);
   line-height: 22px;
   color: var(--text-regular);
   text-align: right;
@@ -1161,7 +1161,7 @@ onMounted(async () => {
 
 .settings-chevron {
   color: var(--text-placeholder);
-  font-size: 14px;
+  font-size: var(--text-sm);
   flex-shrink: 0;
 }
 
@@ -1186,5 +1186,265 @@ onMounted(async () => {
   .quick-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ================= 墨蓝门牌体系：覆盖旧扁平样式 ================= */
+.identity-card {
+  margin-bottom: var(--space-lg);
+  padding: var(--space-lg) var(--space-lg) var(--space-md);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-surface);
+}
+
+.identity-row {
+  gap: var(--space-lg);
+}
+
+.identity-avatar {
+  background: var(--brand);
+  color: var(--surface);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.identity-name {
+  color: var(--ink);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.identity-role {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 var(--space-sm);
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.identity-meta {
+  display: flex;
+  gap: var(--space-md);
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+}
+
+.identity-divider {
+  margin: var(--space-md) calc(-1 * var(--space-lg)) 0;
+  background: var(--line);
+}
+
+.overview-row {
+  gap: var(--space-lg);
+  padding: var(--space-md) 0 var(--space-xs);
+}
+
+.overview-value {
+  color: var(--ink);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+
+.overview-value-sm {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.overview-label {
+  margin-top: var(--space-xs);
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.section-head {
+  margin-bottom: var(--space-md);
+  gap: var(--space-sm);
+}
+
+.section-title {
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.section-hint {
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
+}
+
+.section-actions {
+  gap: var(--space-sm);
+}
+
+.quick-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
+.quick-item {
+  padding: var(--space-md);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.quick-item:hover {
+  border-color: var(--brand);
+  background: var(--surface);
+  box-shadow: var(--shadow-raised);
+}
+
+.quick-name {
+  margin-bottom: 2px;
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.quick-desc {
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
+}
+
+.fav-grid {
+  gap: var(--space-sm);
+}
+
+.fav-item {
+  padding: var(--space-md);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.fav-item:hover {
+  border-color: var(--brand);
+  box-shadow: var(--shadow-raised);
+}
+
+.fav-name {
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.fav-meta {
+  margin-top: 2px;
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
+}
+
+.msg-list {
+  gap: var(--space-xs);
+}
+
+.msg-item {
+  padding: var(--space-md);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+
+.msg-item:hover {
+  border-color: var(--brand);
+}
+
+.msg-item.unread {
+  border-color: var(--brand-soft);
+  background: var(--brand-soft);
+}
+
+.msg-title {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.msg-content {
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+}
+
+.msg-time {
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
+}
+
+.msg-dot {
+  background: var(--danger);
+}
+
+.settings-group {
+  margin-bottom: var(--space-md);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.settings-group-title {
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--line);
+  background: var(--page);
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.settings-row {
+  min-height: 52px;
+  padding: 0 var(--space-md);
+}
+
+.settings-label {
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+.settings-value {
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+}
+
+.settings-value.muted {
+  color: var(--ink-soft);
+}
+
+.settings-chevron {
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+}
+
+.msg-detail-room {
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.msg-detail-row dt {
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
+}
+
+.msg-detail-row dd {
+  color: var(--ink);
+  font-size: var(--text-sm);
 }
 </style>

@@ -5,27 +5,27 @@
       <div class="brand-grid" aria-hidden="true" />
       <div class="brand-inner">
         <div class="brand-code">
-          <span class="code-block is-signal">NEW</span>
-          <span class="brand-code-note">学生注册 · 一次填完</span>
+          <span class="plate brand-plate">NEW</span>
+          <span class="brand-code-note">学生注册</span>
         </div>
-        <h1 class="brand-name">高校实验室预约管理系统</h1>
-        <p class="brand-slogan">注册学生账号，凭学号实名预约。</p>
-        <ol class="brand-steps">
+        <h1 class="brand-name">高校实验室<br />预约管理系统</h1>
+        <p class="brand-slogan">注册学生账号，凭学号实名预约，从找教室到按时到场，一条链走完。</p>
+        <ul class="brand-steps">
           <li>
-            <span class="step-no">01</span>
-            <span class="step-text"><b>填资料</b>学号、姓名、账号与密码，一次填完</span>
+            <span class="step-title">填资料</span>
+            <span class="step-text">学号、姓名、账号与密码，一次填完</span>
           </li>
           <li>
-            <span class="step-no">02</span>
-            <span class="step-text"><b>即登录</b>注册成功后直接回到登录页</span>
+            <span class="step-title">即登录</span>
+            <span class="step-text">注册成功后直接回到登录页</span>
           </li>
           <li>
-            <span class="step-no">03</span>
-            <span class="step-text"><b>开始约</b>双重冲突校验，只看真正可用的时段</span>
+            <span class="step-title">开始约</span>
+            <span class="step-text">双重冲突校验，只看真正可用的时段</span>
           </li>
-        </ol>
+        </ul>
       </div>
-      <div class="brand-footer">2026 课程设计 高校实验室预约管理系统</div>
+      <div class="brand-footer">2026 课程设计，高校实验室预约管理系统</div>
     </div>
 
     <!-- 右侧注册表单区 -->
@@ -149,148 +149,149 @@ async function handleRegister() {
 <style scoped>
 .register-page {
   min-height: 100vh;
-  display: flex;
-  background: var(--bg-page);
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  background: var(--surface);
 }
 
-/* ---- 左侧导视牌：纸白底 + 课表网格 + 编号 + 三步流程 ---- */
+/* ---- 左侧品牌面板：与登录页同一套墨蓝导视语言 ---- */
 .register-brand {
-  flex: 1.15;
-  min-width: 0;
-  background: var(--bg-card);
-  border-right: 1px solid var(--rule);
-  color: var(--text-primary);
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 48px 7%;
-  position: relative;
-  overflow: hidden;
+  padding: 64px 8%;
+  background: var(--brand);
+  color: var(--surface);
 }
 .brand-grid {
   position: absolute;
   inset: 0;
-  background-image: repeating-linear-gradient(to right, var(--rule) 0 1px, transparent 1px 72px),
-    repeating-linear-gradient(to bottom, var(--rule) 0 1px, transparent 1px 72px);
-  opacity: 0.35;
+  background-image: repeating-linear-gradient(to right, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px 88px),
+    repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px 88px);
   pointer-events: none;
 }
 .brand-inner {
   position: relative;
   z-index: 1;
-  max-width: 520px;
+  max-width: 480px;
 }
 .brand-code {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 28px;
+  gap: 12px;
+  margin-bottom: 40px;
+}
+.brand-plate {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: var(--surface);
+  font-size: var(--text-sm);
+  letter-spacing: 0.08em;
 }
 .brand-code-note {
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--text-placeholder);
+  font-size: var(--text-sm);
+  color: rgba(255, 255, 255, 0.68);
+  letter-spacing: 0.04em;
 }
 .brand-name {
-  font-size: 30px;
+  font-size: var(--text-xl);
   font-weight: 600;
-  line-height: 40px;
-  letter-spacing: -0.4px;
-  margin-bottom: 10px;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  color: var(--surface);
+  margin-bottom: 20px;
 }
 .brand-slogan {
-  font-size: 15px;
-  line-height: 24px;
-  color: var(--text-regular);
-  margin-bottom: 32px;
+  font-size: var(--text-base);
+  line-height: 1.75;
+  color: rgba(255, 255, 255, 0.74);
+  margin-bottom: 48px;
 }
 .brand-steps {
   list-style: none;
   padding: 0;
-  border-top: 1px solid var(--rule);
+  display: grid;
+  gap: 24px;
 }
 .brand-steps li {
-  display: flex;
-  gap: 16px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--rule);
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--text-regular);
+  display: grid;
+  gap: 4px;
+  padding-left: 16px;
+  border-left: 2px solid rgba(255, 255, 255, 0.18);
 }
-.step-no {
-  flex: none;
-  padding-top: 2px;
-  font-family: var(--font-num);
-  font-size: 12px;
-  color: var(--text-placeholder);
-  font-variant-numeric: tabular-nums;
-}
-.step-text b {
-  margin-right: 8px;
-  color: var(--text-primary);
+.step-title {
+  font-size: var(--text-base);
   font-weight: 600;
+  color: var(--surface);
+}
+.step-text {
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.66);
 }
 .brand-footer {
   position: absolute;
-  bottom: 28px;
-  left: 7%;
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--text-placeholder);
+  bottom: 40px;
+  left: 8%;
+  font-size: var(--text-xs);
+  color: rgba(255, 255, 255, 0.42);
   z-index: 1;
 }
 
 /* ---- 右侧表单区 ---- */
 .register-panel {
-  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 32px 24px;
+  padding: 64px 48px;
+  background: var(--surface);
 }
 .register-card {
-  width: 520px;
+  width: 400px;
   max-width: 100%;
-  background: var(--bg-card);
-  border-radius: var(--radius-lg);
-  padding: 32px;
-  border: 1px solid var(--border-color-light);
-  box-shadow: var(--shadow-raised);
 }
-.login-title {
-  font-size: 24px;
+.register-title {
+  font-size: var(--text-xl);
   font-weight: 600;
-  line-height: 32px;
-  color: var(--text-primary);
-  margin-bottom: 6px;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin-bottom: 8px;
 }
-.login-subtitle {
-  font-size: 14px;
-  line-height: 22px;
-  color: var(--text-regular);
-  margin-bottom: 20px;
+.register-subtitle {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--ink-soft);
+  margin-bottom: 28px;
 }
 .register-btn {
   width: 100%;
-  height: 40px;
-  font-size: 14px;
+  height: 44px;
+  font-size: var(--text-base);
+  font-weight: 600;
+  letter-spacing: 0.08em;
 }
-.login-footer {
-  margin-top: 8px;
-  font-size: 14px;
-  line-height: 22px;
-  color: var(--text-regular);
+.register-footer {
+  margin-top: 20px;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--ink-soft);
 }
-.login-footer a {
-  color: var(--brand-primary);
+.register-footer a {
+  color: var(--brand);
   text-decoration: none;
+  font-weight: 500;
 }
-.login-footer a:hover {
+.register-footer a:hover {
   text-decoration: underline;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 960px) {
+  .register-page {
+    grid-template-columns: 1fr;
+  }
   .register-brand {
     display: none;
   }

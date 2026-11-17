@@ -2,12 +2,11 @@
   <div class="my-reservation-page page-container">
     <div class="page-head">
       <span class="page-title">我的预约</span>
-      <span class="page-tip">今日预约已置顶显示 · 待审核 / 已通过可取消</span>
+      <span class="page-tip">今日预约已置顶显示，待审核与已通过可取消</span>
     </div>
-    <el-card
+    <div
       ref="listRegionRef"
-      shadow="never"
-      class="reserve-card"
+      class="reserve-card surface"
       role="region"
       aria-label="我的预约列表"
       tabindex="-1"
@@ -25,7 +24,6 @@
         v-loading="loading"
         :data="records"
         :row-class-name="rowClassName"
-        stripe
         empty-text=""
       >
         <el-table-column prop="classroomName" label="教室" min-width="160">
@@ -39,7 +37,7 @@
         <el-table-column prop="reserveDate" label="预约日期" width="130">
           <template #default="{ row }">
             <span>{{ row.reserveDate }}</span>
-            <el-tag v-if="isToday(row.reserveDate)" type="danger" size="small" class="today-tag">今日</el-tag>
+            <span v-if="isToday(row.reserveDate)" class="today-tag">今日</span>
           </template>
         </el-table-column>
         <el-table-column label="时段" width="120">
@@ -48,7 +46,7 @@
         <el-table-column prop="purpose" label="用途" min-width="160" show-overflow-tooltip />
         <el-table-column prop="status" label="状态" width="90">
           <template #default="{ row }">
-            <span class="status-cell"><span class="status-dot" :class="statusDotClass(row.status)" />{{ statusText(row.status) }}</span>
+            <span class="status-cell" :class="statusDotClass(row.status)">{{ statusText(row.status) }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="auditRemark" label="审核备注" min-width="140" show-overflow-tooltip>
@@ -58,9 +56,8 @@
           <template #default="{ row }">
             <el-button
               v-if="row.status === 0 || row.status === 1"
-              size="small"
+              link
               type="danger"
-              plain
               :loading="cancelingId === row.id"
               :disabled="cancelingId !== null"
               @click="handleCancel(row)"
@@ -90,7 +87,7 @@
           @current-change="loadData"
         />
       </div>
-    </el-card>
+    </div>
   </div>
 </template>
 
@@ -209,65 +206,80 @@ onMounted(loadData)
 
 <style scoped>
 .my-reservation-page {
-  max-width: 1080px;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
-.page-tip {
-  font-size: 14px;
-  line-height: 22px;
-  color: var(--text-regular);
+.reserve-card {
+  padding: 0;
 }
 
-.reserve-card {
-  border-radius: var(--radius-lg);
+.reserve-card :deep(.el-tabs__header) {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md) 0;
+}
+
+.reserve-card :deep(.el-tabs__item) {
+  height: 44px;
+  font-size: var(--text-sm);
+}
+
+.reserve-card :deep(.el-tabs__nav-wrap::after) {
+  height: 1px;
+  background-color: var(--line);
+}
+
+.reserve-card :deep(.el-table) {
+  padding: 0 var(--space-md);
 }
 
 .room-cell {
   display: flex;
   flex-direction: column;
+  gap: 2px;
+  line-height: 1.4;
 }
 
 .room-name {
-  color: var(--text-primary);
-  font-weight: 500;
+  color: var(--ink);
+  font-weight: 600;
 }
 
 .room-no {
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--text-placeholder);
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
 }
 
 .no-action {
-  color: var(--text-placeholder);
+  color: var(--ink-soft);
 }
 
-/* 今日预约置顶：保留品牌竖线标记，不做整行填色 */
+/* 今日预约置顶：左侧品牌竖线 + 极浅底，不做整行填色 */
 .today-row td {
-  background: var(--bg-subtle) !important;
+  background: var(--page) !important;
 }
+
 .today-row td:first-child {
-  box-shadow: inset 2px 0 0 var(--brand-primary);
+  box-shadow: inset 2px 0 0 var(--brand);
 }
 
 .today-tag {
   display: inline-flex;
   align-items: center;
-  margin-left: 8px;
-  font-size: 12px;
-  color: var(--brand-primary);
-}
-
-.status-cell {
-  display: inline-flex;
-  align-items: center;
+  height: 20px;
+  margin-left: var(--space-sm);
+  padding: 0 8px;
+  border-radius: var(--radius-pill);
+  background: var(--attention);
+  color: var(--surface);
+  font-size: var(--text-xs);
+  font-weight: 500;
 }
 
 .pagination-wrap {
   display: flex;
   justify-content: flex-end;
-  margin-top: 16px;
+  padding: var(--space-md);
 }
 
 /* ---------- 窄屏适配（P3-8：<480px 分页换行，避免横向溢出） ---------- */
@@ -275,6 +287,7 @@ onMounted(loadData)
   .pagination-wrap {
     justify-content: center;
   }
+
   .pagination-wrap :deep(.el-pagination) {
     flex-wrap: wrap;
     justify-content: center;

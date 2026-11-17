@@ -1,10 +1,13 @@
 <template>
-  <div class="dashboard-page">
-    <!-- 顶部：标题 + 时间范围筛选 -->
+  <div class="dashboard-page page-container">
+    <!-- 页头：标题 + 说明 + 右侧时间范围与刷新 -->
     <div class="page-head">
-      <div class="filter-bar">
-        <span class="page-title">数据看板</span>
-        <el-radio-group v-model="quickRange" size="small" @change="handleQuickRange">
+      <div>
+        <h1 class="page-title">数据看板</h1>
+        <p class="page-sub">教室使用、时段分布与预约趋势随所选时间区间联动</p>
+      </div>
+      <div class="head-actions">
+        <el-radio-group v-model="quickRange" @change="handleQuickRange">
           <el-radio-button value="7">近 7 天</el-radio-button>
           <el-radio-button value="30">近 30 天</el-radio-button>
           <el-radio-button value="90">近 90 天</el-radio-button>
@@ -20,30 +23,26 @@
           style="width: 260px"
           @change="handleDateRangeChange"
         />
-        <el-button type="primary" size="small" :loading="loading" @click="loadAll">刷新</el-button>
+        <el-button type="primary" :icon="Refresh" :loading="loading" @click="loadAll">刷新</el-button>
       </div>
     </div>
 
-    <!-- 三图表：使用率排行柱状图 / 月度趋势折线图 / 热门时段饼图 -->
-    <el-row :gutter="16">
-      <el-col :span="14">
-        <div class="section chart-card">
-          <div class="chart-title">教室使用率排行</div>
-          <div class="chart-sub">已通过预约占用小时 / 区间可预约小时</div>
-          <div ref="usageRateEl" class="chart-box" />
-        </div>
-      </el-col>
-      <el-col :span="10">
-        <div class="section chart-card">
-          <div class="chart-title">热门时段分布</div>
-          <div class="chart-sub">已通过预约按开始时段</div>
-          <div ref="timeDistEl" class="chart-box" />
-        </div>
-      </el-col>
-    </el-row>
-    <div class="section chart-card">
-      <div class="chart-title">月度预约趋势</div>
-      <div class="chart-sub">全部状态预约条数</div>
+    <!-- 三块图表白面：使用率排行 / 热门时段 / 月度趋势，32px 留白分隔 -->
+    <div class="chart-grid">
+      <div class="surface chart-card">
+        <h2 class="chart-title">教室使用率排行</h2>
+        <p class="chart-sub">已通过预约占用小时 / 区间可预约小时</p>
+        <div ref="usageRateEl" class="chart-box" />
+      </div>
+      <div class="surface chart-card">
+        <h2 class="chart-title">热门时段分布</h2>
+        <p class="chart-sub">已通过预约按开始时段</p>
+        <div ref="timeDistEl" class="chart-box" />
+      </div>
+    </div>
+    <div class="surface chart-card">
+      <h2 class="chart-title">月度预约趋势</h2>
+      <p class="chart-sub">全部状态预约条数</p>
       <div ref="trendEl" class="chart-box chart-box-tall" />
     </div>
   </div>
@@ -51,10 +50,16 @@
 
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { Refresh } from '@element-plus/icons-vue'
 // ECharts 按需引入（R6 联调优化：避免全量包约 1MB 打入 Dashboard chunk，依赖版本不变）
 import * as echarts from 'echarts/core'
 import { BarChart, LineChart, PieChart } from 'echarts/charts'
-import { GridComponent, LegendComponent, TooltipComponent, GraphicComponent } from 'echarts/components'
+import {
+  GridComponent,
+  LegendComponent,
+  TooltipComponent,
+  GraphicComponent
+} from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import dayjs from 'dayjs'
 import { getUsageRate, getTrend, getTimeDistribution } from '@/api/stats'
@@ -63,27 +68,40 @@ import { getUsageRate, getTrend, getTimeDistribution } from '@/api/stats'
 defineOptions({ name: 'DashboardView' })
 
 // 注册看板用到的图表类型与组件（柱状图/折线图/饼图 + 提示框/网格/图例 + 空数据提示 graphic 文本 + Canvas 渲染）
-echarts.use([BarChart, LineChart, PieChart, TooltipComponent, GridComponent, LegendComponent, GraphicComponent, CanvasRenderer])
+echarts.use([
+  BarChart,
+  LineChart,
+  PieChart,
+  TooltipComponent,
+  GridComponent,
+  LegendComponent,
+  GraphicComponent,
+  CanvasRenderer
+])
 
 /**
- * 图表配色（Canvas 无法读取 CSS 变量，此处按值对齐 main.css 的飞书 Token）
- * 轴/网格线用描边与填充色，文字用中性色，数据色只用品牌蓝与飞书功能色 600 级
+ * 图表配色：与 main.css 命名色保持一致
+ * Canvas 读不到 CSS 变量，只能按值引用；这是本文件唯一允许出现的十六进制，且集中在此对象中。
  */
-const CHART = {
-  primary: '#1456f0', // --brand-primary
-  primaryArea: 'rgba(20, 86, 240, 0.10)', // 同色系低透明面积，无渐变
-  axisLine: '#dee0e3', // --border-color-light
-  splitLine: '#eff0f1', // --bg-fill
-  axisText: '#646a73', // --text-regular
-  labelText: '#1f2329', // --text-primary
-  emptyText: '#8f959e', // --text-placeholder
-  pieGap: '#ffffff', // --bg-card：饼图分段间隙
-  palette: ['#1456f0', '#1a7526', '#a44904', '#c02a26', '#0e9594', '#646a73', '#8f959e']
+const C = {
+  brand: '#1b3f8f', // --brand
+  ink: '#151a21', // --ink
+  soft: '#4a5361', // --ink-soft
+  line: '#e7eaef', // --line
+  success: '#0f7a5a', // --success
+  warning: '#a9620b', // --warning
+  attention: '#b4762a' // --attention
 }
+
+/** 饼图分段色：品牌蓝 + 功能色，无紫/霓虹 */
+const PIE_PALETTE = [C.brand, C.success, C.warning, C.attention, C.soft]
 
 const loading = ref(false)
 const quickRange = ref('30')
-const dateRange = ref([dayjs().subtract(29, 'day').format('YYYY-MM-DD'), dayjs().format('YYYY-MM-DD')])
+const dateRange = ref([
+  dayjs().subtract(29, 'day').format('YYYY-MM-DD'),
+  dayjs().format('YYYY-MM-DD')
+])
 
 const usageRateEl = ref(null)
 const trendEl = ref(null)
@@ -96,13 +114,17 @@ let loadSeq = 0
 
 /** HTML tooltip 的所有动态值统一转义，静态 <br/> 仅负责保持原有换行格式 */
 function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  })[char])
+  return String(value ?? '').replace(
+    /[&<>"']/g,
+    (char) =>
+      ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      })[char]
+  )
 }
 
 /** 当前区间参数（YYYY-MM-DD） */
@@ -118,7 +140,10 @@ function handleQuickRange(key) {
     dateRange.value = [today.startOf('year').format('YYYY-MM-DD'), today.format('YYYY-MM-DD')]
   } else {
     const days = Number(key)
-    dateRange.value = [today.subtract(days - 1, 'day').format('YYYY-MM-DD'), today.format('YYYY-MM-DD')]
+    dateRange.value = [
+      today.subtract(days - 1, 'day').format('YYYY-MM-DD'),
+      today.format('YYYY-MM-DD')
+    ]
   }
   loadAll()
 }
@@ -162,8 +187,8 @@ function emptyGraphic(text) {
       top: 'middle',
       style: {
         text,
-        fontSize: 12,
-        fill: CHART.emptyText
+        fontSize: 13,
+        fill: C.soft
       }
     }
   ]
@@ -190,20 +215,21 @@ function renderUsageRate(list) {
           return `${escapeHtml(item.name)}（${escapeHtml(item.roomNo)}）<br/>使用率：${escapeHtml(item.usageRate)}%<br/>占用时长：${escapeHtml(item.approvedHours)} 小时`
         }
       },
-      grid: { left: 48, right: 24, top: 36, bottom: 80 },
+      grid: { left: 48, right: 24, top: 32, bottom: 80 },
       xAxis: {
         type: 'category',
         data: names,
-        axisLabel: { rotate: 35, fontSize: 12, color: CHART.axisText },
-        axisLine: { lineStyle: { color: CHART.axisLine } },
+        axisLabel: { rotate: 35, fontSize: 12, color: C.soft },
+        axisLine: { lineStyle: { color: C.line } },
         axisTick: { show: false }
       },
       yAxis: {
         type: 'value',
         name: '使用率（%）',
-        nameTextStyle: { color: CHART.emptyText },
-        axisLabel: { formatter: '{value}%', fontSize: 12, color: CHART.axisText },
-        splitLine: { lineStyle: { color: CHART.splitLine } }
+        nameTextStyle: { color: C.soft, fontSize: 12 },
+        axisLabel: { formatter: '{value}%', fontSize: 12, color: C.soft },
+        axisLine: { lineStyle: { color: C.line } },
+        splitLine: { lineStyle: { color: C.line } }
       },
       series: [
         {
@@ -212,14 +238,14 @@ function renderUsageRate(list) {
           barMaxWidth: 32,
           itemStyle: {
             borderRadius: [4, 4, 0, 0],
-            color: CHART.primary
+            color: C.brand
           },
           label: {
             show: true,
             position: 'top',
             formatter: (p) => `${p.value}%`,
-            fontSize: 12,
-            color: CHART.labelText,
+            fontSize: 13,
+            color: C.ink,
             fontWeight: 500
           }
         }
@@ -229,7 +255,7 @@ function renderUsageRate(list) {
   )
 }
 
-/** 折线图：月度预约趋势（主色线 + 同色系低透明面积，无渐变） */
+/** 折线图：月度预约趋势（直线折线 + 纯色描点，无面积、无渐变） */
 function renderTrend(list) {
   if (!list.length) {
     trendChart.setOption({ graphic: emptyGraphic('暂无预约趋势数据') }, true)
@@ -238,34 +264,32 @@ function renderTrend(list) {
   trendChart.setOption(
     {
       tooltip: { trigger: 'axis' },
-      grid: { left: 48, right: 24, top: 36, bottom: 40 },
+      grid: { left: 48, right: 24, top: 32, bottom: 40 },
       xAxis: {
         type: 'category',
         data: list.map((r) => r.month),
-        axisLabel: { fontSize: 12, color: CHART.axisText },
-        axisLine: { lineStyle: { color: CHART.axisLine } },
+        axisLabel: { fontSize: 12, color: C.soft },
+        axisLine: { lineStyle: { color: C.line } },
         axisTick: { show: false }
       },
       yAxis: {
         type: 'value',
         name: '预约条数',
         minInterval: 1,
-        nameTextStyle: { color: CHART.emptyText },
-        axisLabel: { fontSize: 12, color: CHART.axisText },
-        splitLine: { lineStyle: { color: CHART.splitLine } }
+        nameTextStyle: { color: C.soft, fontSize: 12 },
+        axisLabel: { fontSize: 12, color: C.soft },
+        axisLine: { lineStyle: { color: C.line } },
+        splitLine: { lineStyle: { color: C.line } }
       },
       series: [
         {
           type: 'line',
           data: list.map((r) => r.count),
-          smooth: true,
-          symbolSize: 8,
-          itemStyle: { color: CHART.primary },
-          lineStyle: { width: 2, color: CHART.primary },
-          areaStyle: {
-            color: CHART.primaryArea
-          },
-          label: { show: true, position: 'top', fontSize: 12, color: CHART.labelText, fontWeight: 500 }
+          smooth: false,
+          symbolSize: 6,
+          itemStyle: { color: C.brand },
+          lineStyle: { width: 2, color: C.brand },
+          label: { show: true, position: 'top', fontSize: 13, color: C.ink, fontWeight: 500 }
         }
       ]
     },
@@ -273,7 +297,7 @@ function renderTrend(list) {
   )
 }
 
-/** 饼图：热门时段分布（占比口径与后端一致；飞书功能色轮转，无紫/霓虹） */
+/** 饼图：热门时段分布（占比口径与后端一致；品牌蓝 + 功能色轮转，无紫/霓虹） */
 function renderTimeDistribution(list) {
   if (!list.length) {
     timeDistChart.setOption({ graphic: emptyGraphic('暂无时段分布数据') }, true)
@@ -283,17 +307,23 @@ function renderTimeDistribution(list) {
     {
       tooltip: {
         trigger: 'item',
-        formatter: (p) => `${escapeHtml(p.name)}<br/>${escapeHtml(p.value)} 条（${escapeHtml(p.percent)}%）`
+        formatter: (p) =>
+          `${escapeHtml(p.name)}<br/>${escapeHtml(p.value)} 条（${escapeHtml(p.percent)}%）`
       },
-      legend: { bottom: 0, type: 'scroll', fontSize: 12, textStyle: { color: CHART.axisText } },
-      color: CHART.palette,
+      legend: {
+        bottom: 0,
+        type: 'scroll',
+        icon: 'circle',
+        textStyle: { color: C.soft, fontSize: 13 }
+      },
+      color: PIE_PALETTE,
       series: [
         {
           type: 'pie',
           radius: ['38%', '66%'],
           center: ['50%', '46%'],
-          itemStyle: { borderRadius: 4, borderColor: CHART.pieGap, borderWidth: 2 },
-          label: { formatter: '{b}\n{d}%', fontSize: 12, color: CHART.labelText },
+          itemStyle: { borderRadius: 4, borderColor: C.line, borderWidth: 2 },
+          label: { formatter: '{b}\n{d}%', fontSize: 13, color: C.ink },
           data: list.map((r) => ({ name: r.slot, value: r.count }))
         }
       ]
@@ -302,7 +332,7 @@ function renderTimeDistribution(list) {
   )
 }
 
-/** ECharts 实例初始化（统一深色无特殊主题，resize 跟随容器） */
+/** ECharts 实例初始化（统一浅色主题，resize 跟随容器） */
 function initCharts() {
   usageChart = echarts.init(usageRateEl.value)
   trendChart = echarts.init(trendEl.value)
@@ -332,42 +362,36 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.dashboard-page {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.filter-bar {
+/* 页头右侧：快捷范围 + 日期区间 + 刷新，控件同高、可换行 */
+.head-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: flex-end;
+  gap: var(--space-md);
   flex-wrap: wrap;
 }
 
-.page-title {
-  font-size: 20px;
-  line-height: 28px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-right: 8px;
-}
-
-.chart-card {
-  margin-bottom: 16px;
+/* 图表区：两列白面 + 32px 留白，窄屏堆叠 */
+.chart-grid {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: var(--space-2xl);
+  margin-bottom: var(--space-2xl);
 }
 
 .chart-title {
-  font-size: 16px;
-  line-height: 24px;
+  margin: 0;
+  font-size: var(--text-md);
   font-weight: 600;
-  color: var(--text-primary);
+  line-height: 1.3;
+  color: var(--ink);
 }
 
 .chart-sub {
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--text-placeholder);
-  margin: 4px 0 12px;
+  margin: var(--space-xs) 0 var(--space-lg);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--ink-soft);
 }
 
 .chart-box {
@@ -376,5 +400,11 @@ onBeforeUnmount(() => {
 
 .chart-box-tall {
   height: 320px;
+}
+
+@media (max-width: 1080px) {
+  .chart-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

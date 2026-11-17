@@ -1,8 +1,11 @@
 <template>
   <div class="ai-plan" role="group" :aria-label="`预约方案：${plan.date || ''} ${plan.startTime || ''}-${currentEnd}`">
     <div class="plan-head">
-      <p class="plan-title">预约方案</p>
-      <p class="plan-meta">{{ detail }}</p>
+      <div class="plan-head-main">
+        <p class="plan-title">预约方案</p>
+        <p class="plan-meta">{{ detail }}</p>
+      </div>
+      <span class="plan-badge">AI 生成，仅供参考</span>
     </div>
 
     <!-- R15-2：用户没说结束时间时，这里给出可选时段；切换只在本卡片内完成，不再发请求 -->
@@ -23,11 +26,11 @@
 
     <ol v-if="candidates.length" class="plan-list">
       <li v-for="candidate in candidates" :key="candidate.classroomId" class="plan-row">
+        <span class="plate plan-room-plate">{{ candidate.roomNo || candidate.name }}</span>
         <div class="plan-room">
           <span class="room-name">{{ candidate.name }}</span>
           <span class="room-sub">
-            {{ candidate.building }}<template v-if="candidate.roomNo"> {{ candidate.roomNo }}</template>
-            {{ typeText(candidate.type) }}，{{ candidate.capacity }} 人
+            {{ candidate.building }}<template v-if="candidate.roomNo"> {{ candidate.roomNo }}</template>，{{ typeText(candidate.type) }}，{{ candidate.capacity }} 人
           </span>
           <span class="room-reason">{{ candidate.reason }}</span>
         </div>
@@ -119,128 +122,205 @@ const detail = computed(() => {
 
 <style scoped>
 .ai-plan {
-  border: 1px solid var(--border-color-light);
-  border-radius: var(--radius-md);
-  background: var(--bg-card);
-  padding: 14px 16px 12px;
   margin: 10px 0 14px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-surface);
 }
+
 .plan-head {
-  margin-bottom: 10px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
 }
+
+.plan-head-main {
+  min-width: 0;
+}
+
 .plan-title {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--text-base);
   font-weight: 600;
-  color: var(--text-primary);
+  line-height: 1.4;
+  color: var(--ink);
 }
+
 .plan-meta {
-  margin: 4px 0 0;
-  font-size: 12.5px;
-  color: var(--text-regular);
+  margin: var(--space-xs) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--ink-soft);
 }
+
+.plan-badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .plan-time-options {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin: 0 0 10px;
+  gap: var(--space-sm);
+  margin: 0 0 var(--space-md);
 }
+
 .plan-time-chip {
-  border: 1px solid var(--border-color-light);
-  background: var(--bg-subtle);
-  color: var(--text-regular);
-  font-size: 12.5px;
-  padding: 4px 10px;
-  border-radius: 999px;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: var(--text-sm);
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
+
 .plan-time-chip:hover {
-  border-color: var(--brand-primary-border, #c2d4ff);
-  color: var(--brand-primary);
+  border-color: var(--brand);
+  color: var(--brand);
 }
+
 .plan-time-chip.is-active {
-  border-color: var(--brand-primary);
-  background: var(--brand-primary-lighter, #f0f4ff);
-  color: var(--brand-primary);
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--surface);
   font-weight: 600;
 }
+
 .plan-time-chip.is-empty {
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+.plan-time-chip:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
 .plan-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
   margin: 0;
   padding: 0;
   list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
 }
+
 .plan-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 9px 8px;
-  border-radius: var(--radius-sm);
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border-radius: var(--radius-control);
+  transition: background-color 0.16s ease;
 }
+
 .plan-row:hover {
-  background: var(--bg-subtle);
+  background: var(--page);
 }
+
+.plan-room-plate {
+  flex: none;
+  height: 26px;
+  font-size: var(--text-sm);
+}
+
 .plan-room {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-xs);
   min-width: 0;
 }
+
 .room-name {
-  font-size: 14px;
-  color: var(--text-primary);
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink);
 }
-.room-sub,
+
+.room-sub {
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
 .room-reason {
-  font-size: 12px;
-  color: var(--text-placeholder);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--info);
 }
+
 .plan-go {
   flex: none;
-  border: 1px solid var(--brand-primary-border, #c2d4ff);
-  background: var(--brand-primary-lighter, #f0f4ff);
-  color: var(--brand-primary);
-  font-size: 13px;
-  padding: 5px 12px;
-  border-radius: var(--radius-sm);
+  height: 32px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: var(--brand-soft);
+  color: var(--brand);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background-color 0.16s ease, color 0.16s ease;
 }
+
 .plan-go:hover {
-  background: var(--brand-primary);
-  color: #fff;
+  background: var(--brand);
+  color: var(--surface);
 }
+
 .plan-go:focus-visible {
-  outline: 2px solid var(--brand-primary);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
 }
-.plan-empty,
-.plan-clarify {
-  margin: 6px 0;
-  font-size: 13px;
+
+.plan-empty {
+  margin: 0;
+  padding: var(--space-xl) 0;
+  font-size: var(--text-sm);
   line-height: 1.7;
-  color: var(--text-regular);
+  color: var(--ink-soft);
 }
+
+.plan-clarify {
+  margin: var(--space-sm) 0;
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+
 .plan-more,
 .plan-guess {
-  margin: 8px 0 0;
-  font-size: 12px;
-  color: var(--text-placeholder);
+  margin: var(--space-sm) 0 0;
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--ink-soft);
 }
-.plan-guess {
-  color: var(--text-regular);
-}
+
 .plan-note {
-  margin: 10px 0 0;
-  font-size: 12px;
-  color: var(--text-placeholder);
+  margin: var(--space-md) 0 0;
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--ink-soft);
 }
 </style>

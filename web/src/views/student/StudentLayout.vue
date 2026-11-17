@@ -139,32 +139,35 @@ async function handleLogout() {
 }
 
 .logo-badge {
-  height: 22px;
-  padding: 0 6px;
+  height: 26px;
+  padding: 0 9px;
   border-radius: var(--radius-sm);
-  background: var(--code-bg);
-  color: var(--text-primary);
+  background: var(--brand-soft);
+  color: var(--brand);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-num);
-  font-size: 12px;
-  letter-spacing: 0.04em;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.06em;
   font-variant-numeric: tabular-nums;
 }
 
 .header-logo {
-  font-size: 16px;
-  font-weight: 500;
+  font-size: var(--text-base);
+  font-weight: 600;
   line-height: 24px;
-  color: var(--text-primary);
+  color: var(--ink);
+  letter-spacing: -0.01em;
 }
 
 .role-chip {
-  font-size: 12px;
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+  font-size: var(--text-xs);
   line-height: 18px;
-  color: var(--text-placeholder);
-  font-weight: 400;
+  color: var(--ink-soft);
+  font-weight: 500;
 }
 
 .header-right {
@@ -180,35 +183,35 @@ async function handleLogout() {
 }
 
 .header-menu .el-menu-item {
-  height: 56px;
-  line-height: 56px;
-  padding: 0 12px;
+  height: 60px;
+  line-height: 60px;
+  padding: 0 14px;
   margin: 0;
-  font-size: 14px;
-  color: var(--text-regular);
-  font-weight: 400;
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+  font-weight: 500;
   border-bottom: none;
   border-radius: 0;
 }
 .header-menu .el-menu-item .el-icon {
-  font-size: 16px;
+  font-size: var(--text-md);
 }
 .header-menu .el-menu-item:hover {
   background: transparent;
   color: var(--brand-primary);
 }
 .header-menu .el-menu-item.is-active {
-  color: var(--brand-primary);
-  font-weight: 500;
+  color: var(--brand);
+  font-weight: 600;
 }
 .header-menu .el-menu-item.is-active::after {
   content: '';
-  position: absolute;
-  left: 12px;
+  left: 14px;
+  right: 14px;
   right: 12px;
   bottom: 0;
   height: 2px;
-  background: var(--brand-primary);
+  background: var(--brand);
 }
 
 /* 用户入口 */
@@ -222,32 +225,32 @@ async function handleLogout() {
   transition: background-color 0.15s;
 }
 .user-entry:hover {
-  background: var(--bg-page);
+  background: var(--brand-soft);
 }
 .user-avatar {
-  background: var(--text-regular);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 500;
+  background: var(--brand);
+  color: var(--surface);
+  font-size: var(--text-xs);
+  font-weight: 600;
 }
 .user-name {
-  font-size: 14px;
-  font-weight: 400;
-  color: var(--text-regular);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--ink);
 }
 .user-caret {
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--text-placeholder);
 }
 .user-account {
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 20px;
   color: var(--text-placeholder);
 }
 
 .student-main {
-  background: var(--bg-page);
-  padding: 24px;
+  background: var(--page);
+  padding: 0;
   overflow-y: auto;
 }
 

@@ -2,7 +2,7 @@
   <!-- AI 快速预约（需求文档 2.4 教室列表页搜索栏旁入口） -->
   <div class="ai-quick-reserve">
     <el-button v-if="aiEnabled" type="primary" plain @click="openDialog">
-      <el-icon class="ai-btn-icon"><MagicStick /></el-icon>AI 快速预约
+      AI 快速预约
     </el-button>
 
     <!-- append-to-body 为必需：本组件被放在教室列表搜索栏的 el-form-item 内，而该搜索栏是 el-form--inline。
@@ -20,23 +20,30 @@
       @close="cancelActiveRequests"
       @closed="resetAll"
     >
-      <el-steps :active="step" finish-status="success" simple class="steps">
-        <el-step title="描述需求" />
-        <el-step title="选择教室" />
-        <el-step title="确认提交" />
-      </el-steps>
+      <div class="steps" role="group" aria-label="快速预约步骤">
+        <span class="step-plate plate" :class="{ 'is-current': step === 1 }">
+          <span class="step-no">01</span>描述需求
+        </span>
+        <span class="step-plate plate" :class="{ 'is-current': step === 2 }">
+          <span class="step-no">02</span>选择教室
+        </span>
+        <span class="step-plate plate" :class="{ 'is-current': step === 3 }">
+          <span class="step-no">03</span>确认提交
+        </span>
+      </div>
 
       <!-- 步骤一：自然语言描述 + 结构化解析结果（可编辑，不强制接受） -->
       <div v-if="step === 1" class="step-body">
         <el-input
           v-model="rawText"
+          class="desc-input"
           type="textarea"
           :rows="2"
           placeholder="用自然语言描述预约需求，例如：明天下午2点到4点 40人 机房 做课程设计"
         />
         <div class="step-actions">
-          <el-button type="primary" :loading="parsing" @click="handleParse">智能解析</el-button>
-          <el-button v-if="parsed" @click="resetParse">重新描述</el-button>
+          <el-button class="qr-btn" type="primary" :loading="parsing" @click="handleParse">智能解析</el-button>
+          <el-button v-if="parsed" class="qr-btn qr-btn-ghost" @click="resetParse">重新描述</el-button>
         </div>
         <!-- R13-5：phase 进度（仅真正调用模型时出现，缓存命中时解析很快完成不闪文案） -->
         <div v-if="parsing && parsePhase" class="parse-phase">
@@ -89,13 +96,16 @@
       <div v-if="step === 2" v-loading="roomsLoading" class="step-body">
         <el-empty v-if="!roomsLoading && !rooms.length" description="未找到符合条件的教室，请返回修改描述" :image-size="80" />
         <div v-for="r in rooms" :key="r.id" class="room-pick-item" v-clickable @click="pickRoom(r)">
-          <div class="room-pick-head">
-            <span class="room-pick-name">{{ r.name }}</span>
-            <el-tag size="small" type="info" effect="plain">{{ typeText(r.type) }}</el-tag>
-          </div>
-          <div class="room-pick-meta">{{ r.building }} {{ r.roomNo }}，容量 {{ r.capacity }} 人</div>
-          <div v-if="r.occupiedSlots && r.occupiedSlots.length" class="room-pick-occupied">
-            该日期已约 {{ r.occupiedSlots.length }} 个时段，提交时将实时冲突校验
+          <span class="plate room-pick-plate">{{ r.roomNo }}</span>
+          <div class="room-pick-info">
+            <div class="room-pick-head">
+              <span class="room-pick-name">{{ r.name }}</span>
+              <span class="room-pick-type">{{ typeText(r.type) }}</span>
+            </div>
+            <div class="room-pick-meta">{{ r.building }} {{ r.roomNo }}，容量 {{ r.capacity }} 人</div>
+            <div v-if="r.occupiedSlots && r.occupiedSlots.length" class="room-pick-occupied">
+              该日期已约 {{ r.occupiedSlots.length }} 个时段，提交时将实时冲突校验
+            </div>
           </div>
         </div>
       </div>
@@ -172,16 +182,17 @@
 
       <!-- 底部按钮区（按步骤显示） -->
       <template #footer>
-        <el-button v-if="step === 1" @click="dialogVisible = false">取消</el-button>
-        <el-button v-if="step === 1" type="primary" :disabled="!(parsed && !parseError)" @click="goStep2">下一步：选择教室</el-button>
+        <el-button v-if="step === 1" class="qr-btn qr-btn-ghost" @click="dialogVisible = false">取消</el-button>
+        <el-button v-if="step === 1" class="qr-btn" type="primary" :disabled="!(parsed && !parseError)" @click="goStep2">下一步：选择教室</el-button>
 
-        <el-button v-if="step === 2" @click="step = 1">上一步</el-button>
-        <el-button v-if="step === 2" @click="dialogVisible = false">取消</el-button>
+        <el-button v-if="step === 2" class="qr-btn qr-btn-ghost" @click="step = 1">上一步</el-button>
+        <el-button v-if="step === 2" class="qr-btn qr-btn-ghost" @click="dialogVisible = false">取消</el-button>
 
-        <el-button v-if="step === 3" @click="step = 2">上一步</el-button>
-        <el-button v-if="step === 3" @click="dialogVisible = false">取消</el-button>
+        <el-button v-if="step === 3" class="qr-btn qr-btn-ghost" @click="step = 2">上一步</el-button>
+        <el-button v-if="step === 3" class="qr-btn qr-btn-ghost" @click="dialogVisible = false">取消</el-button>
         <el-button
           v-if="step === 3"
+          class="qr-btn"
           type="primary"
           :loading="submitting"
           :disabled="conflictChecking || !!(conflictInfo && conflictInfo.conflict)"
@@ -195,7 +206,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { MagicStick, Loading } from '@element-plus/icons-vue'
+import { Loading } from '@element-plus/icons-vue'
 import { aiParseReservationStream } from '@/api/ai'
 import { listClassrooms } from '@/api/classroom'
 import { checkConflict, submitReservation } from '@/api/reservation'
@@ -631,7 +642,7 @@ defineExpose({ openWithPlan })
   align-items: center;
   gap: 6px;
   margin: -4px 0 12px;
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--el-text-color-secondary);
 }
 
@@ -672,14 +683,14 @@ defineExpose({ openWithPlan })
 }
 
 .room-pick-meta {
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 20px;
   color: var(--text-regular);
   margin-top: 4px;
 }
 
 .room-pick-occupied {
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--brand-warning);
   margin-top: 4px;
 }
@@ -695,6 +706,6 @@ defineExpose({ openWithPlan })
 
 .ai-btn-icon {
   margin-right: 4px;
-  font-size: 14px;
+  font-size: var(--text-sm);
 }
 </style>

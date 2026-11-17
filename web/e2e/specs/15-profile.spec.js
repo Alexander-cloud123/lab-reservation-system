@@ -188,9 +188,9 @@ test.describe('个人中心', () => {
     const item = page.locator('.fav-item').filter({ hasText: room.name })
     await expect(item).toBeVisible()
     await expect(item.locator('.fav-name')).toHaveText(room.name)
-    await expect(item.locator('.fav-meta')).toContainText(`${room.building}-${room.roomNo}`)
+    await expect(item.locator('.fav-meta')).toContainText(`${room.building} ${room.roomNo}`)
     await expect(item.locator('.fav-meta')).toContainText(TYPE_LABELS[room.type])
-    await expect(item.locator('.fav-meta')).toContainText(`${room.capacity}人`)
+    await expect(item.locator('.fav-meta')).toContainText(`${room.capacity} 人`)
 
     // 空态：拦截收藏列表返回空数组（按 pathname 判定，避免误拦 /src/api/*.js 源码模块）
     const emptyMatcher = (url) => url.pathname === '/api/favorite/list'

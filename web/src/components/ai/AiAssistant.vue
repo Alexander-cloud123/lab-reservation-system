@@ -84,53 +84,58 @@ onBeforeUnmount(() => clearTimeout(hintTimer))
 <style scoped>
 .assistant-entry {
   position: fixed;
-  right: 24px;
-  bottom: 26px;
+  right: var(--space-lg);
+  bottom: var(--space-lg);
   z-index: 2000;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-sm);
 }
 
 .assistant-hint {
-  padding: 4px 9px;
-  border-radius: var(--radius-md);
-  background: var(--bg-card, #fff);
-  box-shadow: var(--shadow-raised, 0 2px 8px rgba(31, 35, 41, 0.1));
-  color: var(--text-regular);
-  font-size: 11.5px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
   white-space: nowrap;
   animation: hint-in 0.14s ease-out;
 }
 
+/* 悬浮球：墨蓝实底 + 白字门牌，不用渐变/发光，靠留白与投影层次 */
 .assistant-ball {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 48px;
   height: 48px;
-  border: 1px solid var(--brand-primary-border, #c2d4ff);
-  border-radius: 50%;
-  background: var(--brand-primary, #1456f0);
-  color: #fff;
+  border: 1px solid var(--brand);
+  border-radius: var(--radius-pill);
+  background: var(--brand);
+  color: var(--surface);
+  font: inherit;
   cursor: pointer;
-  box-shadow: 0 6px 18px rgba(20, 86, 240, 0.28);
-  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+  box-shadow: var(--shadow-float);
+  transition:
+    background-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
 }
 
 .assistant-ball:hover {
-  background: var(--brand-primary-hover, #336df4);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 22px rgba(20, 86, 240, 0.34);
+  background: var(--brand-primary-dark, var(--brand));
+  box-shadow: var(--shadow-overlay);
+  transform: translateY(-1px);
 }
 
 .assistant-ball:active {
   transform: translateY(0);
-  background: var(--brand-primary-active, #0442d2);
 }
 
 .assistant-ball:focus-visible {
-  outline: 2px solid var(--brand-primary-border, #c2d4ff);
+  outline: 2px solid var(--brand);
   outline-offset: 3px;
 }
 
@@ -139,6 +144,7 @@ onBeforeUnmount(() => clearTimeout(hintTimer))
     opacity: 0;
     transform: translateX(4px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);

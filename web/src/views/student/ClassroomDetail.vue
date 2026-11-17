@@ -7,16 +7,16 @@
     </div>
 
     <!-- 教室基础信息 -->
-    <div class="info-card">
+    <div class="info-card surface">
       <div class="info-head">
         <span class="code-block">{{ classroom.roomNo }}</span>
         <div class="room-name-wrap">
           <h2>{{ classroom.name }}</h2>
           <span class="room-no">{{ classroom.building }} {{ classroom.roomNo }}</span>
         </div>
-        <el-tag :type="statusTagType(classroom.statusLabel)" effect="light" round size="small">
+        <span class="status-cell" :class="statusPillClass(classroom.statusLabel)">
           {{ classroom.statusLabel }}
-        </el-tag>
+        </span>
         <el-button
           class="fav-btn"
           :type="favorited ? 'warning' : 'default'"
@@ -39,7 +39,7 @@
     </div>
 
     <!-- 时段占用可视化 -->
-    <div class="slots-card section">
+    <div class="slots-card surface">
       <div class="slots-head">
         <span class="slots-title">时段占用（已通过预约）</span>
         <el-date-picker
@@ -77,7 +77,7 @@
       </div>
 
       <!-- 时段明细表 -->
-      <el-table v-if="(classroom.occupiedSlots || []).length" :data="classroom.occupiedSlots" size="small">
+      <el-table v-if="(classroom.occupiedSlots || []).length" :data="classroom.occupiedSlots">
         <el-table-column prop="startTime" label="开始时间" width="120" />
         <el-table-column prop="endTime" label="结束时间" width="120" />
         <el-table-column label="预约用途" min-width="200">
@@ -569,8 +569,9 @@ function goBack() {
 }
 
 /** 实时状态标签色（R4 三态：空闲绿/使用中红/已结束灰） */
-function statusTagType(label) {
-  return { 当前空闲: 'success', 使用中: 'danger', 已结束: 'info' }[label] || 'info'
+/** 教室状态 → 药丸样式（与列表页同一套状态语义） */
+function statusPillClass(label) {
+  return { 当前空闲: 'is-approved', 使用中: 'is-pending', 已结束: 'is-canceled', 已停用: 'is-canceled' }[label] || 'is-canceled'
 }
 
 onMounted(() => {
@@ -585,46 +586,51 @@ onBeforeUnmount(invalidateConflict)
 .detail-nav {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
 }
+
 .nav-title {
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 22px;
-  color: var(--text-regular);
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+  line-height: 1.5;
 }
 
 .info-card {
-  margin-bottom: 16px;
+  margin-bottom: var(--space-lg);
 }
 
 .info-head {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-.info-head .code-block {
-  flex-shrink: 0;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
 }
 
+.info-head .code-block {
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 12px;
+  font-size: var(--text-md);
+}
 
 .room-name-wrap {
   flex: 1;
   min-width: 0;
 }
+
 .room-name-wrap h2 {
   margin: 0;
-  color: var(--text-primary);
-  font-size: 20px;
+  color: var(--ink);
+  font-size: var(--text-lg);
   font-weight: 600;
-  line-height: 28px;
+  line-height: 1.3;
 }
+
 .room-no {
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--text-placeholder);
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
+  line-height: 1.6;
 }
 
 .fav-btn {
@@ -632,40 +638,40 @@ onBeforeUnmount(invalidateConflict)
 }
 
 .info-table {
-  margin-top: 4px;
-  /* 飞书：说明表头统一浅底，不再用 EP 默认 #fafafa */
-  --el-descriptions-item-bordered-label-background: var(--bg-subtle);
+  margin-top: var(--space-xs);
 }
+
 .info-table :deep(.el-descriptions__label) {
+  color: var(--ink-soft);
   font-weight: 500;
-  color: var(--text-regular);
 }
+
 .info-table :deep(.el-descriptions__content) {
-  color: var(--text-primary);
+  color: var(--ink);
 }
 
 .slots-card {
-  margin-bottom: 16px;
+  margin-bottom: var(--space-lg);
 }
 
 .slots-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-md);
 }
 
 .slots-title {
-  font-size: 16px;
+  color: var(--ink);
+  font-size: var(--text-base);
   font-weight: 600;
-  line-height: 24px;
-  color: var(--text-primary);
+  line-height: 1.4;
 }
 
 .timeline {
   position: relative;
-  padding: 8px 0 4px;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm) 0 var(--space-xs);
 }
 
 .timeline-axis {
@@ -676,56 +682,60 @@ onBeforeUnmount(invalidateConflict)
 .axis-hour {
   position: absolute;
   transform: translateX(-50%);
-  font-size: 12px;
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
   line-height: 18px;
-  color: var(--text-placeholder);
 }
 
 .timeline-bar {
   position: relative;
-  height: 32px;
-  background: var(--bg-fill);
-  border: 1px solid var(--border-color-light);
-  border-radius: var(--radius-md);
+  height: 36px;
   overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--page);
 }
 
 .timeline-slot {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: var(--brand-danger);
-  color: #fff;
-  font-size: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-sm);
   overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--danger);
+  color: var(--surface);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .slots-empty {
-  color: var(--text-regular);
-  font-size: 14px;
-  line-height: 22px;
-  background: var(--brand-success-light);
-  border: 1px solid var(--el-color-success-light-7);
-  border-radius: var(--radius-md);
-  padding: 12px;
   display: inline-block;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--page);
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+  line-height: 1.6;
 }
 
 .action-bar {
-  text-align: center;
-  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xl);
 }
 
 .disabled-tip {
-  margin-left: 12px;
+  margin-left: 0;
 }
 
 .conflict-alert {
-  margin-top: 4px;
+  margin-top: var(--space-xs);
 }
 </style>

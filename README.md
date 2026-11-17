@@ -27,7 +27,7 @@
 
 AI 助手单独剪了约 48 秒片段（时长随上游吐字波动），展示「参考 DeepSeek 网页端」的思考体验——三点脉冲等待动画、逐条真实执行轨迹、服务端实测计时，回答到达后自动折叠为「已思考 X.X 秒」并可展开查看推理原文：[AI 助手思考片段](https://github.com/Alexander-cloud123/lab-reservation-system/releases/download/v1.1.0/demo-ai-thinking.mp4)。
 
-> 说明：上面三段演示视频录制于全站视觉重构前；当前界面（排课表式）见下方「项目预览」实拍截图。
+> 说明：上面三段演示视频录制于全站视觉重构前；当前界面（墨蓝门牌体系）见下方「项目预览」实拍截图。
 
 录制脚本 [`web/scripts/capture-demo-video.mjs`](web/scripts/capture-demo-video.mjs) 会在录制前复位种子库、按固定锚点造出待审核与冲突数据，任意时刻重录结果一致；分镜、参数与验收清单见 [`docs/演示视频分镜.md`](docs/演示视频分镜.md)。
 
@@ -242,7 +242,7 @@ cd web; node scripts/capture-screens.mjs       # 采集 README 预览截图
 | 技术开发规格书 | [`spec.md`](spec.md) |
 | 协作章程与红线约束 | [`AGENTS.md`](AGENTS.md) |
 | 运行与配置（环境变量 / AI / Redis / 端口） | [`docs/运行与配置.md`](docs/运行与配置.md) |
-| 界面设计规范（排课表视觉体系 / token / 公共原语） | [docs/界面设计规范.md](docs/界面设计规范.md) |
+| 界面设计规范（墨蓝门牌体系 / token / 公共原语） | [docs/界面设计规范.md](docs/界面设计规范.md) |
 | 安全基线（部署加固项与验证命令） | [`docs/安全基线.md`](docs/安全基线.md) |
 | 可靠性验证（故障演练 / 接口与页面性能基准） | [`docs/可靠性验证.md`](docs/可靠性验证.md) |
 | 演示视频分镜与录制说明 | [`docs/演示视频分镜.md`](docs/演示视频分镜.md) |

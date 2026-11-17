@@ -1,12 +1,16 @@
 <template>
-  <div class="manage-page">
-    <!-- 页面标题栏 -->
+  <div class="classroom-manage-page page-container">
+    <!-- 页头：标题 + 说明 + 新增入口 -->
     <div class="page-head">
-      <span class="page-title">教室管理</span>
-      <span class="page-sub">新增、编辑、启用/停用与批量管理教室资源</span>
+      <div>
+        <h1 class="page-title">教室管理</h1>
+        <p class="page-sub">维护教室基础信息，控制教室可预约状态</p>
+      </div>
+      <el-button type="primary" :icon="Plus" @click="openDialog()">新增教室</el-button>
     </div>
-    <!-- 搜索栏 -->
-    <div class="search-card table-band">
+
+    <!-- 筛选条：一张白面，控件同高 -->
+    <div class="search-card">
       <el-form :inline="true" :model="query" @submit.prevent>
         <el-form-item label="关键词">
           <el-input
@@ -18,7 +22,7 @@
           />
         </el-form-item>
         <el-form-item label="楼栋">
-          <el-select v-model="query.building" placeholder="全部" clearable style="width: 130px">
+          <el-select v-model="query.building" placeholder="全部" clearable style="width: 132px">
             <el-option v-for="b in buildingOptions" :key="b" :label="b" :value="b" />
           </el-select>
         </el-form-item>
@@ -40,74 +44,80 @@
       </el-form>
     </div>
 
-    <!-- 教室表格 -->
+    <!-- 教室表格：白面表格容器 -->
     <div class="table-band">
-      <div class="toolbar">
-        <el-button type="primary" :icon="Plus" @click="openDialog()">新增教室</el-button>
-        <el-button
-          type="success"
-          plain
-          :icon="CircleCheck"
-          :disabled="!selectedIds.length"
-          @click="handleBatchStatus(1)"
-        >
-          批量启用
-        </el-button>
-        <el-button
-          type="danger"
-          plain
-          :icon="CircleClose"
-          :disabled="!selectedIds.length"
-          @click="handleBatchStatus(0)"
-        >
-          批量停用
-        </el-button>
+      <div class="section-title">
+        <span class="title-left">
+          教室列表
+          <span class="section-note">共 {{ total }} 间，已选 {{ selectedIds.length }} 间</span>
+        </span>
+        <span class="band-actions">
+          <el-button
+            type="primary"
+            plain
+            :icon="CircleCheck"
+            :disabled="!selectedIds.length"
+            @click="handleBatchStatus(1)"
+          >
+            批量启用
+          </el-button>
+          <el-button
+            type="danger"
+            plain
+            :icon="CircleClose"
+            :disabled="!selectedIds.length"
+            @click="handleBatchStatus(0)"
+          >
+            批量停用
+          </el-button>
+        </span>
       </div>
 
-      <el-table
-        v-loading="loading"
-        :data="records"
-        @selection-change="handleSelectionChange"
-      >
-        <el-table-column type="selection" width="46" />
+      <el-table v-loading="loading" :data="records" @selection-change="handleSelectionChange">
+        <el-table-column type="selection" width="48" />
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="name" label="教室名称" min-width="140" />
-        <el-table-column prop="building" label="楼栋" width="90" />
-        <el-table-column prop="roomNo" label="编号" width="90" />
-        <el-table-column prop="type" label="类型" width="100">
+        <el-table-column prop="building" label="楼栋" width="88" />
+        <el-table-column prop="roomNo" label="编号" width="88" />
+        <el-table-column prop="type" label="类型" width="96">
           <template #default="{ row }">
-            <el-tag :type="typeTagType(row.type)" size="small">{{ typeText(row.type) }}</el-tag>
+            <el-tag :type="typeTagType(row.type)">{{ typeText(row.type) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="capacity" label="容量" width="80" />
-        <el-table-column prop="equipment" label="设备说明" min-width="160" show-overflow-tooltip>
+        <el-table-column prop="equipment" label="设备说明" min-width="148" show-overflow-tooltip>
           <template #default="{ row }">{{ row.equipment || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="80">
+        <el-table-column prop="status" label="状态" width="84">
           <template #default="{ row }">
-            <el-tag :type="row.status === 1 ? 'success' : 'danger'" size="small">
+            <el-tag :type="row.status === 1 ? 'success' : 'danger'">
               {{ row.status === 1 ? '可用' : '停用' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createTime" label="创建时间" width="165">
+        <el-table-column prop="createTime" label="创建时间" width="160">
           <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" type="primary" plain @click="openDialog(row)">编辑</el-button>
-            <el-button size="small" :type="row.status === 1 ? 'warning' : 'success'" plain @click="handleToggleStatus(row)">
+            <el-button link type="primary" @click="openDialog(row)">编辑</el-button>
+            <el-button
+              link
+              :type="row.status === 1 ? 'danger' : 'primary'"
+              @click="handleToggleStatus(row)"
+            >
               {{ row.status === 1 ? '停用' : '启用' }}
             </el-button>
-            <el-button size="small" type="danger" plain @click="handleDelete(row)">删除</el-button>
+            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
-      </el-table>
 
-      <!-- 空状态 -->
-      <el-empty v-if="!loading && !records.length" description="没有找到符合条件的教室">
-        <el-button type="primary" @click="handleReset">重置筛选</el-button>
-      </el-empty>
+        <template #empty>
+          <div class="empty-slate">
+            没有找到符合条件的教室<span class="empty-action" @click="handleReset">重置筛选</span>
+          </div>
+        </template>
+      </el-table>
 
       <!-- 分页 -->
       <div class="pagination-wrap">
@@ -132,7 +142,7 @@
       :close-on-click-modal="false"
       @closed="resetForm"
     >
-      <el-form ref="formRef" :model="form" :rules="formRules" label-width="90px">
+      <el-form ref="formRef" :model="form" :rules="formRules" label-width="88px">
         <el-form-item label="教室名称" prop="name">
           <el-input v-model="form.name" placeholder="如：A101多媒体教室" maxlength="50" />
         </el-form-item>
@@ -151,10 +161,22 @@
           <el-input-number v-model="form.capacity" :min="1" :max="10000" style="width: 100%" />
         </el-form-item>
         <el-form-item label="设备说明" prop="equipment">
-          <el-input v-model="form.equipment" type="textarea" :rows="2" maxlength="255" placeholder="选填" />
+          <el-input
+            v-model="form.equipment"
+            type="textarea"
+            :rows="2"
+            maxlength="255"
+            placeholder="选填"
+          />
         </el-form-item>
         <el-form-item label="备注描述" prop="description">
-          <el-input v-model="form.description" type="textarea" :rows="2" maxlength="255" placeholder="选填" />
+          <el-input
+            v-model="form.description"
+            type="textarea"
+            :rows="2"
+            maxlength="255"
+            placeholder="选填"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -200,7 +222,16 @@ const query = reactive({
 const dialogVisible = ref(false)
 const submitting = ref(false)
 const formRef = ref(null)
-const emptyForm = { id: null, name: '', building: '', roomNo: '', type: null, capacity: 1, equipment: '', description: '' }
+const emptyForm = {
+  id: null,
+  name: '',
+  building: '',
+  roomNo: '',
+  type: null,
+  capacity: 1,
+  equipment: '',
+  description: ''
+}
 const form = reactive({ ...emptyForm })
 
 /** 表单校验规则（与后端一致：必填 + 容量>0） */
@@ -379,27 +410,52 @@ onMounted(loadData)
 </script>
 
 <style scoped>
-.manage-page {
-  padding: 4px;
-}
-
-.page-tip {
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--text-regular);
-}
-
+/* 筛选条：白面 + 24px 内边距，标签与控件同基线 */
 .search-card {
-  margin-bottom: 16px;
+  margin-bottom: var(--space-xl);
+  padding: var(--space-lg) var(--space-xl);
+}
+.search-card :deep(.el-form-item) {
+  margin-bottom: 0;
+  margin-right: var(--space-xl);
+}
+.search-card :deep(.el-form-item__label) {
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+  padding-right: var(--space-sm);
 }
 
-.toolbar {
-  margin-bottom: 12px;
+/* 表格容器：白面 + 24px 内边距，标题行右侧放批量操作 */
+.table-band {
+  padding: var(--space-xl);
+}
+.title-left .section-note {
+  margin-left: var(--space-sm);
+  font-weight: 400;
+}
+.band-actions :deep(.el-button) {
+  margin-left: var(--space-sm);
+}
+
+/* 空态：覆盖组件内置空文案行高，统一走 empty-slate 原语 */
+:deep(.el-table__empty-text) {
+  width: 100%;
+  line-height: 1.6;
+}
+.empty-slate {
+  line-height: 1.6;
 }
 
 .pagination-wrap {
   display: flex;
   justify-content: flex-end;
-  margin-top: 16px;
+  margin-top: var(--space-xl);
+}
+
+@media (max-width: 900px) {
+  .section-title {
+    flex-wrap: wrap;
+    gap: var(--space-md);
+  }
 }
 </style>

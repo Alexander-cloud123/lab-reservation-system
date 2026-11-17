@@ -1,28 +1,27 @@
 <template>
-  <div class="welcome-wrap">
-    <!-- 页头：问候 + 今日概览（一行事实，不做大色块横幅） -->
+  <div class="welcome-wrap page-container">
+    <!-- 页头：问候 + 说明 + 账号状态 -->
     <div class="page-head">
       <div>
-        <div class="page-title">你好，{{ userInfo ? userInfo.name : '-' }}</div>
-        <div class="page-sub">欢迎使用高校实验室预约管理系统管理端，今日概览如下</div>
+        <h1 class="page-title">你好，{{ userInfo ? userInfo.name : '-' }}</h1>
+        <p class="page-sub">欢迎使用高校实验室预约管理系统管理端，今日概览如下</p>
       </div>
-      <div class="head-facts">
-        <span class="head-status">
-          <span class="status-dot" :class="userInfo && userInfo.status === 1 ? 'is-approved' : 'is-rejected'" />
-          {{ userInfo && userInfo.status === 1 ? '账号正常' : '已禁用' }}
-        </span>
-      </div>
+      <span class="status-pill" :class="userInfo && userInfo.status === 1 ? 'is-approved' : 'is-rejected'">
+        {{ userInfo && userInfo.status === 1 ? '账号正常' : '已禁用' }}
+      </span>
     </div>
 
-    <!-- 核心数据：排课表式的标头列（标签在上、数字在下），4 列细线分隔 -->
-    <div class="stat-grid">
+    <!-- 今日概览：一张白面，四列数据 -->
+    <div class="surface stat-band">
       <div class="stat-item">
         <div class="stat-label">今日预约</div>
         <div class="stat-value">{{ overview.todayReservationCount ?? 0 }}</div>
       </div>
       <div class="stat-item">
         <div class="stat-label">待审核</div>
-        <div class="stat-value">{{ overview.pendingAuditCount ?? 0 }}</div>
+        <div class="stat-value" :class="{ 'is-attention': (overview.pendingAuditCount ?? 0) > 0 }">
+          {{ overview.pendingAuditCount ?? 0 }}
+        </div>
       </div>
       <div class="stat-item">
         <div class="stat-label">教室总数</div>
@@ -34,11 +33,11 @@
       </div>
     </div>
 
-    <!-- 快捷入口：列表行（标题 + 说明），不用图标方块卡片 -->
-    <div class="section">
+    <!-- 管理入口：五行大按钮，hover 浅底 -->
+    <div class="surface quick-surface">
       <div class="section-title">
         <span>管理入口</span>
-        <span class="section-note">按左侧菜单也可进入</span>
+        <span class="section-note">也可从左侧菜单进入</span>
       </div>
       <div class="quick-grid">
         <div class="quick-card" v-clickable @click="go('/admin/users')">
@@ -64,8 +63,8 @@
       </div>
     </div>
 
-    <!-- 账号信息：定义列表，不用边框表格 -->
-    <div class="section">
+    <!-- 账号信息 -->
+    <div class="surface">
       <div class="section-title">
         <span>账号信息</span>
       </div>
@@ -84,16 +83,12 @@
         </div>
         <div class="info-row">
           <dt>账号状态</dt>
-          <dd>
-            <span class="status-dot" :class="userInfo && userInfo.status === 1 ? 'is-approved' : 'is-rejected'" />
-            {{ userInfo && userInfo.status === 1 ? '正常' : '禁用' }}
-          </dd>
+          <dd>{{ userInfo && userInfo.status === 1 ? '正常' : '禁用' }}</dd>
         </div>
       </dl>
     </div>
   </div>
 </template>
-
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -129,126 +124,123 @@ function go(path) {
 
 <style scoped>
 .welcome-wrap {
-  max-width: 1080px;
-  margin: 0 auto;
-  padding-bottom: 24px;
+  max-width: 1200px;
 }
 
-.head-facts {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.head-status {
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--text-regular);
-}
-
-/* 数据列：像课表表头——标签在上、数字在下，列与列之间用细线 */
-.stat-grid {
+/* 今日概览：四列数据，列间靠留白分隔 */
+.stat-band {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  border-top: 1px solid var(--rule);
-  border-bottom: 1px solid var(--rule);
+  gap: var(--space-2xl);
+  padding: var(--space-xl) var(--space-2xl);
 }
 .stat-item {
-  padding: 16px 20px 18px 0;
-  border-left: 1px solid var(--rule);
-}
-.stat-item:first-child {
-  border-left: 0;
-  padding-left: 0;
+  min-width: 0;
 }
 .stat-label {
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--text-regular);
-  margin-bottom: 4px;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--ink-soft);
+  margin-bottom: 8px;
 }
 .stat-value {
-  font-family: var(--font-num);
-  font-size: 26px;
-  font-weight: 500;
-  line-height: 32px;
-  color: var(--text-primary);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
+.stat-value.is-attention {
+  color: var(--attention);
+}
 
-/* 快捷入口：列表行，hover 出现下划线，不做卡片 */
+/* 管理入口：整行可点，56px 高 */
+.quick-surface {
+  margin-top: var(--space-xl);
+  padding: var(--space-lg) var(--space-xs) var(--space-sm);
+}
+.quick-surface .section-title {
+  padding: 0 var(--space-lg);
+  margin-bottom: var(--space-sm);
+}
 .quick-grid {
   display: flex;
   flex-direction: column;
 }
 .quick-card {
   display: flex;
-  align-items: baseline;
-  gap: 16px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--rule);
+  align-items: center;
+  gap: var(--space-lg);
+  height: 56px;
+  padding: 0 var(--space-lg);
+  border-radius: var(--radius-control);
   cursor: pointer;
-}
-.quick-card:last-child {
-  border-bottom: 0;
+  transition: background-color 0.16s ease;
 }
 .quick-card:hover {
-  background: var(--bg-subtle);
+  background: var(--brand-soft);
 }
 .quick-name {
   flex: none;
-  width: 120px;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 22px;
-  color: var(--text-primary);
+  width: 132px;
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--ink);
 }
 .quick-card:hover .quick-name {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  color: var(--brand);
 }
 .quick-desc {
-  font-size: 13px;
-  line-height: 22px;
-  color: var(--text-regular);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--ink-soft);
 }
 
-/* 账号信息：定义列表，标签固定宽 */
+/* 账号信息：两列定义列表 */
 .info-list {
   margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--space-2xl);
 }
 .info-row {
   display: flex;
   align-items: baseline;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--rule);
+  gap: var(--space-lg);
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
 }
-.info-row:last-child {
+.info-row:last-child,
+.info-row:nth-last-child(2):nth-child(odd) {
   border-bottom: 0;
 }
 .info-row dt {
   flex: none;
-  width: 120px;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--text-placeholder);
+  width: 96px;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--ink-soft);
 }
 .info-row dd {
   margin: 0;
-  font-size: 14px;
-  line-height: 22px;
-  color: var(--text-primary);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--ink);
+  font-weight: 500;
 }
 
-@media (max-width: 720px) {
-  .stat-grid {
+@media (max-width: 900px) {
+  .stat-band {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-xl);
   }
-  .stat-item {
-    border-left: 0;
+  .info-list {
+    grid-template-columns: 1fr;
   }
-  .quick-card {
-    flex-direction: column;
-    gap: 2px;
+  .info-row:nth-last-child(2) {
+    border-bottom: 1px solid var(--line);
   }
 }
 </style>

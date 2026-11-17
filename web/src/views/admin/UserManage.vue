@@ -1,12 +1,16 @@
 <template>
-  <div class="manage-page">
-    <!-- 页面标题栏 -->
+  <div class="user-manage-page page-container">
+    <!-- 页头：标题 + 说明 + 右侧提示 -->
     <div class="page-head">
-      <span class="page-title">用户管理</span>
-      <span class="page-sub">账号查询、启用/禁用与密码重置</span>
+      <div>
+        <h1 class="page-title">用户管理</h1>
+        <p class="page-sub">账号查询、启用/禁用与密码重置</p>
+      </div>
+      <p class="page-tip">当前登录的管理员账号不可禁用，也不可重置密码</p>
     </div>
-    <!-- 搜索栏 -->
-    <div class="search-card table-band">
+
+    <!-- 筛选条：一张白面，控件同高 -->
+    <div class="search-card">
       <el-form :inline="true" :model="query" @submit.prevent>
         <el-form-item label="关键词">
           <el-input
@@ -18,13 +22,13 @@
           />
         </el-form-item>
         <el-form-item label="角色">
-          <el-select v-model="query.role" placeholder="全部" clearable style="width: 130px">
+          <el-select v-model="query.role" placeholder="全部" clearable style="width: 132px">
             <el-option label="学生" :value="0" />
             <el-option label="管理员" :value="1" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="query.status" placeholder="全部" clearable style="width: 130px">
+          <el-select v-model="query.status" placeholder="全部" clearable style="width: 132px">
             <el-option label="正常" :value="1" />
             <el-option label="禁用" :value="0" />
           </el-select>
@@ -36,64 +40,67 @@
       </el-form>
     </div>
 
-    <!-- 用户表格 -->
+    <!-- 用户表格：白面表格容器 -->
     <div class="table-band">
+      <div class="section-title">
+        <span>账号列表</span>
+        <span class="section-note">共 {{ total }} 个账号</span>
+      </div>
+
       <el-table v-loading="loading" :data="records">
-        <el-table-column prop="id" label="ID" width="70" />
-        <el-table-column prop="username" label="账号" min-width="110" />
-        <el-table-column prop="name" label="姓名" min-width="90" />
-        <el-table-column prop="studentNo" label="学号" min-width="110">
+        <el-table-column prop="id" label="ID" width="64" />
+        <el-table-column prop="username" label="账号" min-width="100" />
+        <el-table-column prop="name" label="姓名" min-width="88" />
+        <el-table-column prop="studentNo" label="学号" min-width="112">
           <template #default="{ row }">{{ row.studentNo || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="phone" label="手机号" min-width="120">
+        <el-table-column prop="phone" label="手机号" min-width="112">
           <template #default="{ row }">{{ row.phone || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="role" label="角色" width="90">
+        <el-table-column prop="role" label="角色" width="80">
           <template #default="{ row }">
-            <el-tag :type="row.role === 1 ? 'warning' : 'primary'" size="small">
+            <el-tag :type="row.role === 1 ? 'warning' : 'primary'">
               {{ row.role === 1 ? '管理员' : '学生' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="90">
+        <el-table-column prop="status" label="状态" width="88">
           <template #default="{ row }">
-            <el-tag :type="row.status === 1 ? 'success' : 'danger'" size="small">
-              <span class="status-dot" :class="row.status === 1 ? 'is-approved' : 'is-canceled'" />{{ row.status === 1 ? '正常' : '禁用' }}
+            <el-tag :type="row.status === 1 ? 'success' : 'danger'">
+              {{ row.status === 1 ? '正常' : '禁用' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createTime" label="创建时间" width="170">
+        <el-table-column prop="createTime" label="创建时间" width="160">
           <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <template v-if="row.id === currentUserId">
               <el-tooltip content="不能操作当前登录的管理员账号" placement="top">
-                <el-button size="small" disabled>禁用/启用</el-button>
+                <el-button link type="primary" disabled>禁用/启用</el-button>
               </el-tooltip>
-              <el-button size="small" disabled>重置密码</el-button>
+              <el-button link type="primary" disabled>重置密码</el-button>
             </template>
             <template v-else>
               <el-button
-                size="small"
-                :type="row.status === 1 ? 'danger' : 'success'"
-                plain
+                link
+                :type="row.status === 1 ? 'danger' : 'primary'"
                 @click="handleToggleStatus(row)"
               >
                 {{ row.status === 1 ? '禁用' : '启用' }}
               </el-button>
-              <el-button size="small" type="primary" plain @click="handleResetPassword(row)">
-                重置密码
-              </el-button>
+              <el-button link type="primary" @click="handleResetPassword(row)">重置密码</el-button>
             </template>
           </template>
         </el-table-column>
-      </el-table>
 
-      <!-- 空状态 -->
-      <el-empty v-if="!loading && !records.length" description="没有找到符合条件的用户">
-        <el-button type="primary" @click="handleReset">重置筛选</el-button>
-      </el-empty>
+        <template #empty>
+          <div class="empty-slate">
+            没有找到符合条件的用户<span class="empty-action" @click="handleReset">重置筛选</span>
+          </div>
+        </template>
+      </el-table>
 
       <!-- 分页 -->
       <div class="pagination-wrap">
@@ -213,23 +220,38 @@ onMounted(loadData)
 </script>
 
 <style scoped>
-.manage-page {
-  padding: 4px;
-}
-
-.page-tip {
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--text-regular);
-}
-
+/* 筛选条：白面 + 24px 内边距，标签与控件同基线 */
 .search-card {
-  margin-bottom: 16px;
+  margin-bottom: var(--space-xl);
+  padding: var(--space-lg) var(--space-xl);
+}
+.search-card :deep(.el-form-item) {
+  margin-bottom: 0;
+  margin-right: var(--space-xl);
+}
+.search-card :deep(.el-form-item__label) {
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+  padding-right: var(--space-sm);
+}
+
+/* 表格容器：白面 + 24px 内边距 */
+.table-band {
+  padding: var(--space-xl);
+}
+
+/* 空态：覆盖组件内置空文案行高，统一走 empty-slate 原语 */
+:deep(.el-table__empty-text) {
+  width: 100%;
+  line-height: 1.6;
+}
+.empty-slate {
+  line-height: 1.6;
 }
 
 .pagination-wrap {
   display: flex;
   justify-content: flex-end;
-  margin-top: 16px;
+  margin-top: var(--space-xl);
 }
 </style>

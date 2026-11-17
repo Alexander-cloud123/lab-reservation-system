@@ -81,8 +81,7 @@ defineExpose({ focus })
       ></textarea>
 
       <div class="composer-bar">
-        <span class="composer-hint">只读，不提交预约</span>
-        <span class="composer-kbd">Enter 发送，Shift+Enter 换行</span>
+        <span class="composer-hint">Enter 发送，Shift+Enter 换行</span>
         <button
           v-if="sending"
           type="button"
@@ -96,15 +95,9 @@ defineExpose({ focus })
           type="button"
           class="composer-send"
           :disabled="disabled || !modelValue.trim()"
-          aria-label="发送"
           @click="submit"
         >
-          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-            <path
-              d="M4.5 11.2 19 4.5c.8-.4 1.6.4 1.2 1.2l-6.7 14.5c-.4.8-1.5.7-1.8-.1l-1.4-4.6c-.1-.4-.4-.7-.8-.8l-4.6-1.4c-.8-.3-.9-1.4-.4-1.8Z"
-              fill="currentColor"
-            />
-          </svg>
+          发送
         </button>
       </div>
     </div>
@@ -118,62 +111,59 @@ defineExpose({ focus })
 }
 
 .composer-box {
-  padding: 10px 10px 8px 14px;
-  border: 1px solid var(--border-color, #d0d3d6);
-  border-radius: 16px;
-  background: var(--bg-card, #fff);
+  padding: 12px 12px 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-surface);
   transition: border-color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .composer-box:focus-within {
-  border-color: var(--brand-primary);
-  box-shadow: 0 0 0 3px rgba(20, 86, 240, 0.1);
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft);
 }
 
 .composer-box.is-disabled {
-  background: var(--bg-subtle, #f8f9fa);
-  border-color: var(--border-color-light);
+  background: var(--page);
+  border-color: var(--line);
 }
 
 .composer-input {
   display: block;
   width: 100%;
-  min-height: 24px;
+  min-height: 44px;
   max-height: 148px;
-  padding: 2px 2px 6px;
+  padding: 4px 0;
   border: 0;
   background: transparent;
-  color: var(--text-primary);
+  color: var(--ink);
   font: inherit;
-  font-size: 14.5px;
+  font-size: var(--text-base);
   line-height: 1.6;
   resize: none;
   outline: none;
 }
 
 .composer-input::placeholder {
-  color: var(--text-placeholder);
+  color: var(--ink-soft);
 }
 
 .composer-input:disabled {
   cursor: not-allowed;
-  color: var(--text-disabled);
+  color: var(--ink-soft);
 }
 
 .composer-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-md);
 }
 
 .composer-hint {
-  color: var(--text-regular);
-  font-size: 12px;
-}
-
-.composer-kbd {
-  color: var(--text-placeholder);
-  font-size: 11px;
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
+  line-height: 1.5;
 }
 
 .composer-stop,
@@ -181,60 +171,64 @@ defineExpose({ focus })
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 34px;
+  height: 32px;
   margin-left: auto;
-  border-radius: var(--radius-md);
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   cursor: pointer;
 }
 
 .composer-stop {
   padding: 0 14px;
-  border-radius: 999px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-card);
-  color: var(--text-regular);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-weight: 500;
+  transition: border-color 0.16s ease, color 0.16s ease;
 }
 
 .composer-stop:hover {
-  border-color: var(--text-placeholder);
-  color: var(--text-primary);
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 .composer-send {
-  width: 34px;
-  border-radius: 999px;
+  padding: 0 18px;
   border: 1px solid transparent;
-  background: var(--brand-primary);
-  color: #fff;
+  border-radius: var(--radius-control);
+  background: var(--brand);
+  color: var(--surface);
+  font-weight: 600;
+  transition: background-color 0.16s ease, opacity 0.16s ease;
 }
 
-.composer-send:hover {
-  background: var(--brand-primary-hover, #336df4);
+.composer-send:hover:not(:disabled) {
+  background: var(--brand-primary-hover);
 }
 
 .composer-send:disabled {
-  background: var(--bg-fill, #eff0f1);
-  color: var(--text-placeholder);
+  background: var(--line);
+  color: var(--ink-soft);
   cursor: not-allowed;
 }
 
 .composer-stop:focus-visible,
 .composer-send:focus-visible {
-  outline: 2px solid var(--brand-primary-border, #c2d4ff);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
 }
 
 .composer-note {
-  margin: 8px 2px 0;
-  color: var(--text-placeholder);
-  font-size: 11.5px;
+  margin: var(--space-sm) 2px 0;
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
+  line-height: 1.6;
   text-align: center;
 }
 
 @media (max-width: 720px) {
-  .composer-kbd {
+  .composer-hint {
     display: none;
   }
 }

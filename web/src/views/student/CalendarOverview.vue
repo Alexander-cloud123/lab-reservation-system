@@ -1,5 +1,5 @@
 <template>
-  <div class="calendar-page">
+  <div class="calendar-page page-container">
     <div class="page-head">
       <div class="toolbar-left">
         <span class="page-title">预约日历总览</span>
@@ -20,7 +20,7 @@
           <span class="legend-item"><span class="status-dot is-rejected" />已驳回</span>
           <span class="legend-item"><span class="status-dot is-canceled" />已取消</span>
         </div>
-        <el-radio-group v-model="viewType" size="small" @change="handleViewChange">
+        <el-radio-group v-model="viewType" @change="handleViewChange">
           <el-radio-button value="dayGridMonth">月视图</el-radio-button>
           <el-radio-button value="dayGridWeek">周视图</el-radio-button>
         </el-radio-group>
@@ -482,28 +482,28 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .calendar-page {
-  max-width: 1120px;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
 .toolbar-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-md);
 }
 
 .toolbar-right {
   display: flex;
   align-items: center;
-  gap: 16px;
   flex-wrap: wrap;
+  gap: var(--space-md);
 }
 
 .legend {
   display: flex;
-  gap: 12px;
-  font-size: 12px;
-  color: var(--text-regular);
+  gap: var(--space-md);
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
 }
 
 .legend-item {
@@ -512,181 +512,199 @@ onBeforeUnmount(() => {
   gap: 6px;
 }
 
+.legend-item .status-dot {
+  width: 6px;
+  height: 6px;
+}
+
+/* 一张白面承载整张日历：边线 + 浅影，内部不再叠卡片 */
 .calendar-container {
   min-height: 420px;
+  padding: var(--space-md) var(--space-lg);
 }
 
-/* ============ FullCalendar 主题化（视觉优化轮，依据 docs/日历总览优化-任务提示词.md） ============ */
-/* 设计语言：排课表 Timetable —— 三级信息层级（星期表头 → 日期数字 → 事件色块） */
+/* ============ FullCalendar 主题化（墨蓝门牌体系） ============ */
 .calendar-container :deep(.fc) {
-  font-size: 14px;
-  /* FullCalendar 官方 CSS 变量换肤，对齐项目 Design Token */
-  --fc-border-color: var(--border-color-light);
-  --fc-page-bg-color: var(--bg-card);
-  --fc-neutral-bg-color: var(--bg-page);
-  --fc-neutral-text-color: var(--text-regular);
-  --fc-small-font-size: 12px;
+  font-size: var(--text-sm);
+  --fc-border-color: var(--line);
+  --fc-page-bg-color: var(--surface);
+  --fc-neutral-bg-color: var(--page);
+  --fc-neutral-text-color: var(--ink-soft);
+  --fc-small-font-size: var(--text-xs);
   --fc-event-border-color: transparent;
-  --fc-event-selected-overlay-color: rgba(31, 35, 41, 0.08);
-  --fc-button-text-color: var(--text-regular);
-  --fc-button-bg-color: var(--bg-card);
-  --fc-button-border-color: var(--border-color);
-  --fc-button-hover-bg-color: var(--brand-primary-lighter);
-  --fc-button-hover-border-color: var(--brand-primary);
-  --fc-button-active-bg-color: var(--brand-primary);
-  --fc-button-active-border-color: var(--brand-primary);
+  --fc-event-selected-overlay-color: rgba(21, 26, 33, 0.08);
+  --fc-button-text-color: var(--ink-soft);
+  --fc-button-bg-color: var(--surface);
+  --fc-button-border-color: var(--line);
+  --fc-button-hover-bg-color: var(--brand-soft);
+  --fc-button-hover-border-color: var(--brand);
+  --fc-button-active-bg-color: var(--brand);
+  --fc-button-active-border-color: var(--brand);
 }
 
-/* 顶部工具栏：标题 + 导航按钮（对齐 Element Plus 小按钮体系） */
 .calendar-container :deep(.fc .fc-toolbar) {
-  margin-bottom: 12px;
+  margin-bottom: var(--space-md);
 }
+
 .calendar-container :deep(.fc .fc-toolbar-title) {
-  font-size: 16px;
+  color: var(--ink);
+  font-size: var(--text-md);
   font-weight: 600;
-  color: var(--text-primary);
 }
+
 .calendar-container :deep(.fc .fc-button) {
-  border-radius: var(--radius-sm);
-  font-size: 12px;
+  height: 36px;
+  padding: 0 var(--space-md);
+  border-radius: var(--radius-control);
+  font-size: var(--text-sm);
   font-weight: 500;
-  padding: 4px 12px;
-  line-height: 1.5;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
 }
+
 .calendar-container :deep(.fc .fc-button:hover) {
-  color: var(--brand-primary);
+  color: var(--brand);
 }
+
 .calendar-container :deep(.fc .fc-button:disabled) {
-  background: var(--brand-primary-light);
-  color: var(--brand-primary);
-  border-color: var(--brand-primary);
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand);
   opacity: 1;
 }
 
-/* 星期表头：浅底 + 加粗；周末弱化 */
 .calendar-container :deep(.fc .fc-col-header-cell) {
   padding: 0;
-  background: var(--bg-page);
-  border-bottom: 1px solid var(--border-color-light);
-}
-.calendar-container :deep(.fc .fc-col-header-cell-cushion) {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-regular);
-  padding: 8px 0;
-}
-.calendar-container :deep(.fc .fc-col-header-cell.fc-day-sat .fc-col-header-cell-cushion),
-.calendar-container :deep(.fc .fc-col-header-cell.fc-day-sun .fc-col-header-cell-cushion) {
-  color: var(--text-placeholder);
+  border-bottom: 1px solid var(--line);
+  background: var(--page);
 }
 
-/* 日期格：数字层级 + hover 反馈 */
+.calendar-container :deep(.fc .fc-col-header-cell-cushion) {
+  padding: var(--space-sm) 0;
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.calendar-container :deep(.fc .fc-col-header-cell.fc-day-sat .fc-col-header-cell-cushion),
+.calendar-container :deep(.fc .fc-col-header-cell.fc-day-sun .fc-col-header-cell-cushion) {
+  color: var(--ink-soft);
+  opacity: 0.72;
+}
+
 .calendar-container :deep(.fc .fc-daygrid-day) {
   cursor: pointer;
 }
+
 .calendar-container :deep(.fc .fc-daygrid-day-frame) {
   padding: 4px;
 }
+
 .calendar-container :deep(.fc .fc-daygrid-day-top) {
-  padding: 2px 2px 0;
+  padding: 2px;
 }
+
 .calendar-container :deep(.fc .fc-daygrid-day-number) {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-regular);
   padding: 2px 6px;
   border-radius: var(--radius-sm);
-  transition: background-color 0.15s ease, color 0.15s ease;
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
 }
+
 .calendar-container :deep(.fc .fc-daygrid-day:hover .fc-daygrid-day-frame) {
-  background: var(--bg-fill);
+  background: var(--page);
 }
-/* 周末 / 跨月日期数字弱化（信息密度管理） */
+
 .calendar-container :deep(.fc .fc-daygrid-day.fc-day-sat .fc-daygrid-day-number),
 .calendar-container :deep(.fc .fc-daygrid-day.fc-day-sun .fc-daygrid-day-number),
 .calendar-container :deep(.fc .fc-day-other .fc-daygrid-day-number) {
-  color: var(--text-placeholder);
+  opacity: 0.7;
 }
 
-/* 今日轻量标记：顶部细线 + 数字品牌色圆底 + 极浅底色（Apple/Notion 式 subtle cue） */
+/* 今日：浅品牌底 + 数字药丸，不加顶部细线 */
 .calendar-container :deep(.fc .fc-daygrid-day.fc-day-today) {
-  background: var(--brand-primary-lighter);
+  background: var(--brand-soft);
 }
-.calendar-container :deep(.fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-frame) {
-  position: relative;
-}
-.calendar-container :deep(.fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-frame::before) {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 6px;
-  right: 6px;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--brand-primary);
-}
+
 .calendar-container :deep(.fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number) {
-  background: var(--brand-primary);
-  color: #fff;
+  background: var(--brand);
+  color: var(--surface);
   font-weight: 600;
 }
 
 /* 事件块：白底 + 左侧 3px 状态色条，颜色只在边线，整块不着色 */
 .calendar-container :deep(.fc .fc-daygrid-event) {
-  border-radius: 0;
-  border: 1px solid var(--rule);
-  border-left: 3px solid var(--ev-bar, var(--text-regular));
-  background: var(--bg-card);
-  color: var(--text-primary);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--ev-bar, var(--info));
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
   padding: 2px 6px;
   cursor: pointer;
   box-shadow: none;
-  transition: border-color 0.15s ease;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
 }
+
 .calendar-container :deep(.fc .fc-daygrid-event:hover) {
-  border-color: var(--ev-bar, var(--text-regular));
+  border-color: var(--ev-bar, var(--info));
+  box-shadow: var(--shadow-surface);
 }
+
 .calendar-container :deep(.fc .fc-event-main) {
   overflow: hidden;
 }
+
 /* 状态色（与图例 / 状态标签语义一致：0-待审核，1-已通过，2-已驳回，3-已取消） */
 .calendar-container :deep(.fc .fc-event.res-ev-0) {
-  --ev-bar: var(--brand-warning);
+  --ev-bar: var(--warning);
 }
+
 .calendar-container :deep(.fc .fc-event.res-ev-1) {
-  --ev-bar: var(--brand-success);
+  --ev-bar: var(--success);
 }
+
 .calendar-container :deep(.fc .fc-event.res-ev-2) {
-  --ev-bar: var(--brand-danger);
+  --ev-bar: var(--danger);
 }
+
 .calendar-container :deep(.fc .fc-event.res-ev-3) {
-  --ev-bar: var(--brand-info);
+  --ev-bar: var(--info);
 }
 
 /* 事件块内部两行：时段（等宽数字防跳动）+ 教室名（超长省略号） */
 .calendar-container :deep(.res-event-body) {
   display: flex;
-  flex-direction: column;
-  line-height: 1.35;
   min-width: 0;
+  flex-direction: column;
+  line-height: 1.4;
 }
+
 .calendar-container :deep(.res-event-time) {
   font-family: var(--font-num);
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
 .calendar-container :deep(.res-event-name) {
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
   overflow: hidden;
+  color: var(--ink);
+  font-size: var(--text-xs);
+  font-weight: 500;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 跨月事件弱化 */
 .calendar-container :deep(.fc .fc-day-other .fc-daygrid-event) {
-  opacity: 0.65;
+  opacity: 0.6;
 }
 </style>

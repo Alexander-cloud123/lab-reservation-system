@@ -1,31 +1,33 @@
 <template>
   <div class="login-page">
-    <!-- 左侧导视牌：白底课表网格 + 编号 + 三步流程（母题：教学楼门牌 / 排课表） -->
+    <!-- 左侧品牌面板：墨蓝实底 + 极淡课表网格 + 门牌 + 一句定位 -->
     <div class="login-brand">
       <div class="brand-grid" aria-hidden="true" />
       <div class="brand-inner">
         <div class="brand-code">
-          <span class="code-block is-signal">A101</span>
-          <span class="brand-code-note">教室预约 · 排课台</span>
+          <span class="plate brand-plate">A101</span>
+          <span class="brand-code-note">教室预约系统</span>
         </div>
-        <h1 class="brand-name">高校实验室预约管理系统</h1>
-        <p class="brand-slogan">把空教室，变成可预约的时段。</p>
-        <ol class="brand-steps">
+        <h1 class="brand-name">
+          高校实验室<br />预约管理系统
+        </h1>
+        <p class="brand-slogan">把空闲的教室，变成可查、可约、可追溯的时段。</p>
+        <ul class="brand-steps">
           <li>
-            <span class="step-no">01</span>
-            <span class="step-text"><b>找教室</b>按关键词、楼栋、类型、日期筛出可用时段</span>
+            <span class="step-title">找教室</span>
+            <span class="step-text">按楼栋、类型、日期与时段筛选，剩余容量实时可见</span>
           </li>
           <li>
-            <span class="step-no">02</span>
-            <span class="step-text"><b>提预约</b>填写用途后提交，前后端双重冲突校验</span>
+            <span class="step-title">提预约</span>
+            <span class="step-text">填写用途后提交，前后端双重冲突校验，避免撞单</span>
           </li>
           <li>
-            <span class="step-no">03</span>
-            <span class="step-text"><b>等审核</b>在「我的预约」跟踪状态，通过后按时到场</span>
+            <span class="step-title">等审核</span>
+            <span class="step-text">在「我的预约」跟踪状态，通过后按时到场使用</span>
           </li>
-        </ol>
+        </ul>
       </div>
-      <div class="brand-footer">2026 课程设计 高校实验室预约管理系统</div>
+      <div class="brand-footer">2026 课程设计，高校实验室预约管理系统</div>
     </div>
 
     <!-- 右侧登录表单区 -->
@@ -188,127 +190,123 @@ async function handleLogin() {
 <style scoped>
 .login-page {
   min-height: 100vh;
-  display: flex;
-  background: var(--bg-page);
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  background: var(--surface);
 }
 
-/* ---- 左侧导视牌：纸白底 + 课表网格 + 编号 + 三步流程 ---- */
+/* ---- 左侧品牌面板：墨蓝实底，信息安静地排在一列 ---- */
 .login-brand {
-  flex: 1.15;
-  min-width: 0;
-  background: var(--bg-card);
-  border-right: 1px solid var(--rule);
-  color: var(--text-primary);
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 48px 7%;
-  position: relative;
-  overflow: hidden;
+  padding: 64px 8%;
+  background: var(--brand);
+  color: var(--surface);
 }
-/* 课表网格：教室 × 时段的排课格，只做结构不做装饰 */
+/* 课表网格：极淡白线，只做肌理不抢内容 */
 .brand-grid {
   position: absolute;
   inset: 0;
-  background-image: repeating-linear-gradient(to right, var(--rule) 0 1px, transparent 1px 72px),
-    repeating-linear-gradient(to bottom, var(--rule) 0 1px, transparent 1px 72px);
-  opacity: 0.35;
+  background-image: repeating-linear-gradient(to right, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px 88px),
+    repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px 88px);
   pointer-events: none;
 }
 .brand-inner {
   position: relative;
   z-index: 1;
-  max-width: 520px;
+  max-width: 480px;
 }
 .brand-code {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 28px;
+  gap: 12px;
+  margin-bottom: 40px;
+}
+.brand-plate {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: var(--surface);
+  font-size: var(--text-sm);
+  letter-spacing: 0.08em;
 }
 .brand-code-note {
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--text-placeholder);
+  font-size: var(--text-sm);
+  color: rgba(255, 255, 255, 0.68);
+  letter-spacing: 0.04em;
 }
 .brand-name {
-  font-size: 30px;
+  font-size: var(--text-xl);
   font-weight: 600;
-  line-height: 40px;
-  letter-spacing: -0.4px;
-  margin-bottom: 10px;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  color: var(--surface);
+  margin-bottom: 20px;
 }
 .brand-slogan {
-  font-size: 15px;
-  line-height: 24px;
-  color: var(--text-regular);
-  margin-bottom: 32px;
+  font-size: var(--text-base);
+  line-height: 1.75;
+  color: rgba(255, 255, 255, 0.74);
+  margin-bottom: 48px;
 }
 .brand-steps {
   list-style: none;
   padding: 0;
-  border-top: 1px solid var(--rule);
+  display: grid;
+  gap: 24px;
 }
 .brand-steps li {
-  display: flex;
-  gap: 16px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--rule);
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--text-regular);
+  display: grid;
+  gap: 4px;
+  padding-left: 16px;
+  border-left: 2px solid rgba(255, 255, 255, 0.18);
 }
-.step-no {
-  flex: none;
-  padding-top: 2px;
-  font-family: var(--font-num);
-  font-size: 12px;
-  color: var(--text-placeholder);
-  font-variant-numeric: tabular-nums;
-}
-.step-text b {
-  margin-right: 8px;
-  color: var(--text-primary);
+.step-title {
+  font-size: var(--text-base);
   font-weight: 600;
+  color: var(--surface);
+}
+.step-text {
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.66);
 }
 .brand-footer {
   position: absolute;
-  bottom: 28px;
-  left: 7%;
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--text-placeholder);
+  bottom: 40px;
+  left: 8%;
+  font-size: var(--text-xs);
+  color: rgba(255, 255, 255, 0.42);
   z-index: 1;
 }
 
-/* ---- 右侧表单区 ---- */
+/* ---- 右侧表单区：白面留白，不做卡片 ---- */
 .login-panel {
-  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 32px 24px;
+  padding: 64px 48px;
+  background: var(--surface);
 }
 .login-card {
   width: 380px;
   max-width: 100%;
-  background: transparent;
-  border: 0;
-  padding: 0;
 }
 .login-title {
-  font-size: 24px;
+  font-size: var(--text-xl);
   font-weight: 600;
-  line-height: 32px;
-  letter-spacing: -0.2px;
-  color: var(--text-primary);
-  margin-bottom: 6px;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin-bottom: 8px;
 }
 .login-subtitle {
-  font-size: 14px;
-  line-height: 22px;
-  color: var(--text-regular);
-  margin-bottom: 24px;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--ink-soft);
+  margin-bottom: 32px;
 }
 .role-group {
   display: flex;
@@ -321,35 +319,41 @@ async function handleLogin() {
 /* 按钮内文字 span 属 Element Plus 组件内部元素，须 :deep 穿透 scoped 才能命中 */
 .role-group :deep(.el-radio-button__inner) {
   width: 100%;
-  border-radius: var(--radius-md) !important;
-  font-weight: 400;
+  height: 40px;
+  border-radius: var(--radius-control) !important;
+  font-weight: 500;
+  font-size: var(--text-sm);
 }
-.role-group .el-radio-button:first-child :deep(.el-radio-button__inner) {
-  border-radius: var(--radius-md) 0 0 var(--radius-md) !important;
-}
-.role-group .el-radio-button:last-child :deep(.el-radio-button__inner) {
-  border-radius: 0 var(--radius-md) var(--radius-md) 0 !important;
+.role-group :deep(.el-radio-button__original-radio + .el-radio-button__inner:hover) {
+  color: var(--brand);
 }
 .login-btn {
   width: 100%;
-  height: 40px;
-  font-size: 14px;
+  height: 44px;
+  margin-top: 8px;
+  font-size: var(--text-base);
+  font-weight: 600;
+  letter-spacing: 0.08em;
 }
 .login-footer {
-  margin-top: 16px;
-  font-size: 14px;
-  line-height: 22px;
-  color: var(--text-regular);
+  margin-top: 20px;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--ink-soft);
 }
 .login-footer a {
-  color: var(--brand-primary);
+  color: var(--brand);
   text-decoration: none;
+  font-weight: 500;
 }
 .login-footer a:hover {
   text-decoration: underline;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 960px) {
+  .login-page {
+    grid-template-columns: 1fr;
+  }
   .login-brand {
     display: none;
   }

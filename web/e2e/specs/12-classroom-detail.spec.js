@@ -109,7 +109,7 @@ test.describe('教室详情页', () => {
     await expect(page.getByRole('button', { name: '返回列表' })).toBeVisible()
     await expect(page.locator('.info-head h2')).toHaveText(room.name)
     await expect(page.locator('.info-head .room-no')).toHaveText(`${room.building} ${room.roomNo}`)
-    await expect(page.locator('.info-head .el-tag')).toHaveText(room.statusLabel)
+    await expect(page.locator('.info-head .status-cell')).toHaveText(room.statusLabel)
 
     // el-descriptions 字段
     await expect(page.getByText('教室编号')).toBeVisible()

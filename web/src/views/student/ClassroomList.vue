@@ -3,7 +3,7 @@
     <!-- 页面标题 -->
     <div class="page-head">
       <span class="page-title">教室列表</span>
-      <span class="page-tip">共 {{ total }} 间教室 · 支持关键词 / 楼栋 / 类型 / 日期筛选</span>
+      <span class="page-tip">共 {{ total }} 间教室，可按关键词、楼栋、类型与日期筛选</span>
     </div>
 
     <!-- AI 智能推荐卡片（R7，需求文档 2.4：教室列表页顶部「AI 为你推荐」；enabled=false 时整卡隐藏） -->
@@ -69,10 +69,7 @@
             <span class="room-name">{{ room.name }}</span>
             <span class="room-no">{{ room.roomNo }}</span>
           </div>
-          <span class="status-cell">
-            <span class="status-dot" :class="statusDot(room.statusLabel)"></span>
-            {{ room.statusLabel }}
-          </span>
+          <span class="status-cell" :class="statusPill(room.statusLabel)">{{ room.statusLabel }}</span>
         </div>
 
         <div class="room-meta">
@@ -272,8 +269,8 @@ function goDetail(room) {
 
 
 
-/** 状态圆点 */
-function statusDot(label) {
+/** 状态药丸色：空闲=通过绿，使用中=警示橙，已结束=中性 */
+function statusPill(label) {
   return { 当前空闲: 'is-approved', 使用中: 'is-pending', 已结束: 'is-canceled' }[label] || 'is-canceled'
 }
 
@@ -292,178 +289,164 @@ onMounted(() => {
 
 <style scoped>
 .page-tip {
-  font-size: 14px;
-  line-height: 22px;
-  color: var(--text-regular);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--ink-soft);
 }
 
+/* 筛选条：一页一张白面，控件同高，标签与控件同基线 */
 .search-card {
-  margin-bottom: 16px;
-  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-xl);
+  padding: var(--space-lg) var(--space-xl);
 }
 .search-card :deep(.el-form-item) {
   margin-bottom: 0;
+  margin-right: var(--space-xl);
+}
+.search-card :deep(.el-form-item__label) {
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+  padding-right: 10px;
 }
 
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--space-lg);
   min-height: 200px;
 }
 
-/* ---- 教室卡片（飞书卡片：1px 描边、无投影，hover 仅加深描边） ---- */
+/* ---- 教室卡：白面 + 12px 圆角 + 一层浅影，hover 抬起 ---- */
 .room-card {
-  background: var(--bg-card);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-color-light);
-  box-shadow: none;
-  padding: 16px;
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
   display: flex;
   flex-direction: column;
+  padding: var(--space-xl);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-surface);
+  cursor: pointer;
+  transition: box-shadow 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
 }
 .room-card:hover {
-  border-color: var(--border-color);
-  background: var(--bg-subtle);
+  border-color: var(--brand-primary-border);
+  box-shadow: var(--shadow-raised);
+  transform: translateY(-2px);
+}
+.room-card:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 .room-card-head {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
 }
-
-
 
 .room-name-wrap {
-  flex: 1;
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: var(--space-sm);
 }
 .room-name {
-  font-size: 16px;
+  font-size: var(--text-md);
   font-weight: 600;
-  line-height: 24px;
-  color: var(--text-primary);
+  line-height: 1.4;
+  color: var(--ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* 门牌编号：白面细描边 + tabular 数字 */
 .room-no {
-  display: inline-block;
-  padding: 1px 6px;
-  border-radius: 2px;
-  background: var(--code-bg);
-  font-family: var(--font-num);
-  font-size: 11px;
-  line-height: 18px;
-  color: var(--text-primary);
-}
-
-.status-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  margin-right: 4px;
-  vertical-align: 1px;
-}
-.dot-free {
-  background: var(--brand-success);
-}
-.dot-busy {
-  background: var(--brand-danger);
-}
-.dot-done {
-  background: var(--brand-info);
-}
-
-.status-cell {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text-regular);
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .room-meta {
   display: flex;
   align-items: center;
-  gap: 12px;
-  color: var(--text-regular);
-  font-size: 12px;
-  line-height: 20px;
-  margin-bottom: 8px;
+  gap: var(--space-lg);
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  margin-bottom: var(--space-md);
   flex-wrap: wrap;
 }
 .meta-item {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 .meta-item .el-icon {
-  color: var(--text-placeholder);
-  font-size: 14px;
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
 }
 
 .remain-slots {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--text-regular);
-  font-size: 12px;
-  line-height: 20px;
-  margin-bottom: 8px;
-}
-.remain-slots .el-icon {
-  color: var(--text-placeholder);
-  font-size: 14px;
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  margin-bottom: var(--space-sm);
 }
 .remain-slots b {
-  color: var(--brand-primary);
-  font-weight: 500;
+  margin: 0 2px;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--brand);
+  font-variant-numeric: tabular-nums;
 }
 
 .occupied-bar {
-  background: var(--brand-warning-light);
-  border: 1px solid var(--brand-warning-light);
-  color: var(--brand-warning);
-  font-size: 12px;
-  line-height: 20px;
-  padding: 8px;
-  border-radius: var(--radius-md);
-  margin-bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-sm);
 }
 .occupied-bar b {
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .room-equipment {
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--text-regular);
-  margin-bottom: 6px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-.room-equipment .el-icon {
-  font-size: 14px;
-  color: var(--text-placeholder);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--ink-soft);
+  margin-bottom: var(--space-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .room-desc {
-  font-size: 14px;
-  line-height: 22px;
-  color: var(--text-regular);
-  margin-bottom: 12px;
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--ink-soft);
+  margin-bottom: var(--space-lg);
   flex: 1;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -473,19 +456,34 @@ onMounted(() => {
 
 .room-foot {
   display: flex;
-  justify-content: flex-end;
-  border-top: 1px solid var(--border-color-light);
-  padding-top: 12px;
+  justify-content: flex-start;
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-md);
+  margin-top: auto;
+}
+.room-foot :deep(.el-button) {
+  height: 34px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  font-weight: 600;
+  color: var(--brand);
+}
+.room-foot :deep(.el-button:hover) {
+  background: transparent;
+  color: var(--brand-primary-hover);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .pagination-wrap {
   display: flex;
   justify-content: flex-end;
-  margin-top: 16px;
+  margin-top: var(--space-xl);
 }
 
-/* ---------- 窄屏适配（P3-8：<480px 单列卡片 + 分页换行，避免横向溢出） ---------- */
-@media (max-width: 480px) {
+/* ---------- 窄屏适配 ---------- */
+@media (max-width: 560px) {
   .card-grid {
     grid-template-columns: 1fr;
   }

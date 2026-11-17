@@ -559,7 +559,7 @@ test('AI 降级提示 · 推荐卡：来源标注切换为「本地规则结果�
   await expect(card.getByText('AI 生成，仅供参考', { exact: true })).toHaveCount(0)
 
   // 页脚：降级原因替换常规说明文案
-  const foot = card.locator('.ai-recommend-foot')
+  const foot = card.locator('.foot-note')
   await expect(foot).toContainText(DEGRADE_MSG)
   await expect(foot).not.toContainText('基于您的历史预约习惯')
 })

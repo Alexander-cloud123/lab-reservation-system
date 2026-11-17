@@ -1,12 +1,18 @@
 <template>
-  <div class="record-page">
-    <!-- 页面标题栏 -->
+  <div class="record-page page-container">
+    <!-- 页头：标题 + 说明 + 右侧导出 -->
     <div class="page-head">
-      <span class="page-title">预约记录</span>
-      <span class="page-sub">全量预约记录查询与 Excel 导出</span>
+      <div>
+        <h1 class="page-title">预约记录</h1>
+        <p class="page-sub">按日期、教室、用户与状态筛选全量预约记录</p>
+      </div>
+      <el-button type="primary" :icon="Download" :loading="exporting" @click="handleExport">
+        导出 Excel
+      </el-button>
     </div>
-    <!-- 搜索栏：日期范围 / 教室 / 用户 / 状态 多条件筛选（需求文档 2.4 第 12 页） -->
-    <div class="search-card table-band">
+
+    <!-- 筛选条：一张白面，控件同高（需求文档 2.4 第 12 页） -->
+    <div class="search-card">
       <el-form :inline="true" :model="query" @submit.prevent>
         <el-form-item label="日期范围">
           <el-date-picker
@@ -45,7 +51,7 @@
           />
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="query.status" placeholder="全部" clearable style="width: 110px">
+          <el-select v-model="query.status" placeholder="全部" clearable style="width: 112px">
             <el-option label="待审核" :value="0" />
             <el-option label="已通过" :value="1" />
             <el-option label="已驳回" :value="2" />
@@ -59,18 +65,11 @@
       </el-form>
     </div>
 
+    <!-- 记录表格：白面表格容器 -->
     <div class="table-band">
-      <div class="toolbar">
-        <span class="toolbar-tip">共 {{ total }} 条记录，可按条件导出 Excel</span>
-        <el-button
-          type="primary"
-          plain
-          :icon="Download"
-          :loading="exporting"
-          @click="handleExport"
-        >
-          导出 Excel
-        </el-button>
+      <div class="section-title">
+        <span>预约记录</span>
+        <span class="section-note">筛选结果共 {{ total }} 条</span>
       </div>
 
       <el-table v-loading="loading" :data="records">
@@ -91,14 +90,14 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="reserveDate" label="预约日期" width="110" />
+        <el-table-column prop="reserveDate" label="预约日期" width="112" />
         <el-table-column label="时段" width="120">
           <template #default="{ row }">{{ row.startTime }}-{{ row.endTime }}</template>
         </el-table-column>
         <el-table-column prop="purpose" label="用途" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="status" label="状态" width="90">
+        <el-table-column prop="status" label="状态" width="88">
           <template #default="{ row }">
-            <el-tag :type="statusTagType(row.status)" size="small">{{ statusText(row.status) }}</el-tag>
+            <el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="auditRemark" label="审核备注" min-width="120" show-overflow-tooltip>
@@ -107,10 +106,13 @@
         <el-table-column label="创建时间" width="160">
           <template #default="{ row }">{{ formatDateTime(row.createTime) }}</template>
         </el-table-column>
-      </el-table>
 
-      <!-- 空状态 -->
-      <el-empty v-if="!loading && !records.length" description="暂无符合条件的预约记录" />
+        <template #empty>
+          <div class="empty-slate">
+            暂无符合条件的预约记录<span class="empty-action" @click="handleReset">重置筛选</span>
+          </div>
+        </template>
+      </el-table>
 
       <!-- 分页 -->
       <div class="pagination-wrap">
@@ -157,7 +159,8 @@ const query = reactive({
 /** 组装查询参数（空值剔除，避免向后端传多余参数） */
 function buildParams() {
   const params = { page: query.page, size: query.size }
-  if (query.status !== undefined && query.status !== null && query.status !== '') params.status = query.status
+  if (query.status !== undefined && query.status !== null && query.status !== '')
+    params.status = query.status
   if (query.classroomId !== undefined && query.classroomId !== null && query.classroomId !== '') {
     params.classroomId = query.classroomId
   }
@@ -242,53 +245,55 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.record-page {
-  padding: 4px;
-}
-
-.page-tip {
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--text-regular);
-}
-
+/* 筛选条：白面 + 24px 内边距，标签与控件同基线 */
 .search-card {
-  margin-bottom: 16px;
+  margin-bottom: var(--space-xl);
+  padding: var(--space-lg) var(--space-xl);
+}
+.search-card :deep(.el-form-item) {
+  margin-bottom: 0;
+  margin-right: var(--space-xl);
+}
+.search-card :deep(.el-form-item__label) {
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+  padding-right: var(--space-sm);
 }
 
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
+/* 表格容器：白面 + 24px 内边距 */
+.table-band {
+  padding: var(--space-xl);
 }
 
-.toolbar-tip {
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--text-regular);
-}
-
+/* 双行单元格：主信息 + 次要信息，靠字号与颜色分层 */
 .user-cell,
 .room-cell {
   display: flex;
   flex-direction: column;
+  gap: var(--space-xs);
 }
-
 .user-account,
 .room-no {
-  font-size: 12px;
-  color: var(--text-placeholder);
+  font-size: var(--text-xs);
+  color: var(--ink-soft);
+}
+.room-name {
+  color: var(--ink);
+  font-weight: 500;
 }
 
-.room-name {
-  color: var(--text-primary);
-  font-weight: 500;
+/* 空态：覆盖组件内置空文案行高，统一走 empty-slate 原语 */
+:deep(.el-table__empty-text) {
+  width: 100%;
+  line-height: 1.6;
+}
+.empty-slate {
+  line-height: 1.6;
 }
 
 .pagination-wrap {
   display: flex;
   justify-content: flex-end;
-  margin-top: 16px;
+  margin-top: var(--space-xl);
 }
 </style>

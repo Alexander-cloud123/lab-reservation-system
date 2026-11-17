@@ -152,52 +152,60 @@ onBeforeUnmount(stopTimer)
 
 <style scoped>
 .thinking {
-  margin: 0 0 12px;
-  padding: 2px 12px 4px;
-  border-radius: var(--radius-md);
-  background: #f7f7f8;
-  font-size: 12.5px;
-  color: var(--text-regular);
+  margin: 0 0 var(--space-md);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink-soft);
+  overflow: hidden;
+  transition: border-color 0.16s ease;
+}
+
+.thinking:hover {
+  border-color: var(--brand);
+}
+
+.thinking.is-degraded {
+  border-color: var(--warning);
 }
 
 .thinking-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-sm);
   width: 100%;
-  padding: 6px 0 4px;
+  height: 36px;
+  padding: 0 12px;
   border: 0;
-  background: none;
-  color: var(--text-regular);
+  background: transparent;
+  color: var(--ink);
   font: inherit;
+  font-size: var(--text-sm);
   text-align: left;
   cursor: pointer;
-  border-radius: var(--radius-sm);
 }
 
 .thinking-head:focus-visible {
-  outline: 2px solid var(--brand-primary-border, #c2d4ff);
-  outline-offset: 2px;
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
 }
 
 .head-glyph {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
 }
 
 .pulse-dots {
   display: inline-flex;
-  gap: 2px;
+  gap: 6px;
 }
 
 .pulse-dots i {
-  width: 3px;
-  height: 3px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: var(--text-placeholder);
+  background: var(--brand);
   animation: thinking-pulse 1.15s ease-in-out infinite;
 }
 
@@ -210,36 +218,39 @@ onBeforeUnmount(stopTimer)
 }
 
 .head-dot {
-  width: 5px;
-  height: 5px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: var(--text-placeholder);
+  background: var(--ink-soft);
 }
 
 .thinking.is-degraded .head-dot {
-  background: var(--color-warning, #a44904);
+  background: var(--warning);
 }
 
 .head-text {
-  color: var(--text-regular);
+  color: var(--ink);
+  font-size: var(--text-sm);
   font-weight: 500;
 }
 
+.thinking.is-degraded .head-text {
+  color: var(--warning);
+}
+
 .head-meta {
-  color: var(--text-placeholder);
+  margin-left: auto;
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
 }
 
-.thinking.is-degraded .head-text {
-  color: var(--color-warning, #a44904);
-}
-
 .chevron {
-  margin-left: auto;
+  flex: none;
   width: 6px;
   height: 6px;
-  border-right: 1.4px solid var(--text-placeholder);
-  border-bottom: 1.4px solid var(--text-placeholder);
+  border-right: 1px solid var(--ink-soft);
+  border-bottom: 1px solid var(--ink-soft);
   transform: rotate(45deg);
   transition: transform 0.18s ease;
 }
@@ -249,108 +260,87 @@ onBeforeUnmount(stopTimer)
 }
 
 .thinking-body {
-  padding: 2px 0 4px;
+  padding: 16px 16px 4px;
 }
 
 .steps {
   margin: 0;
-  padding: 0 0 0 2px;
+  padding: 0;
   list-style: none;
 }
 
 .step {
-  position: relative;
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 3px 0 3px 16px;
-  color: var(--text-regular);
-}
-
-/* 时间线竖轨：把「执行轨迹」写成可见的顺序，而不是一堆装饰性编号 */
-.step::before {
-  content: '';
-  position: absolute;
-  left: 3px;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: #e7e7ea;
-}
-
-.step:first-child::before {
-  top: 9px;
-}
-
-.step:last-child::before {
-  bottom: calc(100% - 12px);
+  align-items: center;
+  gap: var(--space-sm);
+  height: 28px;
+  color: var(--ink);
 }
 
 .step-dot {
-  position: absolute;
-  left: 0;
-  top: 8px;
-  width: 7px;
-  height: 7px;
+  flex: none;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  border: 1px solid #d4d4d8;
-  background: #f7f7f8;
+  background: var(--ink-soft);
 }
 
 .step.is-running .step-dot {
-  background: var(--brand-primary);
-  border-color: var(--brand-primary);
+  background: var(--brand);
 }
 
 .step.is-done .step-dot {
-  background: #a8a8b0;
-  border-color: #a8a8b0;
+  background: var(--success);
 }
 
 .step.is-failed .step-dot {
-  background: transparent;
-  border-color: var(--color-warning, #a44904);
+  background: var(--danger);
 }
 
-.step.is-done .step-label {
-  color: var(--text-placeholder);
+.step-label {
+  font-size: var(--text-sm);
+  color: var(--ink);
 }
 
 .step.is-failed .step-label {
-  color: var(--color-warning, #a44904);
+  color: var(--danger);
 }
 
 .step-time {
   margin-left: auto;
-  color: var(--text-placeholder);
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
 }
 
 .reasoning {
-  margin: 6px 0 2px 2px;
-  padding: 8px 10px;
-  border-left: 2px solid #dedee3;
-  background: #fbfbfc;
+  margin: var(--space-md) 0 var(--space-xs);
+  padding: 12px 16px;
+  border-radius: var(--radius-control);
+  background: var(--page);
 }
 
 .reasoning-label {
-  margin: 0 0 4px;
-  color: var(--text-placeholder);
-  font-size: 11.5px;
+  margin: 0 0 var(--space-xs);
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
+  line-height: 1.5;
 }
 
 .reasoning-text {
   margin: 0;
-  color: var(--text-regular);
-  line-height: 19px;
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+  line-height: 1.75;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .reasoning-empty {
-  margin: 6px 0 2px 2px;
-  color: var(--text-placeholder);
-  font-size: 11.5px;
+  margin: var(--space-md) 0 var(--space-xs);
+  color: var(--info);
+  font-size: var(--text-xs);
+  line-height: 1.6;
 }
 
 @keyframes thinking-pulse {

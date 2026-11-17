@@ -1,12 +1,16 @@
 <template>
-  <div class="audit-page">
-    <!-- 页面标题栏 -->
+  <div class="audit-page page-container">
+    <!-- 页头：标题 + 说明 + 右侧提示 -->
     <div class="page-head">
-      <span class="page-title">预约审核</span>
-      <span class="page-sub">处理待审核预约申请与批量操作</span>
+      <div>
+        <h1 class="page-title">预约审核</h1>
+        <p class="page-sub">处理待审核预约申请，支持单条与批量审核</p>
+      </div>
+      <p class="page-tip">AI 合规校验仅作提示，不改动预约状态</p>
     </div>
-    <!-- 搜索栏：状态 / 日期范围 / 关键词 -->
-    <div class="search-card table-band">
+
+    <!-- 筛选条：一张白面，控件同高 -->
+    <div class="search-card">
       <el-form :inline="true" :model="query" @submit.prevent>
         <el-form-item label="状态">
           <el-select v-model="query.status" placeholder="全部" clearable style="width: 120px">
@@ -43,30 +47,35 @@
       </el-form>
     </div>
 
+    <!-- 审核表格：白面表格容器 -->
     <div class="table-band">
-      <div class="toolbar">
-        <el-button
-          type="success"
-          plain
-          :icon="CircleCheck"
-          :disabled="!selectedIds.length"
-          @click="handleBatchAudit(1)"
-        >
-          批量通过（{{ selectedIds.length }}）
-        </el-button>
-        <el-button
-          type="danger"
-          plain
-          :icon="CircleClose"
-          :disabled="!selectedIds.length"
-          @click="openBatchReject"
-        >
-          批量驳回
-        </el-button>
+      <div class="section-title">
+        <span class="title-left">
+          预约记录
+          <span class="section-note">共 {{ total }} 条，已选 {{ selectedIds.length }} 条</span>
+        </span>
+        <span class="band-actions">
+          <el-button
+            type="primary"
+            :icon="CircleCheck"
+            :disabled="!selectedIds.length"
+            @click="handleBatchAudit(1)"
+          >
+            批量通过（{{ selectedIds.length }}）
+          </el-button>
+          <el-button
+            type="danger"
+            :icon="CircleClose"
+            :disabled="!selectedIds.length"
+            @click="openBatchReject"
+          >
+            批量驳回
+          </el-button>
+        </span>
       </div>
 
       <el-table v-loading="loading" :data="records" @selection-change="handleSelectionChange">
-        <el-table-column type="selection" width="46" />
+        <el-table-column type="selection" width="48" />
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column label="预约人" width="120">
           <template #default="{ row }">
@@ -84,7 +93,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="reserveDate" label="预约日期" width="110" />
+        <el-table-column prop="reserveDate" label="预约日期" width="112" />
         <el-table-column label="时段" width="120">
           <template #default="{ row }">{{ row.startTime }}-{{ row.endTime }}</template>
         </el-table-column>
@@ -99,25 +108,27 @@
               <el-tag
                 v-if="row.status === 0 && aiEnabled && complianceInfo(row)"
                 :type="isViolation(row) ? 'danger' : 'success'"
-                size="small"
                 effect="plain"
                 class="ai-tag"
-              >{{ complianceSourceText(row) }}{{ isViolation(row) ? '：违规' : '：通过' }}</el-tag>
+              >
+                {{ complianceSourceText(row) }}{{ isViolation(row) ? '：违规' : '：通过' }}
+              </el-tag>
               <el-tag
                 v-else-if="row.status === 0 && aiEnabled && !complianceInfo(row)"
-                size="small"
                 type="info"
                 effect="plain"
                 class="ai-tag ai-tag-clickable"
                 v-clickable
                 @click="checkSingle(row)"
-              >{{ isChecking(row) ? '校验中…' : 'AI 校验' }}</el-tag>
+              >
+                {{ isChecking(row) ? '校验中…' : 'AI 校验' }}
+              </el-tag>
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="90">
+        <el-table-column prop="status" label="状态" width="88">
           <template #default="{ row }">
-            <el-tag :type="statusTagType(row.status)" size="small">{{ statusText(row.status) }}</el-tag>
+            <el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="auditRemark" label="审核备注" min-width="120" show-overflow-tooltip>
@@ -126,16 +137,19 @@
         <el-table-column label="操作" width="160" fixed="right">
           <template #default="{ row }">
             <template v-if="row.status === 0">
-              <el-button size="small" type="success" plain @click="handleAudit(row, 1)">通过</el-button>
-              <el-button size="small" type="danger" plain @click="openReject(row)">驳回</el-button>
+              <el-button link type="primary" @click="handleAudit(row, 1)">通过</el-button>
+              <el-button link type="danger" @click="openReject(row)">驳回</el-button>
             </template>
             <span v-else class="no-action">已处理</span>
           </template>
         </el-table-column>
-      </el-table>
 
-      <!-- 空状态 -->
-      <el-empty v-if="!loading && !records.length" description="暂无符合条件的预约记录" />
+        <template #empty>
+          <div class="empty-slate">
+            暂无符合条件的预约记录<span class="empty-action" @click="handleReset">重置筛选</span>
+          </div>
+        </template>
+      </el-table>
 
       <!-- 分页 -->
       <div class="pagination-wrap">
@@ -159,7 +173,7 @@
       width="460px"
       :close-on-click-modal="false"
     >
-      <el-form label-width="90px">
+      <el-form label-width="88px">
         <el-form-item label="快捷原因">
           <div class="quick-reasons">
             <el-tag
@@ -186,7 +200,12 @@
       </el-form>
       <template #footer>
         <el-button @click="rejectVisible = false">取消</el-button>
-        <el-button type="danger" :loading="submitting" :disabled="!rejectForm.auditRemark.trim()" @click="confirmReject">
+        <el-button
+          type="danger"
+          :loading="submitting"
+          :disabled="!rejectForm.auditRemark.trim()"
+          @click="confirmReject"
+        >
           确认驳回
         </el-button>
       </template>
@@ -234,7 +253,7 @@ const complianceControllers = new Map()
 
 function cancelComplianceChecks() {
   complianceGeneration += 1
-  complianceControllers.forEach(controller => controller.abort())
+  complianceControllers.forEach((controller) => controller.abort())
   complianceControllers.clear()
   checkingIds.value.clear()
 }
@@ -295,33 +314,37 @@ function checkSingle(row) {
     if (complianceControllers.get(row.id) === controller) complianceControllers.delete(row.id)
   }
 
-  const stream = aiComplianceCheckStream({ purpose: row.purpose }, {
-    onResult: data => {
-      if (generation === complianceGeneration) pendingResult = data
-    },
-    onDone: () => {
-      // result 后收到 done 才提交到页面，异常 EOF/超时不会留下看似成功的校验结果。
-      if (generation !== complianceGeneration || !pendingResult) {
+  const stream = aiComplianceCheckStream(
+    { purpose: row.purpose },
+    {
+      onResult: (data) => {
+        if (generation === complianceGeneration) pendingResult = data
+      },
+      onDone: () => {
+        // result 后收到 done 才提交到页面，异常 EOF/超时不会留下看似成功的校验结果。
+        if (generation !== complianceGeneration || !pendingResult) {
+          finish()
+          return
+        }
+        const data = pendingResult
+        if (data.enabled === false) {
+          aiEnabled.value = false
+        } else {
+          aiEnabled.value = true
+          complianceMap.value.set(row.id, {
+            compliant: data.compliant,
+            reason: data.reason || '合规校验完成',
+            degraded: !!data.message,
+            notice: data.message || ''
+          })
+        }
         finish()
-        return
-      }
-      const data = pendingResult
-      if (data.enabled === false) {
-        aiEnabled.value = false
-      } else {
-        aiEnabled.value = true
-        complianceMap.value.set(row.id, {
-          compliant: data.compliant,
-          reason: data.reason || '合规校验完成',
-          degraded: !!data.message,
-          notice: data.message || ''
-        })
-      }
-      finish()
+      },
+      // 校验失败静默，标签保持「AI 校验」可点击重试；主动 abort 由返回 Promise 的 finally 收尾。
+      onError: finish
     },
-    // 校验失败静默，标签保持「AI 校验」可点击重试；主动 abort 由返回 Promise 的 finally 收尾。
-    onError: finish
-  }, controller.signal)
+    controller.signal
+  )
   return stream.finally(finish)
 }
 
@@ -336,12 +359,15 @@ async function autoComplianceCheck(list) {
     return
   }
   let idx = 0
-  const workers = Array.from({ length: Math.min(AUTO_CHECK_CONCURRENCY, pending.length) }, async () => {
-    while (generation === complianceGeneration && idx < pending.length) {
-      const r = pending[idx++]
-      await checkSingle(r)
+  const workers = Array.from(
+    { length: Math.min(AUTO_CHECK_CONCURRENCY, pending.length) },
+    async () => {
+      while (generation === complianceGeneration && idx < pending.length) {
+        const r = pending[idx++]
+        await checkSingle(r)
+      }
     }
-  })
+  )
   await Promise.all(workers)
 }
 
@@ -372,7 +398,10 @@ async function loadData() {
     const params = {
       page: query.page,
       size: query.size,
-      status: query.status === null || query.status === undefined || query.status === '' ? undefined : query.status,
+      status:
+        query.status === null || query.status === undefined || query.status === ''
+          ? undefined
+          : query.status,
       keyword: query.keyword || undefined
     }
     if (dateRange.value && dateRange.value.length === 2) {
@@ -468,7 +497,11 @@ async function confirmReject() {
       await auditReservation(rejectTarget.value.id, { status: 2, auditRemark: remark })
       ElMessage.success('已驳回')
     } else {
-      const res = await batchAuditReservations({ ids: selectedIds.value, status: 2, auditRemark: remark })
+      const res = await batchAuditReservations({
+        ids: selectedIds.value,
+        status: 2,
+        auditRemark: remark
+      })
       ElMessage.success(`批量驳回成功，共 ${res.data} 条`)
     }
     rejectVisible.value = false
@@ -508,85 +541,105 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.audit-page {
-  padding: 4px;
-}
-
-.page-tip {
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--text-regular);
-}
-
+/* 筛选条：白面 + 24px 内边距，标签与控件同基线 */
 .search-card {
-  margin-bottom: 16px;
+  margin-bottom: var(--space-xl);
+  padding: var(--space-lg) var(--space-xl);
+}
+.search-card :deep(.el-form-item) {
+  margin-bottom: 0;
+  margin-right: var(--space-xl);
+}
+.search-card :deep(.el-form-item__label) {
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+  padding-right: var(--space-sm);
 }
 
-.toolbar {
-  margin-bottom: 12px;
+/* 表格容器：白面 + 24px 内边距，标题行右侧放批量操作 */
+.table-band {
+  padding: var(--space-xl);
+}
+.title-left .section-note {
+  margin-left: var(--space-sm);
+  font-weight: 400;
+}
+.band-actions :deep(.el-button) {
+  margin-left: var(--space-sm);
 }
 
+/* 双行单元格：主信息 + 次要信息，靠字号与颜色分层 */
 .user-cell,
 .room-cell {
   display: flex;
   flex-direction: column;
+  gap: var(--space-xs);
 }
-
 .user-account,
 .room-no {
-  font-size: 12px;
-  color: var(--text-placeholder);
+  font-size: var(--text-xs);
+  color: var(--ink-soft);
 }
-
 .room-name {
-  color: var(--text-primary);
+  color: var(--ink);
   font-weight: 500;
 }
-
 .no-action {
-  color: var(--text-placeholder);
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
 }
 
-.quick-reasons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.reason-tag {
-  cursor: pointer;
-}
-
-/* AI 合规校验（R7）：违规用途红色高亮 + 标签样式 */
+/* 用途 + AI 合规校验（R7）：违规红色高亮、行级标签 */
 .purpose-cell {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-sm);
   flex-wrap: wrap;
 }
-
 .purpose-violation {
-  color: var(--brand-danger);
+  color: var(--danger);
   font-weight: 500;
 }
-
 .ai-tag {
   flex-shrink: 0;
 }
-
-/* M9：未校验行的「AI 校验」标签可点击按需触发 */
 .ai-tag-clickable {
   cursor: pointer;
   transition: filter 0.15s ease;
 }
-
 .ai-tag-clickable:hover {
   filter: brightness(0.92);
+}
+
+/* 驳回弹窗快捷原因 */
+.quick-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+.reason-tag {
+  cursor: pointer;
+}
+
+/* 空态：覆盖组件内置空文案行高，统一走 empty-slate 原语 */
+:deep(.el-table__empty-text) {
+  width: 100%;
+  line-height: 1.6;
+}
+.empty-slate {
+  line-height: 1.6;
 }
 
 .pagination-wrap {
   display: flex;
   justify-content: flex-end;
-  margin-top: 16px;
+  margin-top: var(--space-xl);
+}
+
+@media (max-width: 900px) {
+  .section-title {
+    flex-wrap: wrap;
+    gap: var(--space-md);
+  }
 }
 </style>

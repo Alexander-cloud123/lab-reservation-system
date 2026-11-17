@@ -3,6 +3,9 @@ package com.example.reservation.ai.service.impl;
 import com.example.reservation.ai.config.AgnesClient;
 import com.example.reservation.ai.config.AiConstants;
 import com.example.reservation.ai.dto.AiChatVO;
+import com.example.reservation.ai.dto.AiPlanCandidateVO;
+import com.example.reservation.ai.dto.AiPlanVO;
+import com.example.reservation.ai.service.AiBookingPlanService;
 import com.example.reservation.ai.service.AiConfigService;
 import com.example.reservation.ai.support.AiChatFallback;
 import com.example.reservation.ai.support.AiMetrics;
@@ -53,6 +56,8 @@ class AiChatStreamServiceTest {
     private AiResultCache aiResultCache;
     @Mock
     private AiMetrics aiMetrics;
+    @Mock
+    private AiBookingPlanService bookingPlanService;
 
     private AiChatServiceImpl service;
 
@@ -69,6 +74,8 @@ class AiChatStreamServiceTest {
         final List<Long> elapsed = new ArrayList<>();
         /** 透传的推理片段 */
         final List<String> reasoning = new ArrayList<>();
+        /** 方案帧（R15-1） */
+        final List<AiPlanVO> plans = new ArrayList<>();
         final StringBuilder text = new StringBuilder();
 
         @Override
@@ -117,6 +124,13 @@ class AiChatStreamServiceTest {
             reasoning.add(payload.text());
             timeline.add("reasoning");
         }
+
+        @Override
+        public void plan(AiPlanVO payload) {
+            plans.add(payload);
+            events.add("plan");
+            timeline.add("plan");
+        }
     }
 
     @BeforeEach
@@ -127,6 +141,7 @@ class AiChatStreamServiceTest {
         ReflectionTestUtils.setField(service, "chatFallback", chatFallback);
         ReflectionTestUtils.setField(service, "aiResultCache", aiResultCache);
         ReflectionTestUtils.setField(service, "aiMetrics", aiMetrics);
+        ReflectionTestUtils.setField(service, "bookingPlanService", bookingPlanService);
         // buildContext 用到的两个 mapper（具体打桩放在需要走到 buildContext 的用例中，
         // MockitoExtension 为 STRICT_STUBS，disabled/cacheHit 用例不走 buildContext，不能提前桩）
         ReflectionTestUtils.setField(service, "reservationMapper",
@@ -699,5 +714,90 @@ class AiChatStreamServiceTest {
         assertEquals(List.of("先确认", "再回答"), sink.reasoning);
         assertEquals("答案正文", sink.text.toString(), "推理不能混入回答正文");
         assertTrue(sink.timeline.indexOf("reasoning") < sink.timeline.indexOf("delta"));
+    }
+
+    @Test
+    @DisplayName("预约规划：thinking(parse/retrieve/verify/summary) → meta → plan → delta → done，不调 chat completion")
+    void planBranchEmitsPlanFrameWithoutUpstream() {
+        when(aiConfigService.isAiEnabled()).thenReturn(true);
+        AiPlanVO plan = new AiPlanVO();
+        plan.setEnabled(true);
+        plan.setDate("2026-11-18");
+        plan.setStartTime("14:00");
+        plan.setEndTime("16:00");
+        plan.setCapacity(30);
+        plan.setRoomType("机房");
+        AiPlanCandidateVO candidate = new AiPlanCandidateVO();
+        candidate.setClassroomId(9L);
+        candidate.setName("B301 计算机机房");
+        candidate.setBuilding("实验楼");
+        candidate.setCapacity(40);
+        plan.setCandidates(List.of(candidate));
+        when(bookingPlanService.plan(7L, "帮我约明天下午 2 点到 4 点的机房")).thenReturn(plan);
+        RecordingSink sink = new RecordingSink();
+
+        service.streamChat(7L, "帮我约明天下午 2 点到 4 点的机房", List.of(), sink);
+
+        assertEquals(List.of("thinking:scene", "thinking:scene", "thinking:parse", "thinking:parse",
+                        "thinking:retrieve", "thinking:retrieve", "thinking:verify", "thinking:verify",
+                        "thinking:summary", "meta", "plan", "delta", "done"), collapseDeltas(sink.timeline));
+        assertEquals(List.of("meta(true,false,null)", "plan", "delta", "done(stop)"), collapseDeltas(sink.events));
+        assertEquals(1, sink.plans.size());
+        assertEquals(9L, sink.plans.get(0).getCandidates().get(0).getClassroomId());
+        verify(agnesClient, never()).chatStream(anyLong(), anyString(), anyList(), anyString(),
+                any(Runnable.class), any(), any());
+        verify(aiResultCache, never()).buildKey(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("预约规划解析失败：只发澄清文字，不出现 plan 帧")
+    void planBranchClarifiesWithoutPlanFrame() {
+        when(aiConfigService.isAiEnabled()).thenReturn(true);
+        AiPlanVO plan = new AiPlanVO();
+        plan.setEnabled(true);
+        plan.setClarify(AiConstants.PLAN_CLARIFY);
+        when(bookingPlanService.plan(anyLong(), anyString())).thenReturn(plan);
+        RecordingSink sink = new RecordingSink();
+
+        service.streamChat(7L, "帮我约个教室", List.of(), sink);
+
+        assertEquals(List.of("meta(true,false,null)", "delta", "done(stop)"), collapseDeltas(sink.events));
+        assertTrue(sink.plans.isEmpty());
+        assertEquals(AiConstants.PLAN_CLARIFY, sink.text.toString());
+        verify(agnesClient, never()).chatStream(anyLong(), anyString(), anyList(), anyString(),
+                any(Runnable.class), any(), any());
+    }
+
+    @Test
+    @DisplayName("预约规划无候选：空列表不发 plan 帧，给换时段提示")
+    void planBranchEmptyCandidatesSkipsPlanFrame() {
+        when(aiConfigService.isAiEnabled()).thenReturn(true);
+        AiPlanVO plan = new AiPlanVO();
+        plan.setEnabled(true);
+        plan.setCandidates(List.of());
+        plan.setClarify(AiConstants.PLAN_EMPTY);
+        when(bookingPlanService.plan(anyLong(), anyString())).thenReturn(plan);
+        RecordingSink sink = new RecordingSink();
+
+        service.streamChat(7L, "帮我约明天下午的机房", List.of(), sink);
+
+        assertTrue(sink.plans.isEmpty());
+        assertEquals(AiConstants.PLAN_EMPTY, sink.text.toString());
+        assertEquals(List.of("meta(true,false,null)", "delta", "done(stop)"), collapseDeltas(sink.events));
+    }
+
+    /** 回答按 20 字分段发送：把连续 delta 折叠成 1 个，便于断言「步骤 → meta → plan → 正文 → done」结构 */
+    private static List<String> collapseDeltas(List<String> events) {
+        List<String> collapsed = new ArrayList<>();
+        for (String event : events) {
+            if ("delta".equals(event)) {
+                if (collapsed.isEmpty() || !"delta".equals(collapsed.get(collapsed.size() - 1))) {
+                    collapsed.add("delta");
+                }
+            } else {
+                collapsed.add(event);
+            }
+        }
+        return collapsed;
     }
 }

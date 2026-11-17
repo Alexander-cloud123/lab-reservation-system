@@ -193,7 +193,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { MagicStick, Loading } from '@element-plus/icons-vue'
 import { aiParseReservationStream } from '@/api/ai'
@@ -574,6 +574,39 @@ function resetAll() {
 }
 
 onBeforeUnmount(cancelActiveRequests)
+
+/**
+ * R15-1：对话内方案卡「去预约」入口
+ * 把方案条件写入解析表单并直接进入第 3 步确认（触发实时冲突检测）；
+ * 不代提交、不改校验逻辑，用户仍需点「提交预约」并由后端二次校验。
+ */
+function openWithPlan(plan, candidate) {
+  if (!candidate) return
+  Object.assign(parseForm, {
+    date: (plan && plan.date) || '',
+    startTime: (plan && plan.startTime) || '',
+    endTime: (plan && plan.endTime) || '',
+    capacity: (plan && plan.capacity) || null,
+    roomType: (plan && plan.roomType) || '',
+    purpose: (plan && plan.purpose) || ''
+  })
+  parsed.value = true
+  parseError.value = ''
+  parseNotice.value = ''
+  dialogVisible.value = true
+  nextTick(() => {
+    pickRoom({
+      id: candidate.classroomId,
+      name: candidate.name,
+      building: candidate.building,
+      roomNo: candidate.roomNo,
+      type: candidate.type,
+      capacity: candidate.capacity
+    })
+  })
+}
+
+defineExpose({ openWithPlan })
 </script>
 
 <style scoped>

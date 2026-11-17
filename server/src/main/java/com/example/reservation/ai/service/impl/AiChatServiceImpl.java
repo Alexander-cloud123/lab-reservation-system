@@ -7,9 +7,12 @@ import com.example.reservation.ai.config.AiConstants;
 import com.example.reservation.ai.config.AiPrompts;
 import com.example.reservation.ai.dto.AiChatHistoryMessage;
 import com.example.reservation.ai.dto.AiChatVO;
+import com.example.reservation.ai.dto.AiPlanVO;
+import com.example.reservation.ai.service.AiBookingPlanService;
 import com.example.reservation.ai.service.AiChatService;
 import com.example.reservation.ai.service.AiConfigService;
 import com.example.reservation.ai.support.AiChatFallback;
+import com.example.reservation.ai.support.AiBookingIntent;
 import com.example.reservation.ai.support.AiHash;
 import com.example.reservation.ai.support.AiInvoker;
 import com.example.reservation.ai.support.AiJsonSupport;
@@ -85,6 +88,10 @@ public class AiChatServiceImpl implements AiChatService {
     /** AI 结果缓存（复用既有 RedisCache；命中即免上游调用） */
     @Resource
     private AiResultCache aiResultCache;
+
+    /** R15-1 预约规划（只出方案；不注入任何写服务，AI 只读不写） */
+    @Resource
+    private AiBookingPlanService bookingPlanService;
 
     /** 提问文本最大长度（M11 修复：防超长输入放大 token 消耗与超时概率） */
     private static final int QUESTION_MAX_LENGTH = 200;
@@ -168,6 +175,66 @@ public class AiChatServiceImpl implements AiChatService {
         }
     }
 
+    /**
+     * R15-1 预约规划分支：解析需求 → 检索可预约教室 → 校验时段冲突 → 发方案帧。
+     *
+     * <p>只读：不写库、不调 chat completion。解析失败或该时段无可用教室时只发澄清文字（无 plan 帧），
+     * 让用户补充条件或换时段；有候选时发 1 个 plan 帧，前端渲染方案卡，用户点「去预约」后
+     * 进入既有确认弹窗手动提交（提交动作不经过 AI）。
+     */
+    private void handlePlan(Long userId, String question, AiThinkingTrace trace, ChatStreamSink sink) {
+        trace.begin(AiConstants.THINK_STEP_PARSE, AiConstants.THINK_LABEL_PARSE);
+        AiPlanVO plan;
+        try {
+            plan = bookingPlanService.plan(userId, question);
+        } catch (RuntimeException e) {
+            log.warn("预约方案生成失败：{}", e.getMessage());
+            plan = new AiPlanVO();
+            plan.setEnabled(true);
+            plan.setClarify(AiConstants.PLAN_CLARIFY);
+        }
+        trace.end(AiConstants.THINK_STEP_PARSE);
+
+        boolean hasCandidates = plan != null && plan.getCandidates() != null && !plan.getCandidates().isEmpty();
+        if (hasCandidates) {
+            // 检索与冲突校验是真实步骤（由规划服务内部完成），此处如实上报两步耗时
+            trace.begin(AiConstants.THINK_STEP_RETRIEVE, AiConstants.THINK_LABEL_PLAN_SEARCH);
+            trace.end(AiConstants.THINK_STEP_RETRIEVE);
+            trace.begin(AiConstants.THINK_STEP_VERIFY, AiConstants.THINK_LABEL_PLAN_VERIFY);
+            trace.end(AiConstants.THINK_STEP_VERIFY);
+        }
+        trace.summary(AiConstants.THINK_SUMMARY_PLAN);
+        if (trace.isClosed()) {
+            log.debug("流式问答客户端已断开（规划分支思考事件写入失败）");
+            return;
+        }
+
+        String text = hasCandidates
+                ? planSummaryText(plan)
+                : (plan == null || StrUtil.isBlank(plan.getClarify())
+                ? AiConstants.PLAN_CLARIFY : plan.getClarify());
+        try {
+            sink.meta(true, false, null);
+            if (hasCandidates) {
+                sink.plan(plan);
+            }
+            emitChunks(sink, text);
+            sink.done(AiConstants.FINISH_REASON_STOP);
+        } catch (IOException e) {
+            log.debug("流式问答客户端已断开（规划分支）：{}", e.getMessage());
+        }
+    }
+
+    /** 方案话术：条件 + 候选数 + 人工确认提示（模板句，无额外模型调用） */
+    private String planSummaryText(AiPlanVO plan) {
+        String demand = plan.getCapacity() == null ? ""
+                : plan.getCapacity() + " 人" + (plan.getRoomType() == null ? "" : "、" + plan.getRoomType());
+        return StrUtil.format(
+                "按「{} {}-{}」{}，我找到 {} 间可预约教室。选一间点「去预约」，在确认弹窗里核对后再提交，提交时会再校验一次冲突。",
+                plan.getDate(), plan.getStartTime(), plan.getEndTime(), demand,
+                plan.getCandidates() == null ? 0 : plan.getCandidates().size());
+    }
+
     @Override
     public void streamChat(Long userId, String question, List<AiChatHistoryMessage> history, ChatStreamSink sink) {
         // R13-3：历史归一化（AI 关闭分支虽不使用历史，但归一化是纯函数，提前执行无副作用）
@@ -198,6 +265,13 @@ public class AiChatServiceImpl implements AiChatService {
             } catch (IOException e) {
                 log.debug("流式问答客户端已断开（场景外问题）：{}", e.getMessage());
             }
+            return;
+        }
+
+        // R15-1 预约规划：命中「帮我预约」类意图时只生成可确认方案（不读缓存、不调 chat completion）。
+        // 方案由前端渲染为方案卡，用户点「去预约」进入既有确认弹窗手动提交——AI 只读不写。
+        if (AiBookingIntent.matches(question)) {
+            handlePlan(userId, question, trace, sink);
             return;
         }
 

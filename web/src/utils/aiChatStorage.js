@@ -35,6 +35,11 @@ function toTimestamp(value, fallback) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
 
+/** 数字字段归一：非法/缺失返回 null，避免方案卡渲染出 "undefined 人" */
+function toNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
 function sanitizeTrace(raw) {
   if (!raw || typeof raw !== 'object') {
     return null
@@ -82,8 +87,47 @@ function sanitizeMessage(raw) {
     html: '',
     typing: false,
     thinking: role === 'ai' ? sanitizeTrace(raw.thinking) : null,
+    plan: role === 'ai' ? sanitizePlan(raw.plan) : null,
     state: MESSAGE_STATES.includes(raw.state) ? raw.state : '',
     at: toTimestamp(raw.at, Date.now())
+  }
+}
+
+/**
+ * R15-1 预约方案：只保留渲染所需字段，候选最多 10 条。
+ * 方案只是展示数据（点「去预约」会重新打开确认弹窗并实时判冲突），
+ * 因此字段全部做长度截断，避免历史膨胀与脏数据渲染。
+ */
+function sanitizePlan(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return null
+  }
+  const candidates = Array.isArray(raw.candidates)
+    ? raw.candidates
+        .filter((item) => item && typeof item === 'object')
+        .slice(0, 10)
+        .map((item) => ({
+          classroomId: toNumber(item.classroomId),
+          name: clip(item.name, 40),
+          building: clip(item.building, 20),
+          roomNo: clip(item.roomNo, 20),
+          type: toNumber(item.type),
+          capacity: toNumber(item.capacity),
+          reason: clip(item.reason, 80)
+        }))
+    : []
+  return {
+    enabled: raw.enabled !== false,
+    date: clip(raw.date, 20),
+    startTime: clip(raw.startTime, 10),
+    endTime: clip(raw.endTime, 10),
+    capacity: toNumber(raw.capacity),
+    roomType: clip(raw.roomType, 10),
+    purpose: clip(raw.purpose, 40),
+    clarify: clip(raw.clarify, 120),
+    moreAvailable: toNumber(raw.moreAvailable) || 0,
+    excludedCount: toNumber(raw.excludedCount) || 0,
+    candidates
   }
 }
 

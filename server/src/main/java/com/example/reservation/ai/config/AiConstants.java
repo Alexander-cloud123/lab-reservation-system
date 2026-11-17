@@ -152,6 +152,32 @@ public final class AiConstants {
     /** 汇总文案：上游降级为本地规则 */
     public static final String THINK_SUMMARY_DEGRADED = "已降级为本地规则";
 
+    /* ===== 对话内预约规划（R15-1：只出方案，不写业务数据）===== */
+    /** 步骤：解析预约需求 */
+    public static final String THINK_STEP_PARSE = "parse";
+    /** 步骤文案：解析预约需求 */
+    public static final String THINK_LABEL_PARSE = "解析预约需求";
+    /** 规划分支汇总文案 */
+    public static final String THINK_SUMMARY_PLAN = "方案生成完成";
+    /** 规划分支步骤文案：检索可预约教室（复用 retrieve 步骤 id） */
+    public static final String THINK_LABEL_PLAN_SEARCH = "检索可预约教室";
+    /** 规划分支步骤文案：校验时段冲突（复用 verify 步骤 id） */
+    public static final String THINK_LABEL_PLAN_VERIFY = "校验时段冲突";
+    /** 候选教室个数上限（方案卡最多展示 3 间） */
+    public static final int PLAN_TOP_COUNT = 3;
+    /** 单次检索教室上限（一次分页拿全量占用时段，避免逐间查冲突） */
+    public static final int PLAN_SCAN_SIZE = 500;
+    /** 个人偏好回看条数 */
+    public static final int PLAN_HISTORY_LOOKBACK = 30;
+    /** 解析失败 / 信息不足的澄清文案 */
+    public static final String PLAN_CLARIFY =
+            "我没听清日期或时段，可以再具体一点，例如「明天下午 2 点到 4 点、30 人、机房」。";
+    /** 日期早于今天的提示（与后端校验同口径） */
+    public static final String PLAN_DATE_PAST = "预约日期不能早于今天，请换一个日期再试。";
+    /** 该时段无可用教室的提示 */
+    public static final String PLAN_EMPTY =
+            "这个时段没有满足条件的教室，可以换个时段，或者放宽人数/类型；需要我按明天上午再找一轮吗？";
+
     /* ===== 智能推荐（spec.md 6.2 推荐口径）===== */
     /** 推荐目标日期偏移（天）：默认推荐明天（当日时段过半后意义降低，固定偏移保证可复跑） */
     public static final int RECOMMEND_DATE_OFFSET_DAYS = 1;

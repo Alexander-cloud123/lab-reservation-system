@@ -1,5 +1,6 @@
 package com.example.reservation.ai.support;
 
+import com.example.reservation.ai.dto.AiPlanVO;
 import com.example.reservation.ai.dto.AiStreamDelta;
 import com.example.reservation.ai.dto.AiStreamDone;
 import com.example.reservation.ai.dto.AiStreamError;
@@ -61,6 +62,12 @@ public class SseChatStreamSink implements ChatStreamSink {
     @Override
     public void reasoning(AiStreamReasoning payload) throws IOException {
         send("reasoning", payload);
+    }
+
+    @Override
+    public void plan(AiPlanVO payload) throws IOException {
+        // 方案卡事件：前端据此渲染候选教室与「去预约」按钮（不承载任何写操作）
+        send("plan", payload);
     }
 
     /** 发送单个命名事件；IllegalStateException（emitter 已完成，或发送被框架包装为 ISE）转 IOException */

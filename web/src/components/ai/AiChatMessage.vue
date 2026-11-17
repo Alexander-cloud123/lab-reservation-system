@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import AiThinkingPanel from './AiThinkingPanel.vue'
+import AiPlanCard from './AiPlanCard.vue'
 
 const props = defineProps({
   message: { type: Object, required: true },
@@ -10,7 +11,7 @@ const props = defineProps({
   canRegenerate: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['regenerate'])
+const emit = defineEmits(['regenerate', 'reserve'])
 
 const copied = ref(false)
 let copiedTimer = 0
@@ -55,6 +56,11 @@ async function copyAnswer() {
     <div class="ai-chat-answer chat-bubble">
       <div class="markdown-body" v-html="message.html || ''"></div>
     </div>
+    <AiPlanCard
+      v-if="message.plan && !streaming"
+      :plan="message.plan"
+      @reserve="(candidate) => emit('reserve', candidate)"
+    />
     <span v-if="streaming" class="typing-cursor" aria-hidden="true"></span>
 
     <p v-if="message.state === 'stopped'" class="ai-chat-stopped">回答已停止生成，可重新生成或再次提问。</p>

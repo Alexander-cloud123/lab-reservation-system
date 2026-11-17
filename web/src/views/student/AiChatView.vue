@@ -6,6 +6,7 @@ import { probeAiRecommend } from '@/utils/aiProbe'
 import { getStoredUser } from '@/utils/auth'
 import { useAiChat } from '@/composables/useAiChat'
 import AiChatMessage from '@/components/ai/AiChatMessage.vue'
+import AiQuickReserve from '@/components/ai/AiQuickReserve.vue'
 import AiChatComposer from '@/components/ai/AiChatComposer.vue'
 
 const router = useRouter()
@@ -30,6 +31,16 @@ const title = computed(() => (activeConversation.value ? activeConversation.valu
 /** 只有最后一条回答可重新生成：避免误替换历史回答 */
 function canRegenerateMessage(message) {
   return !sending.value && message.role === 'ai' && message.id === lastMessageId.value
+}
+
+const quickReserveRef = ref(null)
+
+/** 方案卡「去预约」：把方案与候选教室交给既有确认弹窗（第 3 步预填 + 冲突检测），不代提交 */
+function onReserve(candidate, message) {
+  if (!candidate || !quickReserveRef.value) {
+    return
+  }
+  quickReserveRef.value.openWithPlan(message && message.plan ? message.plan : {}, candidate)
 }
 
 const lastMessageId = computed(() => (messages.value.length ? messages.value[messages.value.length - 1].id : ''))
@@ -84,7 +95,8 @@ const suggestions = [
   { icon: 'spark', text: '明天下午有哪些空教室？' },
   { icon: 'calendar', text: '怎么取消一条已通过的预约？' },
   { icon: 'shield', text: '预约冲突是怎么判定的？' },
-  { icon: 'clock', text: '管理员审核一般要多久？' }
+  { icon: 'clock', text: '管理员审核一般要多久？' },
+  { icon: 'spark', text: '帮我约明天的机房，30 人左右' }
 ]
 
 async function onDeleteConversation(conversation) {
@@ -375,6 +387,7 @@ probeAiRecommend().catch(() => {})
             :streaming="sending && message.id === lastMessageId"
             :can-regenerate="canRegenerateMessage(message)"
             @regenerate="onRegenerate"
+            @reserve="(candidate) => onReserve(candidate, message)"
           />
 
           <p v-if="aiOff && hasMessages" class="ai-chat-banner is-inline">{{ aiOff }}</p>
@@ -404,6 +417,9 @@ probeAiRecommend().catch(() => {})
           @stop="chat.stop"
         />
       </div>
+
+      <!-- R15-1：方案卡的「去预约」复用既有确认弹窗（隐藏自带触发按钮） -->
+      <AiQuickReserve ref="quickReserveRef" :ai-enabled="false" />
     </main>
   </section>
 </template>

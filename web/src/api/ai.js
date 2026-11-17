@@ -286,13 +286,15 @@ export function aiComplianceCheckStream(data, handlers, signal) {
  * @param {AbortSignal} signal 抽屉关闭/组件卸载/停止生成/重复发送时中断
  */
 export function aiChatStream({ question, history }, handlers, signal) {
-  const { onThinking, onReasoning, onMeta, onDelta, onReset, onDone, onError } = handlers || {}
+  const { onThinking, onReasoning, onPlan, onMeta, onDelta, onReset, onDone, onError } = handlers || {}
   return ssePost('/ai/chat',
     // 空历史不带字段：后端缺省即单轮，请求体保持最小
     { question, history: history && history.length ? history : undefined },
     {
       thinking: d => onThinking && onThinking(d),
       reasoning: d => onReasoning && onReasoning(d.text || ''),
+      // R15-1：预约方案（前端渲染方案卡；点击「去预约」仍走人工确认）
+      plan: d => onPlan && onPlan(d),
       meta: d => onMeta && onMeta(d),
       delta: d => onDelta && onDelta(d.text || ''),
       reset: d => onReset && onReset({ text: d.text || '', message: d.message || '' }),

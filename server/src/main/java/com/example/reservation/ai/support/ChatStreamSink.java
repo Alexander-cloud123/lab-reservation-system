@@ -1,5 +1,6 @@
 package com.example.reservation.ai.support;
 
+import com.example.reservation.ai.dto.AiPlanVO;
 import com.example.reservation.ai.dto.AiStreamReasoning;
 import com.example.reservation.ai.dto.AiStreamThinking;
 
@@ -43,5 +44,13 @@ public interface ChatStreamSink extends AiStreamSink {
      * 默认空实现：不透传推理的调用方忽略即可。
      */
     default void reasoning(AiStreamReasoning payload) throws IOException {
+    }
+
+    /**
+     * 预约方案事件（R15-1）：只在「帮我预约」类问题上出现，且先于首个 delta、至多 1 个。
+     * 方案仅描述候选教室，前端渲染为方案卡；用户点「去预约」后仍走既有确认弹窗手动提交。
+     * 默认空实现：普通问答与旧测试桩忽略即可。
+     */
+    default void plan(AiPlanVO payload) throws IOException {
     }
 }

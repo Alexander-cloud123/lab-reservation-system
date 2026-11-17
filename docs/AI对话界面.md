@@ -69,7 +69,20 @@
 - 推理原文只有上游真的返回 `reasoning_content` 才显示；本机实测 `agnes-3.0-flash` 不返回该字段，
   面板因此长期处于「真实轨迹」形态，这是预期行为，不是数据丢失。
 
-## 6. 对既有 E2E 的兼容
+## 6. 预约方案卡（R15-1）
+
+「帮我约明天下午的机房」这类问题不再只是文字建议：后端在对话流里插入一个 `plan` 帧，前端渲染成方案卡。
+方案卡只负责「提议」，点「去预约」会打开既有的确认弹窗（第 3 步预填 + 实时冲突校验），最终仍由用户点「提交预约」。
+
+- 结构：`AiPlanCard.vue`，`role="group"` + `aria-label="预约方案：日期 时段"`；候选行含教室名、楼栋/编号、类型/容量、
+  排序理由与「去预约」按钮（`aria-label` 带教室名，避免多个「去预约」不可区分）；空候选只给澄清文案，不给按钮。
+- 落点：方案挂在最后一条 AI 消息的 `plan` 字段上，渲染在正文之后、光标之前，只在该回答结束后出现。
+- 持久化：`aiChatStorage.sanitizePlan` 只保留展示字段（候选 ≤10、文本截断）；恢复历史后按钮仍可用，
+  但点击会重新打开确认弹窗并**重新判一次冲突**，不复用旧结论。
+- 边界：方案不写库、不缓存（规划分支跳过结果缓存），每次提问都重新解析与检索。
+- 设计依据与意图/排序口径见 [`docs/AI智能体设计.md`](AI智能体设计.md)。
+
+## 7. 对既有 E2E 的兼容
 
 既有 `30-ai.spec.js` 用旧抽屉的选择器写断言，本次在不改断言主体的前提下做了类名兼容层：
 
@@ -88,7 +101,7 @@
 历史持久化另有 `web/e2e/specs/32-ai-history.spec.js` 4 条：刷新后会话与思考面板恢复、两条会话按最近活动排序、
 删除（二次确认）后刷新消失、退出登录清空本地历史。
 
-## 7. 验证命令
+## 8. 验证命令
 
 ```powershell
 # 前端静态检查与构建（Windows 下 esbuild 临时目录需指向工作区）
@@ -97,13 +110,13 @@ npm run lint
 $env:TEMP="$PWD\..\.devtmp\tmp"; $env:TMP=$env:TEMP; npm run build
 
 # AI 相关用例（Playwright 自动起 Vite；后端需在 8080）
-npx playwright test specs/30-ai.spec.js specs/32-ai-history.spec.js --project=chromium
+npx playwright test specs/30-ai.spec.js specs/32-ai-history.spec.js specs/33-ai-plan.spec.js --project=chromium
 
 # 全量 Chromium 回归（跑前复位种子，避免历史预约干扰造数）
 npx playwright test --project=chromium
 ```
 
-## 8. 已知边界
+## 9. 已知边界
 
 - 会话只存浏览器本地（`localStorage` 单机单浏览器），不落库、不跨设备；换浏览器或清缓存即丢失。
   未新增会话表：`需求设计文档.md` 没有消息中心/会话存储条款，动表结构需先变更需求。

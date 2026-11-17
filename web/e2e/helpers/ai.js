@@ -69,6 +69,10 @@ export function chatStreamBody(payload) {
     degraded,
     message: payload.message ?? null
   })
+  // _plan 为 mock 专用控制字段：R15-1 预约方案帧（真实后端在 meta 之后、delta 之前发 event:plan）
+  if (!disabled && payload._plan) {
+    body += sseFrame('plan', payload._plan)
+  }
   if (think) {
     for (const piece of think.reasoning || []) {
       body += sseFrame('reasoning', { text: piece })

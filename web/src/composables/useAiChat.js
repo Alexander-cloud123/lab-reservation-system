@@ -267,6 +267,8 @@ export function useAiChat() {
       html: '',
       typing: true,
       thinking: trace,
+      /** 预约方案（R15-1，仅「帮我预约」类问题出现） */
+      plan: null,
       state: '',
       at: Date.now()
     })
@@ -360,6 +362,12 @@ export function useAiChat() {
             }
             if (meta.degraded && meta.message) {
               degradedMessage = meta.message
+            }
+          },
+          onPlan: (plan) => {
+            // 方案帧先于正文：挂在最后一条 AI 消息上，结束时随会话一起持久化
+            if (plan) {
+              bubble.plan = plan
             }
           },
           onDelta: appendDelta,

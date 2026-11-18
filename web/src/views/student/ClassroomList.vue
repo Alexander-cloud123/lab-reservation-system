@@ -335,7 +335,7 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px var(--space-md);
+  gap: var(--space-lg);
 }
 .search-card :deep(.el-form-item) {
   margin-bottom: 0;

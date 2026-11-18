@@ -183,19 +183,20 @@ function slotLabel(slot) {
 
 <style scoped>
 .time-ruler {
-  --ruler-h: 36px;
+  --ruler-h: 40px;
 }
 
+/* 轨：玻璃底 + 1px 白光边；闭馆段用深色调压暗 */
 .ruler-track {
   position: relative;
   height: var(--ruler-h);
-  border-radius: var(--radius-sm);
-  background: var(--bg-fill);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.62);
   border: 1px solid var(--line);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
   overflow: hidden;
 }
 
-/* 开放时段之外的底：更浅，提示「这段不计入可约」 */
 .ruler-window,
 .ruler-closed-surface {
   position: absolute;
@@ -209,7 +210,7 @@ function slotLabel(slot) {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: rgba(21, 26, 33, 0.05);
+  background: rgba(15, 42, 80, 0.06);
 }
 
 .ruler-track::before {
@@ -231,38 +232,41 @@ function slotLabel(slot) {
   top: 0;
   width: 1px;
   height: 5px;
-  background: var(--border-color);
+  background: rgba(29, 111, 224, 0.18);
 }
 
 .ruler-tick.is-major {
-  height: 8px;
-  background: #c3cbd8;
+  height: 9px;
+  background: rgba(29, 111, 224, 0.34);
 }
 
-/* 占用块：从左生长（一次），mine 用品牌色，其他用中性深灰 */
+/* 占用块：从左生长一次。我的预约走渐变主色，他人预约走夜蓝半透明 */
 .ruler-block {
   position: absolute;
-  top: 6px;
-  bottom: 6px;
+  top: 7px;
+  bottom: 7px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-sm);
-  background: var(--ink-soft);
-  color: var(--surface);
+  background: rgba(11, 42, 91, 0.62);
+  color: #fff;
+  font-family: var(--font-num);
   font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
   transform-origin: left center;
   animation: block-grow var(--dur-3) var(--ease-out) both;
   overflow: hidden;
+  box-shadow: 0 2px 8px rgba(11, 42, 91, 0.2);
 }
 
 .ruler-block.is-mine {
-  background: var(--brand);
+  background: var(--grad);
+  box-shadow: 0 4px 14px rgba(29, 111, 224, 0.32);
 }
 
 .block-text {
-  padding: 0 6px;
+  padding: 0 7px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -279,26 +283,28 @@ function slotLabel(slot) {
   }
 }
 
-/* 空档：hover 才显形，点击回填时段（不提交） */
+/* 空档：悬停才显形（背景浅蓝 + 虚线描边 + 时段时间） */
 .ruler-gap {
   position: absolute;
-  top: 6px;
-  bottom: 6px;
+  top: 7px;
+  bottom: 7px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
   cursor: pointer;
-  color: var(--brand);
+  color: var(--brand-deep);
+  font-family: var(--font-num);
   font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
+  transition: background-color var(--dur-1) var(--ease-out);
 }
 
 .ruler-gap:hover,
 .ruler-gap:focus-visible {
-  background: var(--brand-soft);
-  outline: none;
-  box-shadow: inset 0 0 0 1px var(--brand-primary-border);
+  background: rgba(29, 111, 224, 0.1);
+  outline: 1px dashed var(--brand);
+  outline-offset: -1px;
 }
 
 .ruler-gap:focus-visible {
@@ -316,32 +322,32 @@ function slotLabel(slot) {
   opacity: 1;
 }
 
-/* 此刻指针：细线 + 顶部小帽 */
+/* 此刻指针：晨光橙细线 + 顶部小帽，压在块之上 */
 .ruler-needle {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 1px;
-  background: var(--brand);
+  width: 2px;
+  background: var(--sun);
+  box-shadow: 0 0 10px rgba(255, 154, 60, 0.6);
   z-index: 2;
 }
 
 .ruler-needle::before {
   content: '';
   position: absolute;
-  top: 0;
+  top: -1px;
   left: 50%;
-  width: 5px;
-  height: 5px;
-  transform: translateX(-50%);
-  border-radius: 50%;
-  background: var(--attention);
+  width: 7px;
+  height: 7px;
+  transform: translateX(-50%) rotate(45deg);
+  background: var(--sun);
 }
 
 .ruler-scale {
   position: relative;
-  height: 16px;
-  margin-top: 2px;
+  height: 18px;
+  margin-top: 4px;
 }
 
 .ruler-scale span {
@@ -349,15 +355,13 @@ function slotLabel(slot) {
   transform: translateX(-50%);
   font-family: var(--font-num);
   font-size: var(--text-xs);
-  color: var(--text-placeholder);
+  color: var(--ink-mute);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-/* 精简版：我的预约页今日条，只有块与指针 */
 .time-ruler.is-compact .ruler-track {
-  --ruler-h: 28px;
-  border-radius: var(--radius-sm);
+  --ruler-h: 30px;
 }
 
 .time-ruler.is-compact .ruler-block {

@@ -120,14 +120,18 @@ async function handleLogout() {
   min-height: 100vh;
 }
 
+/* 顶栏：玻璃贴顶（四类玻璃容器之一） */
 .admin-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: 60px;
   padding: 0 32px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--line);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  border-bottom: 1px solid var(--glass-line);
+  box-shadow: var(--shadow-surface), var(--glass-sheen);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -136,18 +140,20 @@ async function handleLogout() {
 .header-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .logo-badge {
-  height: 26px;
-  padding: 0 9px;
+  height: 28px;
+  padding: 0 11px;
   border-radius: var(--radius-sm);
-  background: var(--brand-soft);
-  color: var(--brand);
+  background: var(--grad);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(29, 111, 224, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
+  font-family: var(--font-num);
   font-size: var(--text-sm);
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -155,7 +161,7 @@ async function handleLogout() {
 }
 
 .header-logo {
-  font-size: var(--text-base);
+  font-size: var(--text-md);
   font-weight: 600;
   line-height: 24px;
   color: var(--ink);
@@ -164,7 +170,7 @@ async function handleLogout() {
 
 .role-chip {
   padding-left: 10px;
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--line-strong);
   font-size: var(--text-xs);
   line-height: 18px;
   color: var(--ink-soft);
@@ -181,18 +187,19 @@ async function handleLogout() {
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: var(--radius-md);
-  transition: background-color 0.15s;
+  padding: 4px 10px;
+  border-radius: var(--radius-control);
+  transition: background-color var(--dur-1) var(--ease-out);
 }
 .user-entry:hover {
-  background: var(--brand-soft);
+  background: rgba(255, 255, 255, 0.6);
 }
 .user-avatar {
-  background: var(--brand);
-  color: var(--surface);
+  background: var(--grad);
+  color: #fff;
   font-size: var(--text-xs);
   font-weight: 600;
+  box-shadow: 0 4px 12px rgba(29, 111, 224, 0.28);
 }
 .user-name {
   font-size: var(--text-sm);
@@ -201,23 +208,30 @@ async function handleLogout() {
 }
 .user-caret {
   font-size: var(--text-xs);
-  color: var(--text-placeholder);
+  color: var(--ink-mute);
 }
 .user-account {
   font-size: var(--text-xs);
   line-height: 20px;
-  color: var(--text-placeholder);
+  color: var(--ink-mute);
 }
 
 .admin-body {
   height: calc(100vh - 60px);
 }
 
-/* 侧栏：白面 + 选中项墨蓝浅底（不做左侧竖线） */
+/* 侧栏：玻璃 + 浮起 8px，活跃项渐变药丸（管理端最醒目的结构信号） */
 .admin-aside {
-  background: var(--surface);
-  border-right: 1px solid var(--line);
-  padding: 16px 12px;
+  width: 216px;
+  padding: 20px 14px;
+  margin: 12px 0 12px 12px;
+  border-radius: var(--radius-card);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--shadow-surface), var(--shadow-raised), var(--glass-sheen);
+  overflow: visible;
 }
 
 .admin-menu {
@@ -226,43 +240,28 @@ async function handleLogout() {
 }
 .admin-menu .el-menu-item {
   position: relative;
-  height: 40px;
-  line-height: 40px;
-  padding: 0 12px;
+  height: 42px;
+  line-height: 42px;
+  padding: 0 14px;
   border-radius: var(--radius-control);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
   font-size: var(--text-sm);
   color: var(--ink-soft);
   font-weight: 500;
 }
-.admin-menu .el-menu-item .el-icon {
-  font-size: var(--text-md);
-  color: var(--text-regular);
-  margin-right: 8px;
-}
 .admin-menu .el-menu-item:hover {
-  background: var(--bg-fill);
-  color: var(--ink);
-}
-.admin-menu .el-menu-item:hover .el-icon {
+  background: rgba(255, 255, 255, 0.62);
   color: var(--ink);
 }
 .admin-menu .el-menu-item.is-active {
-  background: var(--brand-soft);
-  color: var(--brand);
+  background: var(--grad);
+  color: #fff;
   font-weight: 600;
-}
-.admin-menu .el-menu-item.is-active::before {
-  content: '';
-  position: absolute;
-  display: none;
-}
-.admin-menu .el-menu-item.is-active .el-icon {
-  color: var(--brand-primary);
+  box-shadow: var(--shadow-brand);
 }
 
 .admin-main {
-  background: var(--page);
+  background: transparent;
   padding: 0;
   overflow-y: auto;
 }

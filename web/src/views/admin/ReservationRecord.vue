@@ -296,4 +296,32 @@ onMounted(() => {
   justify-content: flex-end;
   margin-top: var(--space-xl);
 }
+
+/* ---------- 第四轮（晨光玻璃）覆盖 ---------- */
+.search-card,
+.table-band {
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(16px) saturate(145%);
+  backdrop-filter: blur(16px) saturate(145%);
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-surface), var(--shadow-raised), var(--glass-sheen);
+}
+.room-no {
+  font-family: var(--font-num);
+  letter-spacing: 0.03em;
+  color: var(--brand-deep);
+}
+.room-name {
+  font-weight: 600;
+  color: var(--ink);
+}
+.band-actions {
+  background: var(--grad-soft);
+  border-radius: var(--radius-control);
+}
+.ai-tag,
+.reason-tag {
+  border-radius: var(--radius-pill);
+}
 </style>

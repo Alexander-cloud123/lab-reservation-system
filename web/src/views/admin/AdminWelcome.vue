@@ -267,4 +267,79 @@ function go(path) {
     border-bottom: 1px solid var(--line);
   }
 }
+
+/* ---------- 第四轮（晨光玻璃）覆盖 ---------- */
+.welcome-band {
+  margin-bottom: var(--space-xl);
+}
+/* 不等宽 bento：第一格占 1.6 份，数字用渐变大字（唯一允许的「大字」场合之一） */
+.stat-band {
+  grid-template-columns: 1.6fr 1fr 1fr 1fr;
+  gap: var(--space-xl);
+  padding: var(--space-xl) var(--space-2xl);
+  background: var(--glass-strong);
+}
+.stat-item {
+  position: relative;
+  padding-left: var(--space-lg);
+}
+.stat-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 2px;
+  width: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--grad);
+  opacity: 0.9;
+}
+.stat-item:first-child::before {
+  background: var(--grad-sun);
+}
+.stat-value {
+  font-family: var(--font-num);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--deep);
+}
+.stat-item:first-child .stat-value {
+  font-size: var(--text-display);
+  line-height: 1;
+}
+.stat-value.is-attention {
+  color: var(--attention);
+}
+.quick-surface {
+  background: var(--glass);
+}
+.quick-card {
+  height: 64px;
+  border-radius: var(--radius-control);
+  transition: background-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
+}
+.quick-card:hover {
+  background: rgba(255, 255, 255, 0.72);
+  transform: translateX(2px);
+}
+.quick-card:hover .quick-name {
+  color: var(--brand);
+}
+.quick-card::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--sky);
+  opacity: 0;
+  transition: opacity var(--dur-1) var(--ease-out);
+}
+.quick-card:hover::after {
+  opacity: 1;
+}
+.info-row {
+  border-bottom: 1px solid var(--line);
+}
 </style>

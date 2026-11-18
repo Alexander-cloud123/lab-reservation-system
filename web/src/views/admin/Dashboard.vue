@@ -83,18 +83,25 @@ echarts.use([
  * 图表配色：与 main.css 命名色保持一致
  * Canvas 读不到 CSS 变量，只能按值引用；这是本文件唯一允许出现的十六进制，且集中在此对象中。
  */
+/**
+ * 图表取色：与 main.css 的命名色保持同一份（ECharts 读不到 CSS 变量，故此处集中硬编码）。
+ * 第四轮（晨光玻璃）后为「天光蓝 → 薄荷青 → 晨光橙」，与页面渐变同一族。
+ */
 const C = {
-  brand: '#1b3f8f', // --brand
-  ink: '#151a21', // --ink
-  soft: '#4a5361', // --ink-soft
-  line: '#e7eaef', // --line
-  success: '#0f7a5a', // --success
-  warning: '#a9620b', // --warning
-  attention: '#b4762a' // --attention
+  brand: '#1d6fe0', // --sky
+  aqua: '#22c3b3', // --aqua
+  deep: '#0b2a5b', // --deep
+  sun: '#ff9a3c', // --sun
+  ink: '#0b1b2b', // --ink
+  soft: '#45566b', // --ink-soft
+  line: 'rgba(15, 42, 80, 0.12)', // --line
+  success: '#0e9b6f', // --success
+  warning: '#b9761f', // --warning
+  attention: '#e08a2b' // --attention
 }
 
 /** 饼图分段色：品牌蓝 + 功能色，无紫/霓虹 */
-const PIE_PALETTE = [C.brand, C.success, C.warning, C.attention, C.soft]
+const PIE_PALETTE = [C.brand, C.aqua, C.sun, C.deep, C.soft]
 
 /** 图表入场：一次 320ms 生长，三图错开 80ms 依次到位（不做循环动画） */
 const CHART_ANIM = { animation: true, animationDuration: 320, animationEasing: 'cubicOut' }
@@ -202,7 +209,8 @@ function renderUsageRate(list) {
     usageChart.setOption({ graphic: emptyGraphic('暂无教室使用率数据') }, true)
     return
   }
-  const names = list.map((r) => r.name)
+  // X 轴只放门牌号（A101 这类），教室全名留在 tooltip；否则 12 根柱子的长名字必然互相压住
+const names = list.map((r) => r.roomNo || r.name)
   const values = list.map((r) => r.usageRate)
   usageChart.setOption(
     {
@@ -219,11 +227,11 @@ function renderUsageRate(list) {
           return `${escapeHtml(item.name)}（${escapeHtml(item.roomNo)}）<br/>使用率：${escapeHtml(item.usageRate)}%<br/>占用时长：${escapeHtml(item.approvedHours)} 小时`
         }
       },
-      grid: { left: 48, right: 24, top: 32, bottom: 80 },
+      grid: { left: 48, right: 24, top: 32, bottom: 56 },
       xAxis: {
         type: 'category',
         data: names,
-        axisLabel: { rotate: 35, fontSize: 12, color: C.soft },
+        axisLabel: { rotate: 0, fontSize: 11, color: C.soft, interval: 0, margin: 12 },
         axisLine: { lineStyle: { color: C.line } },
         axisTick: { show: false }
       },
@@ -241,8 +249,21 @@ function renderUsageRate(list) {
           data: values,
           barMaxWidth: 32,
           itemStyle: {
-            borderRadius: [4, 4, 0, 0],
-            color: C.brand
+            borderRadius: [6, 6, 0, 0],
+            color: {
+              type: 'linear',
+              x: 0,
+              y: 0,
+              x2: 0,
+              y2: 1,
+              colorStops: [
+                { offset: 0, color: C.brand },
+                { offset: 1, color: C.aqua }
+              ]
+            },
+            shadowColor: 'rgba(29, 111, 224, 0.28)',
+            shadowBlur: 10,
+            shadowOffsetY: 4
           },
           label: {
             show: true,
@@ -293,8 +314,9 @@ function renderTrend(list) {
           data: list.map((r) => r.count),
           smooth: false,
           symbolSize: 6,
-          itemStyle: { color: C.brand },
-          lineStyle: { width: 2, color: C.brand },
+          itemStyle: { color: C.brand, borderWidth: 2, borderColor: '#ffffff' },
+          lineStyle: { width: 3, color: C.brand },
+          areaStyle: { color: 'rgba(29, 111, 224, 0.08)' },
           label: { show: true, position: 'top', fontSize: 13, color: C.ink, fontWeight: 500 }
         }
       ]
@@ -330,7 +352,7 @@ function renderTimeDistribution(list) {
           type: 'pie',
           radius: ['38%', '66%'],
           center: ['50%', '46%'],
-          itemStyle: { borderRadius: 4, borderColor: C.line, borderWidth: 2 },
+          itemStyle: { borderRadius: 6, borderColor: '#ffffff', borderWidth: 3 },
           label: { formatter: '{b}\n{d}%', fontSize: 13, color: C.ink },
           data: list.map((r) => ({ name: r.slot, value: r.count }))
         }
@@ -414,5 +436,21 @@ onBeforeUnmount(() => {
   .chart-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ---------- 第四轮（晨光玻璃）覆盖 ---------- */
+.chart-card {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-surface), var(--shadow-raised), var(--glass-sheen);
+  padding: var(--space-xl);
+}
+.chart-title {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--ink);
 }
 </style>

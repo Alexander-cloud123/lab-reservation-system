@@ -208,4 +208,22 @@ function goDetail(item) {
 .foot-note.is-warning {
   color: var(--warning);
 }
+
+/* ---------- 第四轮（晨光玻璃）覆盖 ---------- */
+.ai-recommend-card {
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-line);
+}
+.recommend-go {
+  background-image: var(--grad);
+  color: #fff;
+  border: 0;
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-brand);
+  padding: 0 12px;
+}
+.recommend-go:hover {
+  filter: brightness(1.06);
+  color: #fff;
+}
 </style>

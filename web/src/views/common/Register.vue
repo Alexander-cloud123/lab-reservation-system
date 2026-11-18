@@ -1,11 +1,11 @@
 <template>
   <div class="register-page">
-    <!-- 左侧导视牌：与登录页同一母题 -->
+    <!-- 左侧渐变主场：与登录页同一母题 -->
     <div class="register-brand">
       <div class="brand-grid" aria-hidden="true" />
       <div class="brand-inner">
         <div class="brand-code">
-          <span class="plate brand-plate">NEW</span>
+          <span class="brand-code-num">NEW</span>
           <span class="brand-code-note">学生注册</span>
         </div>
         <h1 class="brand-name">高校实验室<br />预约管理系统</h1>
@@ -150,20 +150,19 @@ async function handleRegister() {
 .register-page {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 1.05fr 1fr;
-  background: var(--surface);
+  grid-template-columns: 1fr 1.06fr;
 }
 
-/* ---- 左侧品牌面板：与登录页同一套墨蓝导视语言 ---- */
+/* 左侧：渐变主场（信息密度低于登录页，但同一母题） */
 .register-brand {
   position: relative;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 64px 8%;
-  background: var(--brand);
-  color: var(--surface);
+  padding: 64px 7%;
+  background: var(--grad);
+  color: #fff;
 }
 .brand-grid {
   position: absolute;
@@ -172,27 +171,40 @@ async function handleRegister() {
     repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px 88px);
   pointer-events: none;
 }
+.register-brand::after {
+  content: '';
+  position: absolute;
+  top: -220px;
+  left: -180px;
+  width: 560px;
+  height: 560px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.24), transparent 62%);
+}
 .brand-inner {
   position: relative;
   z-index: 1;
-  max-width: 480px;
+  max-width: 440px;
 }
 .brand-code {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 40px;
+  gap: 14px;
+  margin-bottom: 32px;
 }
-.brand-plate {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.22);
-  color: var(--surface);
-  font-size: var(--text-sm);
-  letter-spacing: 0.08em;
+.brand-code-num {
+  font-family: var(--font-num);
+  font-size: var(--text-display);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
 }
 .brand-code-note {
   font-size: var(--text-sm);
-  color: rgba(255, 255, 255, 0.68);
+  color: rgba(255, 255, 255, 0.72);
   letter-spacing: 0.04em;
 }
 .brand-name {
@@ -200,91 +212,102 @@ async function handleRegister() {
   font-weight: 600;
   line-height: 1.35;
   letter-spacing: -0.01em;
-  color: var(--surface);
-  margin-bottom: 20px;
+  color: #fff;
+  margin-bottom: 18px;
 }
 .brand-slogan {
   font-size: var(--text-base);
   line-height: 1.75;
-  color: rgba(255, 255, 255, 0.74);
-  margin-bottom: 48px;
+  color: rgba(255, 255, 255, 0.78);
+  margin-bottom: 28px;
 }
 .brand-steps {
   list-style: none;
   padding: 0;
   display: grid;
-  gap: 24px;
+  gap: 22px;
 }
 .brand-steps li {
   display: grid;
   gap: 4px;
   padding-left: 16px;
-  border-left: 2px solid rgba(255, 255, 255, 0.18);
+  border-left: 2px solid rgba(255, 255, 255, 0.22);
 }
 .step-title {
   font-size: var(--text-base);
   font-weight: 600;
-  color: var(--surface);
+  color: #fff;
 }
 .step-text {
   font-size: var(--text-sm);
   line-height: 1.65;
-  color: rgba(255, 255, 255, 0.66);
+  color: rgba(255, 255, 255, 0.7);
 }
 .brand-footer {
   position: absolute;
   bottom: 40px;
-  left: 8%;
+  left: 7%;
   font-size: var(--text-xs);
-  color: rgba(255, 255, 255, 0.42);
+  color: rgba(255, 255, 255, 0.46);
   z-index: 1;
 }
 
-/* ---- 右侧表单区 ---- */
+/* 右侧：浅蓝底 + 光晕 + 玻璃表单面板 */
 .register-panel {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 64px 48px;
-  background: var(--surface);
+  padding: 48px 40px;
+  background-color: var(--page);
+  background-image: radial-gradient(50% 40% at 18% 8%, rgba(29, 111, 224, 0.14), transparent 72%),
+    radial-gradient(46% 38% at 88% 94%, rgba(34, 195, 179, 0.16), transparent 70%);
 }
 .register-card {
-  width: 400px;
+  width: 480px;
   max-width: 100%;
+  padding: 36px 34px 30px;
+  border-radius: var(--radius-lg);
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--shadow-overlay), var(--glass-sheen);
+  animation: reveal-up var(--dur-3) var(--ease-out) both;
 }
-.register-title {
+.login-title {
   font-size: var(--text-xl);
   font-weight: 600;
   line-height: 1.3;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   color: var(--ink);
   margin-bottom: 8px;
 }
-.register-subtitle {
+.login-subtitle {
   font-size: var(--text-sm);
   line-height: 1.6;
   color: var(--ink-soft);
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
 .register-btn {
   width: 100%;
-  height: 44px;
+  height: 46px;
+  margin-top: 6px;
   font-size: var(--text-base);
   font-weight: 600;
   letter-spacing: 0.08em;
 }
-.register-footer {
-  margin-top: 20px;
+.login-footer {
+  margin-top: 18px;
   font-size: var(--text-sm);
   line-height: 1.6;
   color: var(--ink-soft);
 }
-.register-footer a {
+.login-footer a {
   color: var(--brand);
   text-decoration: none;
   font-weight: 500;
 }
-.register-footer a:hover {
+.login-footer a:hover {
   text-decoration: underline;
 }
 

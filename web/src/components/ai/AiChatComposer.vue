@@ -232,4 +232,32 @@ defineExpose({ focus })
     display: none;
   }
 }
+
+/* ---------- 第四轮（晨光玻璃）覆盖 ---------- */
+.composer-box {
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius-lg);
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  box-shadow: var(--shadow-float), var(--glass-sheen);
+}
+.composer-box:focus-within {
+  border-color: rgba(29, 111, 224, 0.45);
+  box-shadow: var(--shadow-float), var(--ring), var(--glass-sheen);
+}
+.composer-send {
+  background-image: var(--grad);
+  border: 0;
+  color: #fff;
+  box-shadow: var(--shadow-brand);
+}
+.composer-send:hover {
+  filter: brightness(1.06);
+  color: #fff;
+}
+.composer-hint,
+.composer-note {
+  color: var(--ink-mute);
+}
 </style>

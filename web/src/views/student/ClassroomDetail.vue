@@ -677,4 +677,73 @@ onBeforeUnmount(invalidateConflict)
 .conflict-alert {
   margin-top: var(--space-xs);
 }
+
+/* ---------- 第四轮（晨光玻璃）覆盖 ---------- */
+.detail-nav {
+  margin-bottom: var(--space-lg);
+}
+.detail-nav :deep(.el-button) {
+  height: 34px;
+  border: 1px solid var(--glass-line);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  color: var(--ink-soft);
+}
+.info-card,
+.slots-card {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-surface), var(--shadow-raised), var(--glass-sheen);
+}
+.info-head .code-block {
+  background: var(--grad);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(29, 111, 224, 0.3);
+}
+.room-name-wrap .room-name {
+  font-size: var(--text-lg);
+  letter-spacing: -0.01em;
+}
+.info-table :deep(.el-descriptions__label) {
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+}
+.info-table :deep(.el-descriptions__content) {
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+.slots-title {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--ink);
+}
+.slots-empty {
+  padding: 28px 0;
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+}
+.conflict-alert {
+  border-radius: var(--radius-md);
+  background: var(--warning-soft);
+}
+.action-bar {
+  position: sticky;
+  bottom: 0;
+  margin-top: var(--space-xl);
+  padding: var(--space-lg) var(--space-xl);
+  border-radius: var(--radius-card);
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--shadow-float), var(--glass-sheen);
+}
+.fav-btn.is-favorited {
+  color: var(--sun);
+}
 </style>

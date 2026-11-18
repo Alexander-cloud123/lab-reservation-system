@@ -715,4 +715,22 @@ onBeforeUnmount(() => {
 .calendar-container :deep(.fc .fc-day-other .fc-daygrid-event) {
   opacity: 0.6;
 }
+
+/* ---------- 第四轮（晨光玻璃）覆盖 ---------- */
+.calendar-container {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-surface), var(--shadow-raised), var(--glass-sheen);
+  padding: var(--space-lg) var(--space-xl) var(--space-xl);
+}
+.toolbar-left :deep(.el-radio-button__inner) {
+  border-radius: var(--radius-control) !important;
+}
+.legend-item {
+  font-size: var(--text-xs);
+  color: var(--ink-soft);
+}
 </style>

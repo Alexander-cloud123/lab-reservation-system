@@ -1,6 +1,6 @@
 <template>
   <div class="login-page">
-    <!-- 左侧品牌面板：墨蓝实底 + 极淡课表网格 + 门牌 + 一句定位 -->
+    <!-- 左侧品牌面板：渐变光主场 + 课表网格 + 门牌 + 一句定位 -->
     <div class="login-brand">
       <div class="brand-grid" aria-hidden="true" />
       <div class="brand-inner">
@@ -207,11 +207,10 @@ const rulerHours = Array.from({ length: 25 }, (_, index) => index)
 .login-page {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 1.05fr 1fr;
-  background: var(--surface);
+  grid-template-columns: 1.06fr 1fr;
 }
 
-/* ---- 左侧品牌面板：墨蓝实底，信息安静地排在一列 ---- */
+/* ---- 左侧：渐变主场（夜蓝→天光蓝→薄荷青）+ 网格光 + 右上角光环 ---- */
 .login-brand {
   position: relative;
   overflow: hidden;
@@ -219,16 +218,27 @@ const rulerHours = Array.from({ length: 25 }, (_, index) => index)
   flex-direction: column;
   justify-content: center;
   padding: 64px 8%;
-  background: var(--brand);
-  color: var(--surface);
+  background: var(--grad);
+  color: #fff;
+  box-shadow: 24px 0 60px rgba(11, 42, 91, 0.2);
 }
-/* 课表网格：极淡白线，只做肌理不抢内容 */
 .brand-grid {
   position: absolute;
   inset: 0;
   background-image: repeating-linear-gradient(to right, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px 88px),
     repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px 88px);
   pointer-events: none;
+}
+.login-brand::after {
+  content: '';
+  position: absolute;
+  top: -260px;
+  right: -200px;
+  width: 640px;
+  height: 640px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.26), transparent 62%);
 }
 .brand-inner {
   position: relative;
@@ -238,22 +248,23 @@ const rulerHours = Array.from({ length: 25 }, (_, index) => index)
 .brand-code {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 40px;
+  gap: 14px;
+  margin-bottom: 36px;
 }
-/* 门牌数字：全站仅两处使用 --text-display 之一（另一处是首页时刻带的主时钟） */
+/* 门牌数字：全站仅两处大字号之一（另一处是首页 hero 主时钟） */
 .brand-code-num {
   font-family: var(--font-num);
-  font-size: var(--text-display);
-  font-weight: 500;
+  font-size: var(--text-display-xl);
+  font-weight: 600;
   line-height: 1;
-  letter-spacing: -0.02em;
-  color: var(--surface);
+  letter-spacing: -0.03em;
+  color: #fff;
   font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 24px rgba(4, 20, 46, 0.28);
 }
 .brand-code-note {
   font-size: var(--text-sm);
-  color: rgba(255, 255, 255, 0.68);
+  color: rgba(255, 255, 255, 0.72);
   letter-spacing: 0.04em;
 }
 .brand-name {
@@ -261,33 +272,32 @@ const rulerHours = Array.from({ length: 25 }, (_, index) => index)
   font-weight: 600;
   line-height: 1.35;
   letter-spacing: -0.01em;
-  color: var(--surface);
-  margin-bottom: 20px;
+  color: #fff;
+  margin-bottom: 18px;
 }
 .brand-slogan {
   font-size: var(--text-base);
   line-height: 1.75;
-  color: rgba(255, 255, 255, 0.74);
-  margin-bottom: 20px;
+  color: rgba(255, 255, 255, 0.78);
+  margin-bottom: 22px;
 }
 
-/* 静态刻度尺：0–24 小时全天域，08:00–22:00 为可约窗口 */
+/* 静态刻度尺：0–24 小时全天域，08:00–22:00 为可约窗口（与首页时刻带同源） */
 .brand-ruler {
   position: relative;
   height: 30px;
-  margin-bottom: 40px;
-  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  margin-bottom: 36px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
 }
-
 .brand-window {
   position: absolute;
   top: -1px;
   left: 33.3333%;
   width: 58.3334%;
   height: 2px;
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--sun);
+  box-shadow: 0 0 12px rgba(255, 154, 60, 0.5);
 }
-
 .brand-tick {
   position: absolute;
   top: 0;
@@ -295,59 +305,68 @@ const rulerHours = Array.from({ length: 25 }, (_, index) => index)
   height: 6px;
   background: rgba(255, 255, 255, 0.26);
 }
-
 .brand-tick.is-major {
   height: 10px;
-  background: rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.44);
 }
 .brand-steps {
   list-style: none;
   padding: 0;
   display: grid;
-  gap: 24px;
+  gap: 22px;
 }
 .brand-steps li {
   display: grid;
   gap: 4px;
   padding-left: 16px;
-  border-left: 2px solid rgba(255, 255, 255, 0.18);
+  border-left: 2px solid rgba(255, 255, 255, 0.22);
 }
 .step-title {
   font-size: var(--text-base);
   font-weight: 600;
-  color: var(--surface);
+  color: #fff;
 }
 .step-text {
   font-size: var(--text-sm);
   line-height: 1.65;
-  color: rgba(255, 255, 255, 0.66);
+  color: rgba(255, 255, 255, 0.7);
 }
 .brand-footer {
   position: absolute;
   bottom: 40px;
   left: 8%;
   font-size: var(--text-xs);
-  color: rgba(255, 255, 255, 0.42);
+  color: rgba(255, 255, 255, 0.46);
   z-index: 1;
 }
 
-/* ---- 右侧表单区：白面留白，不做卡片 ---- */
+/* ---- 右侧：浅蓝底 + 光晕 + 一块玻璃登录面板 ---- */
 .login-panel {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 64px 48px;
-  background: var(--surface);
+  padding: 56px 48px;
+  background-color: var(--page);
+  background-image: radial-gradient(50% 40% at 80% 10%, rgba(34, 195, 179, 0.16), transparent 70%),
+    radial-gradient(50% 40% at 20% 92%, rgba(29, 111, 224, 0.14), transparent 72%);
 }
 .login-card {
-  width: 380px;
+  width: 420px;
   max-width: 100%;
+  padding: 40px 36px 34px;
+  border-radius: var(--radius-lg);
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--shadow-overlay), var(--glass-sheen);
+  animation: reveal-up var(--dur-3) var(--ease-out) both;
 }
 .login-title {
   font-size: var(--text-xl);
   font-weight: 600;
   line-height: 1.3;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   color: var(--ink);
   margin-bottom: 8px;
 }
@@ -355,7 +374,7 @@ const rulerHours = Array.from({ length: 25 }, (_, index) => index)
   font-size: var(--text-sm);
   line-height: 1.6;
   color: var(--ink-soft);
-  margin-bottom: 32px;
+  margin-bottom: 28px;
 }
 .role-group {
   display: flex;
@@ -368,7 +387,7 @@ const rulerHours = Array.from({ length: 25 }, (_, index) => index)
 /* 按钮内文字 span 属 Element Plus 组件内部元素，须 :deep 穿透 scoped 才能命中 */
 .role-group :deep(.el-radio-button__inner) {
   width: 100%;
-  height: 40px;
+  height: 42px;
   border-radius: var(--radius-control) !important;
   font-weight: 500;
   font-size: var(--text-sm);
@@ -376,10 +395,15 @@ const rulerHours = Array.from({ length: 25 }, (_, index) => index)
 .role-group :deep(.el-radio-button__original-radio + .el-radio-button__inner:hover) {
   color: var(--brand);
 }
+.role-group :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background-image: var(--grad);
+  border-color: transparent;
+  box-shadow: var(--shadow-brand);
+}
 .login-btn {
   width: 100%;
-  height: 44px;
-  margin-top: 8px;
+  height: 46px;
+  margin-top: 10px;
   font-size: var(--text-base);
   font-weight: 600;
   letter-spacing: 0.08em;

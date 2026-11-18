@@ -110,13 +110,26 @@ const ariaLabel = computed(
 </script>
 
 <style scoped>
-/* 满铺墨蓝：不用渐变，只用一层 96px 极淡网格与 1px 顶部高光做质感 */
+/* 主视觉条：渐变主场（夜蓝→天光蓝→薄荷青）+ 96px 网格光 + 右上角光环 */
 .time-band {
   position: relative;
   overflow: hidden;
-  background: var(--brand);
-  color: var(--surface);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  margin: 0 32px;
+  border-radius: var(--radius-lg);
+  background: var(--grad);
+  color: #fff;
+  box-shadow: 0 18px 48px rgba(11, 42, 91, 0.28);
+}
+.time-band::after {
+  content: '';
+  position: absolute;
+  top: -240px;
+  right: -140px;
+  width: 560px;
+  height: 560px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.3), transparent 62%);
 }
 
 .band-grid {
@@ -133,9 +146,10 @@ const ariaLabel = computed(
 
 .band-inner {
   position: relative;
-  max-width: 1200px;
+  z-index: 1;
+  max-width: 1240px;
   margin: 0 auto;
-  padding: 24px 32px 22px;
+  padding: 26px 32px 24px;
 }
 
 .band-top {
@@ -148,42 +162,42 @@ const ariaLabel = computed(
 .band-date {
   font-size: var(--text-sm);
   font-weight: 500;
-  color: var(--on-brand);
+  color: rgba(255, 255, 255, 0.82);
   font-variant-numeric: tabular-nums;
 }
 
 .band-summary {
   font-size: var(--text-sm);
   font-weight: 500;
-  color: var(--on-brand);
+  color: rgba(255, 255, 255, 0.82);
   font-variant-numeric: tabular-nums;
 }
 
-/* 主时钟：全站仅此一处（与登录门牌）使用 --text-display */
+/* 主时钟：全站仅此一处使用 --text-display-xl */
 .band-clock {
-  margin-top: 6px;
+  margin-top: 8px;
   font-family: var(--font-num);
-  font-size: var(--text-display);
-  font-weight: 500;
-  line-height: 1.05;
-  letter-spacing: -0.02em;
+  font-size: var(--text-display-xl);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
-  color: var(--surface);
+  color: #fff;
+  text-shadow: 0 2px 24px rgba(4, 20, 46, 0.28);
 }
 
 .band-ruler {
   position: relative;
   height: 34px;
-  margin-top: 18px;
-  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  margin-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-/* 闭馆段：压暗而不是画新色 */
 .ruler-closed {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.26);
+  background: rgba(4, 18, 40, 0.22);
 }
 
 .ruler-tick {
@@ -191,12 +205,12 @@ const ariaLabel = computed(
   top: 0;
   width: 1px;
   height: 6px;
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .ruler-tick.is-major {
   height: 11px;
-  background: rgba(255, 255, 255, 0.44);
+  background: rgba(255, 255, 255, 0.5);
 }
 
 .ruler-label {
@@ -207,44 +221,49 @@ const ariaLabel = computed(
   font-family: var(--font-num);
   font-size: var(--text-xs);
   font-style: normal;
-  color: var(--on-brand);
+  color: rgba(255, 255, 255, 0.7);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-/* 「此刻」指针：唯一高亮，暖色小帽 + 白色细线 */
+/* 「此刻」指针：唯一高亮，晨光橙小帽 + 白色细线 + 一圈光晕 */
 .ruler-needle {
   position: absolute;
-  top: -5px;
+  top: -6px;
   bottom: -6px;
   width: 1px;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.94);
 }
 
 .needle-cap {
   position: absolute;
   top: -4px;
   left: 50%;
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   transform: translateX(-50%) rotate(45deg);
-  background: var(--attention);
-  box-shadow: 0 0 0 3px rgba(180, 118, 42, 0.22);
+  background: var(--sun);
+  box-shadow: 0 0 0 3px rgba(255, 154, 60, 0.24), 0 0 16px rgba(255, 154, 60, 0.7);
 }
 
 .band-window {
-  margin-top: 10px;
+  margin-top: 12px;
   font-size: var(--text-xs);
-  color: rgba(255, 255, 255, 0.58);
+  color: rgba(255, 255, 255, 0.66);
   font-variant-numeric: tabular-nums;
 }
 
-/* 精简版：管理端欢迎页，只留时钟与一条细刻度 */
+/* 精简版：管理端欢迎页（在页面容器内，不需要外边距） */
+.time-band.is-compact {
+  margin: 0;
+  border-radius: var(--radius-card);
+}
+
 .time-band.is-compact .band-clock {
-  font-family: var(--font-num);
   font-size: var(--text-lg);
   font-weight: 600;
   letter-spacing: 0.01em;
+  text-shadow: none;
 }
 
 .time-band.is-compact .band-inner {
@@ -256,9 +275,17 @@ const ariaLabel = computed(
   margin-top: 12px;
 }
 
+.time-band.is-compact .band-window {
+  margin-top: 8px;
+}
+
 @media (max-width: 768px) {
+  .time-band {
+    margin: 0 16px;
+  }
+
   .band-inner {
-    padding: 20px 16px 18px;
+    padding: 20px 18px 18px;
   }
 
   .band-clock {

@@ -1,43 +1,71 @@
 /* ============================================================
-   全局主题（第二轮视觉重做：墨蓝门牌体系）
-   设计语言：安静的企业级工作台 —— 白面 + 冷灰底 + 墨蓝点缀
-   与前一轮的区别：
-     · 上一轮是「排课表式扁平」（细线分区、零圆角、12px 密排），被验收为「更丑」
-     · 本轮恢复表面、层次与排印质量，门牌编号降级为唯一局部记忆点
-   核心约束：字号只有 6 档（12/13/15/17/22/28）、颜色只有 6 个命名值、
-             装饰性细线不承担结构（结构靠留白与字号）
+   全局主题（第四轮视觉重做：晨光玻璃 / Aurora Glass）
+   设计语言：渐变光 + 半透明材质 + 不等宽面板 + 大字阶
+   依据（2026 趋势，见 docs/界面设计规范.md）：
+     · 「Goodbye Beige, Hello Bold」：冷灰克制结束，大胆渐变与饱和色回潮
+     · Anthropic 设计技能点名的两类 AI 默认：「SaaS 卡片套装」（同款圆角卡 +
+       同一枚灰阴影）与「模板化 chrome」（全大写 eyebrow / 词间中点 / 按钮粘箭头）
+       —— 本体系逐条避开
+     · 字体统计：60% 的设计站标题与正文同族，对比靠字号（标题 ≥4× 正文）
+     · Apple Liquid Glass：半透明材质会反射与折射周围环境 → 层次来自光与材质
+   核心约束：命名色 8 个 + 2 组渐变；字号 8 档（12/13/15/17/22/30/44/56）；
+             玻璃只用于「顶栏 / hero / 弹窗 / 输入 dock」四类容器，列表行不用
    ============================================================ */
 
 /* ---------- 1. 设计 Token ---------- */
 
 :root {
-  /* 命名色：只允许这 6 个值定义视觉基调 */
-  --ink: #151a21; /* 正文与标题 */
-  --ink-soft: #4a5361; /* 次级文字、表头、说明 */
-  --page: #f5f6f8; /* 页面底（冷灰） */
-  --surface: #ffffff; /* 内容面 */
-  --line: #e7eaef; /* 控件描边、表格行分隔、分组 */
-  --brand: #1b3f8f; /* 墨蓝：主按钮 / 链接 / 选中态 / 图表主序列 */
+  /* 命名色 */
+  --ink: #0b1b2b; /* 正文与标题 */
+  --ink-soft: #45566b; /* 次级文字、表头 */
+  --ink-mute: #7d8da1; /* 占位、说明 */
+  --page: #eef4fb; /* 页面底（冷调浅蓝，不再是灰白） */
+  --surface: #ffffff; /* 纯白面（表单内部、浮层） */
+  --deep: #0b2a5b; /* 夜蓝：hero 起点、深色文字 */
+  --sky: #1d6fe0; /* 天光蓝：主色 */
+  --aqua: #22c3b3; /* 薄荷青：第二主色 / 成功 */
+  --sun: #ff9a3c; /* 晨光橙：CTA 与「今日」 */
+  --sun-2: #ff7a2f;
 
-  /* 语义色（仅在状态与提示中使用，不铺面积） */
-  --brand-soft: #ebf0fb;
-  --success: #0f7a5a;
-  --success-soft: #e6f4ee;
-  --warning: #a9620b;
-  --warning-soft: #fdf3e7;
-  --danger: #a32f2a;
-  --danger-soft: #fbeceb;
+  /* 线：玻璃体系里线是「光的边缘」，一律用低透明深蓝 */
+  --line: rgba(15, 42, 80, 0.1);
+  --line-strong: rgba(15, 42, 80, 0.18);
+  --glass-line: rgba(255, 255, 255, 0.72);
+
+  /* 主色别名（Element Plus 与历史页面共用） */
+  --brand: var(--sky);
+  --brand-deep: var(--deep);
+
+  /* 语义色（只用于状态与提示，不铺面积） */
+  --brand-soft: #ebf3fe;
+  --success: #0e9b6f;
+  --success-soft: #e4f6ef;
+  --warning: #b9761f;
+  --warning-soft: #fdf1e2;
+  --danger: #b83a34;
+  --danger-soft: #fdeceb;
   --info: #5b6472;
-  --info-soft: #f1f2f4;
-  --attention: #b4762a; /* 仅「今日 / 待办」 */
+  --info-soft: #eef1f5;
+  --attention: #e08a2b; /* 仅「今日 / 待办」 */
+
+  /* 渐变：全站只允许这两组 */
+  --grad: linear-gradient(120deg, #0b2a5b 0%, #1d6fe0 52%, #22c3b3 100%);
+  --grad-sun: linear-gradient(120deg, #ff9a3c, #ff7a2f);
+  --grad-soft: linear-gradient(120deg, rgba(29, 111, 224, 0.14), rgba(34, 195, 179, 0.14));
+
+  /* 玻璃材质 */
+  --glass: rgba(255, 255, 255, 0.66);
+  --glass-strong: rgba(255, 255, 255, 0.84);
+  --glass-blur: 18px;
+  --glass-sheen: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 
   /* 兼容旧 token 名（历史页面仍引用；值已指向新体系） */
   --brand-primary: var(--brand);
-  --brand-primary-hover: #234c9e;
-  --brand-primary-active: #142f6b;
+  --brand-primary-hover: #1558b8;
+  --brand-primary-active: #0f4a9e;
   --brand-primary-light: var(--brand-soft);
-  --brand-primary-lighter: #f3f6fc;
-  --brand-primary-border: #c9d6ee;
+  --brand-primary-lighter: #f2f7ff;
+  --brand-primary-border: #bfd6fa;
   --brand-success: var(--success);
   --brand-success-light: var(--success-soft);
   --brand-warning: var(--warning);
@@ -50,36 +78,33 @@
   --text-primary: var(--ink);
   --text-regular: var(--ink-soft);
   --text-secondary: var(--ink-soft);
-  --text-placeholder: #98a1ae;
-  --text-disabled: #b9c0cb;
+  --text-placeholder: var(--ink-mute);
+  --text-disabled: #b6c3d2;
 
-  --border-color: #d9dee7;
+  --border-color: var(--line-strong);
   --border-color-light: var(--line);
   --bg-page: var(--page);
-  --bg-card: var(--surface);
-  --bg-subtle: #fafbfc;
-  --bg-fill: #f1f4f8;
+  --bg-card: var(--glass-strong);
+  --bg-subtle: rgba(255, 255, 255, 0.55);
+  --bg-fill: rgba(255, 255, 255, 0.45);
 
-  /* 圆角：容器 12 / 控件与卡片 8 / 小元素 6 / 药丸全圆 */
-  --radius-card: 12px;
-  --radius-control: 8px;
-  /* 兼容别名：早期页面仍引用这些变量名，统一指向新 token */
-  --rule: var(--line);
-  --code-bg: var(--page);
-  --font-num: 'SF Mono', 'Cascadia Mono', Consolas, 'Courier New', monospace;
-  --radius-lg: 12px;
-  --radius-md: 8px;
-  --radius-sm: 6px;
+  /* 圆角：容器 16 / 控件 10 / 小元素 8 / 药丸全圆 */
+  --radius-card: 16px;
+  --radius-control: 10px;
+  --radius-lg: 20px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
   --radius-pill: 999px;
 
-  /* 深度：只在「内容面 / 浮起 / 浮层」三档出现 */
-  --shadow-surface: 0 1px 2px rgba(16, 24, 40, 0.04);
-  --shadow-raised: 0 2px 8px rgba(16, 24, 40, 0.08);
+  /* 深度：三档 + 品牌光晕；玻璃面额外一层内高光 */
+  --shadow-surface: 0 1px 2px rgba(9, 30, 66, 0.05);
+  --shadow-raised: 0 10px 28px rgba(11, 42, 91, 0.1);
   --shadow-card: var(--shadow-surface);
   --shadow-hover: var(--shadow-raised);
-  --shadow-float: 0 8px 24px rgba(16, 24, 40, 0.12);
+  --shadow-float: 0 18px 44px rgba(11, 42, 91, 0.16);
   --shadow-raised-legacy: var(--shadow-raised);
-  --shadow-overlay: 0 12px 32px rgba(16, 24, 40, 0.16);
+  --shadow-overlay: 0 28px 68px rgba(11, 42, 91, 0.24);
+  --shadow-brand: 0 10px 28px rgba(29, 111, 224, 0.28);
 
   /* 间距（8pt 网格） */
   --space-xs: 4px;
@@ -90,30 +115,30 @@
   --space-2xl: 32px;
   --space-3xl: 48px;
 
-  /* 字号档位（全站只允许这 6 档） */
+  /* 字号 8 档：标题与正文按 ≥3.5× 拉开 */
   --text-xs: 12px;
   --text-sm: 13px;
   --text-base: 15px;
   --text-md: 17px;
   --text-lg: 22px;
-  --text-xl: 28px;
+  --text-xl: 30px;
+  --text-display: 44px; /* 数字主视觉（管理端欢迎页） */
+  --text-display-xl: 56px; /* 仅 hero 主时钟 */
 
-  /* 字体：中文系统栈，不引入 WebFont */
+  /* 字体：中文系统栈 + 系统等宽数字，不引入 WebFont */
   --font-family-sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
     'Microsoft YaHei', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --font-num: 'SF Mono', 'Cascadia Mono', Consolas, 'Courier New', monospace;
 
-  /* 显示级字号：仅允许「时刻带主时钟」与「登录门牌」两处使用，审计脚本会查 */
-  --text-display: 52px;
+  /* 时刻带派生值：白字层级与网格光 */
+  --brand-ink: var(--deep);
+  --on-brand: rgba(255, 255, 255, 0.78);
+  --grid-ink: rgba(255, 255, 255, 0.07);
 
-  /* 时刻带（Time Band）派生值：墨蓝带内的暗部与次级文字 */
-  --brand-ink: #132f6b;
-  --on-brand: rgba(255, 255, 255, 0.72);
-  --grid-ink: rgba(255, 255, 255, 0.06);
+  /* 键盘焦点环 */
+  --ring: 0 0 0 3px rgba(29, 111, 224, 0.18);
 
-  /* 键盘焦点环（与 outline 并用时保持一致的半径） */
-  --ring: 0 0 0 3px rgba(27, 63, 143, 0.18);
-
-  /* 动效：三档时长 + 两条缓动；全站只允许用这三个变量 */
+  /* 动效：三档时长 + 两条缓动 */
   --dur-1: 120ms;
   --dur-2: 220ms;
   --dur-3: 420ms;
@@ -124,60 +149,60 @@
 /* ---------- 2. Element Plus 主题变量覆盖 ---------- */
 
 :root {
-  --el-color-primary: var(--brand);
-  --el-color-primary-light-3: #4a6aa8;
-  --el-color-primary-light-5: #7690bf;
-  --el-color-primary-light-7: #a3b8d6;
-  --el-color-primary-light-8: #bdcce3;
+  --el-color-primary: var(--sky);
+  --el-color-primary-light-3: #5c96ea;
+  --el-color-primary-light-5: #8bb5f0;
+  --el-color-primary-light-7: #b9d3f6;
+  --el-color-primary-light-8: #cfe0f9;
   --el-color-primary-light-9: var(--brand-soft);
-  --el-color-primary-dark-2: #16326f;
+  --el-color-primary-dark-2: #1558b8;
 
   --el-color-success: var(--success);
-  --el-color-success-light-3: #4f9d84;
-  --el-color-success-light-5: #87bfae;
-  --el-color-success-light-7: #b8d9ce;
-  --el-color-success-light-8: #d2e6df;
+  --el-color-success-light-3: #46b992;
+  --el-color-success-light-5: #83d2b8;
+  --el-color-success-light-7: #b9e8d9;
+  --el-color-success-light-8: #d1efe5;
   --el-color-success-light-9: var(--success-soft);
 
   --el-color-warning: var(--warning);
-  --el-color-warning-light-3: #c18d4e;
-  --el-color-warning-light-5: #d6b189;
-  --el-color-warning-light-7: #e8ceb4;
-  --el-color-warning-light-8: #eedac8;
+  --el-color-warning-light-3: #cf9b57;
+  --el-color-warning-light-5: #dfb98b;
+  --el-color-warning-light-7: #eed7b6;
+  --el-color-warning-light-8: #f3e1c9;
   --el-color-warning-light-9: var(--warning-soft);
 
   --el-color-danger: var(--danger);
-  --el-color-danger-light-3: #bd6a66;
-  --el-color-danger-light-5: #d19592;
-  --el-color-danger-light-7: #e5bfbd;
-  --el-color-danger-light-8: #eed4d3;
+  --el-color-danger-light-3: #cb6b66;
+  --el-color-danger-light-5: #dd9b98;
+  --el-color-danger-light-7: #eec4c1;
+  --el-color-danger-light-8: #f4d6d4;
   --el-color-danger-light-9: var(--danger-soft);
   --el-color-error: var(--danger);
-  --el-color-error-light-3: #bd6a66;
-  --el-color-error-light-5: #d19592;
-  --el-color-error-light-7: #e5bfbd;
-  --el-color-error-light-8: #eed4d3;
+  --el-color-error-light-3: #cb6b66;
+  --el-color-error-light-5: #dd9b98;
+  --el-color-error-light-7: #eec4c1;
+  --el-color-error-light-8: #f4d6d4;
   --el-color-error-light-9: var(--danger-soft);
 
   --el-color-info: var(--info);
   --el-color-info-light-3: #8b929c;
   --el-color-info-light-5: #adb2b9;
-  --el-color-info-light-7: #cfd2d6;
-  --el-color-info-light-8: #dfe1e4;
+  --el-color-info-light-7: #ced2d7;
+  --el-color-info-light-8: #e1e4e8;
   --el-color-info-light-9: var(--info-soft);
 
   --el-text-color-primary: var(--ink);
   --el-text-color-regular: var(--ink-soft);
   --el-text-color-secondary: var(--ink-soft);
-  --el-text-color-placeholder: var(--text-placeholder);
+  --el-text-color-placeholder: var(--ink-mute);
   --el-text-color-disabled: var(--text-disabled);
 
-  --el-border-color: var(--border-color);
+  --el-border-color: var(--line-strong);
   --el-border-color-light: var(--line);
   --el-border-color-lighter: var(--line);
-  --el-border-color-extra-light: #f2f4f7;
-  --el-border-color-hover: #c3cbd8;
-  --el-border-color-darker: #c3cbd8;
+  --el-border-color-extra-light: rgba(15, 42, 80, 0.06);
+  --el-border-color-hover: rgba(29, 111, 224, 0.4);
+  --el-border-color-darker: rgba(15, 42, 80, 0.24);
 
   --el-border-radius-base: var(--radius-control);
   --el-border-radius-small: var(--radius-sm);
@@ -186,13 +211,13 @@
   --el-bg-color: var(--surface);
   --el-bg-color-page: var(--page);
   --el-bg-color-overlay: var(--surface);
-  --el-fill-color: var(--bg-fill);
-  --el-fill-color-light: #f5f7fa;
-  --el-fill-color-lighter: var(--bg-subtle);
+  --el-fill-color: rgba(15, 42, 80, 0.06);
+  --el-fill-color-light: rgba(15, 42, 80, 0.04);
+  --el-fill-color-lighter: rgba(15, 42, 80, 0.03);
   --el-fill-color-blank: var(--surface);
-  --el-fill-color-dark: rgba(21, 26, 33, 0.08);
+  --el-fill-color-dark: rgba(11, 27, 43, 0.1);
 
-  --el-disabled-bg-color: var(--bg-fill);
+  --el-disabled-bg-color: rgba(15, 42, 80, 0.04);
   --el-disabled-text-color: var(--text-disabled);
   --el-disabled-border-color: var(--line);
 
@@ -200,11 +225,11 @@
   --el-box-shadow-light: var(--shadow-raised);
   --el-box-shadow: var(--shadow-float);
   --el-box-shadow-dark: var(--shadow-overlay);
-  --el-mask-color: rgba(21, 26, 33, 0.42);
+  --el-mask-color: rgba(11, 27, 43, 0.44);
 
-  --el-component-size: 36px;
+  --el-component-size: 38px;
   --el-component-size-small: 30px;
-  --el-component-size-large: 40px;
+  --el-component-size-large: 44px;
 
   --el-font-size-base: var(--text-base);
   --el-font-family: var(--font-family-sans);
@@ -218,6 +243,7 @@
   box-sizing: border-box;
 }
 
+/* 页面底：冷调浅蓝 + 两团极淡的光晕（固定不动，滚动时不抖） */
 html,
 body,
 #app {
@@ -230,8 +256,16 @@ body,
   background-color: var(--page);
   color: var(--ink);
 }
+body {
+  background-image: radial-gradient(52% 46% at 10% 0%, rgba(29, 111, 224, 0.3), transparent 70%),
+    radial-gradient(46% 42% at 94% 4%, rgba(34, 195, 179, 0.26), transparent 72%),
+    radial-gradient(60% 50% at 50% 108%, rgba(255, 154, 60, 0.16), transparent 74%),
+    linear-gradient(165deg, #eaf2ff 0%, #eef3fb 46%, #effaf8 100%);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
 
-/* 键盘焦点：墨蓝细环（只对无自带聚焦态的交互元素兜底） */
+/* 键盘焦点：天光蓝细环 */
 a:focus-visible,
 button:focus-visible,
 [role='button'][tabindex]:focus-visible {
@@ -240,7 +274,7 @@ button:focus-visible,
   border-radius: var(--radius-sm);
 }
 
-/* 数字 / 时间 / 统计值：等宽数字，避免跳动（不用等宽字体做标签） */
+/* 数字 / 时间 / 统计值：等宽数字，避免跳动 */
 .num,
 .tabular-nums,
 .stat-value,
@@ -249,33 +283,131 @@ button:focus-visible,
   font-variant-numeric: tabular-nums;
 }
 
-/* 细滚动条 */
+/* 滚动条：浅蓝细条 */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #d7dce4;
+  background: rgba(29, 111, 224, 0.22);
   border-radius: var(--radius-pill);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #c1c8d4;
+  background: rgba(29, 111, 224, 0.34);
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 
-/* ---------- 4. Element Plus 组件统一视觉 ---------- */
+/* ---------- 4. 材质原语 ---------- */
 
-/* 卡片：白面 + 1px 描边 + 12px 圆角 + 一层极浅阴影 */
+/* 玻璃面：半透明 + 模糊 + 1px 白光边 + 内高光（只用于顶栏/hero/弹窗/输入 dock） */
+.glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--shadow-surface), var(--shadow-raised), var(--glass-sheen);
+}
+@supports not ((backdrop-filter: blur(0)) or (-webkit-backdrop-filter: blur(0))) {
+  .glass {
+    background: rgba(255, 255, 255, 0.94);
+  }
+}
+
+/* 内容面：一页最多一张；玻璃底 + 内高光，取代「同款白卡 + 同一枚灰阴影」 */
+.surface {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(244, 249, 255, 0.86));
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, var(--shadow-raised),
+    0 26px 60px -28px rgba(11, 42, 91, 0.24);
+  padding: var(--space-xl);
+}
+@supports not ((backdrop-filter: blur(0)) or (-webkit-backdrop-filter: blur(0))) {
+  .surface {
+    background: rgba(255, 255, 255, 0.95);
+  }
+}
+
+/* 主视觉条：渐变 + 96px 网格光 + 右上角光环（hero 唯一允许「铺面积」的地方） */
+.hero-band {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--grad);
+  color: #fff;
+  box-shadow: 0 18px 48px rgba(11, 42, 91, 0.28);
+}
+.hero-band::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+      90deg,
+      var(--grid-ink) 0 1px,
+      transparent 1px 96px
+    ),
+    repeating-linear-gradient(0deg, var(--grid-ink) 0 1px, transparent 1px 96px);
+}
+.hero-band::after {
+  content: '';
+  position: absolute;
+  top: -240px;
+  right: -160px;
+  width: 620px;
+  height: 620px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.28), transparent 62%);
+}
+.hero-band > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* 晨光 CTA：唯一允许的暖色面积（AI 快速预约、登录按钮等一个页面最多一个） */
+.cta-sun {
+  background: var(--grad-sun);
+  border: 0;
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(255, 122, 47, 0.32);
+  transition: transform var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out),
+    filter var(--dur-1) var(--ease-out);
+}
+.cta-sun:hover {
+  filter: brightness(1.04);
+  box-shadow: 0 12px 30px rgba(255, 122, 47, 0.4);
+}
+
+/* 类型色条：教室卡的左侧竖条，三色对应普通/实验/机房 */
+.stripe-sky {
+  background: var(--sky);
+}
+.stripe-aqua {
+  background: var(--aqua);
+}
+.stripe-sun {
+  background: var(--sun);
+}
+
+/* ---------- 5. Element Plus 组件统一视觉 ---------- */
+
+/* 卡片：玻璃面 + 16px 圆角（历史页面残留的 el-card 也一并升级） */
 .el-card {
   border-radius: var(--radius-card);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow-surface);
+  border: 1px solid var(--glass-line);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: var(--shadow-surface), var(--shadow-raised), var(--glass-sheen);
 }
 .el-card.is-hover-shadow:hover {
-  box-shadow: var(--shadow-raised);
-  border-color: var(--border-color);
+  box-shadow: var(--shadow-surface), 0 14px 34px rgba(9, 30, 66, 0.12), var(--glass-sheen);
+  border-color: var(--glass-line);
 }
 .el-card__header {
   border-bottom: 1px solid var(--line);
@@ -289,37 +421,46 @@ button:focus-visible,
   padding: 20px;
 }
 
-/* 按钮：墨蓝实底 + 真实状态；控件圆角 8px、36px 高 */
+/* 按钮：主按钮走渐变 + 品牌光晕；其余保持清晰边界 */
 .el-button {
   border-radius: var(--radius-control);
   font-weight: 500;
   font-size: var(--text-sm);
-  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease,
-    box-shadow 0.16s ease;
+  transition: background-color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
 }
-.el-button--primary:not(.is-plain):not(.is-text):not(.is-link):not(.is-link) {
-  background: var(--brand);
-  border-color: var(--brand);
+.el-button--primary:not(.is-plain):not(.is-text):not(.is-link) {
+  background-image: var(--grad);
+  background-color: var(--brand);
+  border-color: transparent;
+  box-shadow: var(--shadow-brand);
 }
 .el-button--primary:not(.is-plain):not(.is-text):not(.is-link):hover {
-  background: var(--brand-primary-hover);
-  border-color: var(--brand-primary-hover);
+  background-image: var(--grad);
+  border-color: transparent;
+  filter: brightness(1.06);
+  box-shadow: 0 12px 30px rgba(29, 111, 224, 0.34);
 }
 .el-button--primary:not(.is-plain):not(.is-text):not(.is-link):active {
-  background: var(--brand-primary-active);
-  border-color: var(--brand-primary-active);
+  transform: translateY(1px);
+  box-shadow: 0 6px 16px rgba(29, 111, 224, 0.28);
 }
 .el-button--primary.is-plain {
   --el-button-hover-bg-color: var(--brand-primary-lighter);
-  --el-button-hover-border-color: var(--brand-primary-hover);
+  --el-button-hover-border-color: var(--brand);
   --el-button-hover-text-color: var(--brand);
 }
+.el-button--default:not(.is-plain):not(.is-text):not(.is-link) {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: var(--line-strong);
+}
 .el-button--default:not(.is-plain):not(.is-text):not(.is-link):hover {
-  background: var(--brand-primary-lighter);
-  border-color: var(--brand-primary-border);
+  background: #fff;
+  border-color: var(--brand);
   color: var(--brand);
 }
-/* 表格行内操作：幽灵文本按钮，不与主按钮抢注意力 */
+/* 表格行内操作：幽灵文本按钮 */
 .el-button.is-text {
   font-weight: 500;
   color: var(--brand);
@@ -329,43 +470,47 @@ button:focus-visible,
   color: var(--brand);
 }
 
-/* 标签：状态用 tint 底 + 深色字，圆角 6px */
+/* 标签：tint 底 + 深色字 */
 .el-tag {
   border-radius: var(--radius-sm);
   font-weight: 500;
   font-size: var(--text-xs);
-  padding: 0 8px;
+  padding: 0 9px;
   border-color: transparent;
 }
 
-/* 表格：白面、去斑马纹、52px 行高、仅底部 1px 行线 */
+/* 表格：透明行 + 玻璃表头 + hover 渐变 tint；首列品牌竖条 */
 .el-table {
-  --el-table-header-bg-color: #fafbfc;
+  --el-table-header-bg-color: rgba(255, 255, 255, 0.72);
   --el-table-header-text-color: var(--ink-soft);
-  --el-table-row-hover-bg-color: #f8fafc;
-  --el-table-border-color: #f0f2f5;
+  --el-table-row-hover-bg-color: rgba(29, 111, 224, 0.06);
+  --el-table-border-color: var(--line);
   --el-table-text-color: var(--ink);
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  background: transparent;
   font-size: var(--text-sm);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-md);
 }
 .el-table th.el-table__cell {
-  font-weight: 500;
+  font-weight: 600;
   font-size: var(--text-sm);
-  padding: 12px 0;
-  background: #fafbfc;
+  padding: 13px 0;
+  background: rgba(255, 255, 255, 0.55);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
 }
 .el-table .el-table__cell {
-  padding: 12px 0;
+  padding: 13px 0;
 }
 .el-table .el-table__body tr {
-  height: 52px;
+  height: 54px;
 }
 .el-table .el-table__body tr:hover > td.el-table__cell {
-  background: #f8fafc;
+  background: linear-gradient(90deg, rgba(29, 111, 224, 0.08), rgba(34, 195, 179, 0.05));
 }
-/* 行 hover：首列左侧 2px 品牌条从左向外长出（唯一的表格动效） */
 .el-table .el-table__body tr > td.el-table__cell:first-child {
-  background-image: linear-gradient(var(--brand), var(--brand));
+  background-image: linear-gradient(var(--brand), var(--aqua));
   background-repeat: no-repeat;
   background-position: left center;
   background-size: 0 100%;
@@ -382,28 +527,31 @@ button:focus-visible,
   display: none;
 }
 
-/* 输入框 / 选择器：1px 描边 + 聚焦墨蓝描边（不用外发光） */
+/* 输入框 / 选择器：白玻璃底 + 聚焦天光蓝描边 + 焦点环 */
 .el-input__wrapper,
 .el-select__wrapper,
 .el-textarea__inner,
 .el-date-editor.el-input__wrapper {
   border-radius: var(--radius-control);
-  box-shadow: 0 0 0 1px var(--border-color) inset;
-  transition: box-shadow 0.16s ease;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 0 0 1px var(--line-strong) inset;
+  transition: box-shadow var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
 }
 .el-input__wrapper:hover,
 .el-select__wrapper:hover {
-  box-shadow: 0 0 0 1px #c3cbd8 inset;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(29, 111, 224, 0.35) inset;
 }
 .el-input__wrapper:focus-within,
 .el-input__wrapper.is-focus,
 .el-select__wrapper:focus-within,
 .el-select__wrapper.is-focused,
 .el-textarea__inner:focus {
-  box-shadow: 0 0 0 1px var(--brand) inset;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--brand) inset, var(--ring);
 }
 
-/* 控件内文字统一到 13px：Element Plus 默认 14px 会破坏六档字阶 */
+/* 控件内文字统一到 13px */
 .el-input__inner,
 .el-textarea__inner,
 .el-select__selected-item,
@@ -422,6 +570,12 @@ button:focus-visible,
 /* 分页 */
 .el-pagination.is-background .el-pager li {
   border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.7);
+}
+.el-pagination.is-background .el-pager li.is-active {
+  background-image: var(--grad);
+  border-color: transparent;
+  color: #fff;
 }
 
 /* 标签页：下划线 + 激活字色 */
@@ -429,33 +583,41 @@ button:focus-visible,
   font-size: var(--text-sm);
   font-weight: 500;
   color: var(--ink-soft);
-  transition: color 0.16s;
+  transition: color var(--dur-1);
 }
 .el-tabs__item.is-active {
   color: var(--brand);
 }
 .el-tabs__active-bar {
-  background-color: var(--brand);
   height: 2px;
+  background-image: var(--grad);
 }
 
-/* 浮层（弹窗 / 抽屉 / 消息框 / 下拉） */
+/* 浮层（弹窗 / 抽屉 / 消息框 / 下拉）：玻璃 + 20px 圆角 */
 .el-message-box,
 .el-dialog,
 .el-drawer {
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-lg);
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  backdrop-filter: blur(22px) saturate(150%);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--shadow-overlay), var(--glass-sheen);
 }
 .el-popper.is-light,
 .el-dropdown__popper,
 .el-select__popper,
 .el-picker__popper,
 .el-popover.el-popper {
-  border-radius: var(--radius-control);
-  border-color: var(--line);
-  box-shadow: var(--shadow-float);
+  border-radius: var(--radius-md);
+  border-color: var(--glass-line);
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(18px) saturate(150%);
+  box-shadow: var(--shadow-float), var(--glass-sheen);
 }
 .el-dialog__header {
-  padding: 20px 24px 12px;
+  padding: 20px 24px 14px;
   margin-right: 0;
   border-bottom: 1px solid var(--line);
 }
@@ -470,21 +632,24 @@ button:focus-visible,
   color: var(--ink-soft);
 }
 .el-dialog__footer {
-  padding: 12px 24px 20px;
+  padding: 14px 24px 20px;
   border-top: 1px solid var(--line);
 }
 .el-message,
 .el-notification {
-  border-radius: var(--radius-control);
-  border-color: var(--line);
+  border-radius: var(--radius-md);
+  border-color: var(--glass-line);
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  backdrop-filter: blur(16px) saturate(150%);
   box-shadow: var(--shadow-float);
 }
 
 /* 下拉菜单项 */
 .el-dropdown-menu__item:not(.is-disabled):hover,
 .el-dropdown-menu__item:not(.is-disabled):focus {
-  background-color: var(--brand-soft);
-  color: var(--brand);
+  background: var(--grad-soft);
+  color: var(--deep);
 }
 .el-dropdown-menu__item.is-selected {
   color: var(--brand);
@@ -495,7 +660,7 @@ button:focus-visible,
   color: var(--ink-soft);
 }
 
-/* 屏幕阅读器专用文本：绝对定位并裁剪，绝不参与任何布局计算（曾被漏定义，导致 AI 对话页 live region 抢占 flex 空间） */
+/* 屏幕阅读器专用文本：绝对定位并裁剪，绝不参与任何布局计算 */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -509,16 +674,16 @@ button:focus-visible,
   border: 0;
 }
 
-/* ---------- 5. 页面原语 ---------- */
+/* ---------- 6. 页面原语 ---------- */
 
 /* 页面容器：限宽 + 统一页边距 */
 .page-container {
-  max-width: 1200px;
+  max-width: 1240px;
   margin: 0 auto;
-  padding: 32px 32px 48px;
+  padding: 28px 32px 56px;
 }
 
-/* 页头：标题 / 说明 / 右侧操作 三段式；靠留白分隔，不画底线 */
+/* 页头：标题 / 说明 / 右侧操作 三段式 */
 .page-head {
   display: flex;
   align-items: flex-end;
@@ -533,8 +698,8 @@ button:focus-visible,
 .page-title {
   font-size: var(--text-xl);
   font-weight: 600;
-  line-height: 1.25;
-  letter-spacing: -0.01em;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
   color: var(--ink);
 }
 .page-sub,
@@ -546,18 +711,7 @@ button:focus-visible,
   font-variant-numeric: tabular-nums;
 }
 
-/* 内容面：一页一张，白底 + 12px 圆角 + 一层浅影 */
-.surface {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-surface);
-  padding: var(--space-xl);
-  /* 内高光：白面在冷灰底上有纸感，替代第二/第三种阴影 */
-  box-shadow: var(--shadow-surface), inset 0 1px 0 rgba(255, 255, 255, 0.6);
-}
-
-/* 分区：靠 32px 留白与小标题分组，不用装饰细线 */
+/* 分区：靠留白与小标题分组 */
 .section {
   padding: 0;
   border: 0;
@@ -585,31 +739,33 @@ button:focus-visible,
   font-variant-numeric: tabular-nums;
 }
 
-/* 门牌编号：本系统唯一记忆点（教室编号 / 账号标识），tabular 数字、不用等宽字体 */
+/* 门牌编号：教室编号 / 账号标识，等宽数字 */
 .plate,
 .code-block {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 44px;
+  min-width: 46px;
   height: 26px;
-  padding: 0 8px;
-  border: 1px solid var(--line);
+  padding: 0 9px;
+  border: 1px solid rgba(29, 111, 224, 0.24);
   border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--ink);
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--deep);
+  font-family: var(--font-num);
   font-size: var(--text-sm);
   font-weight: 600;
   line-height: 1;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.03em;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .plate.is-signal,
 .code-block.is-signal {
-  background: var(--brand-soft);
+  background: var(--grad);
   border-color: transparent;
-  color: var(--brand);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(29, 111, 224, 0.3);
 }
 .plate.is-plain,
 .code-block.is-plain {
@@ -619,14 +775,14 @@ button:focus-visible,
   min-width: 0;
 }
 
-/* 状态药丸：tint 底 + 6px 圆点 + 文案；唯一使用全圆角的元素 */
+/* 状态药丸：tint 底 + 圆点 + 文案；唯一使用全圆角的元素 */
 .status-pill,
 .status-cell {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 22px;
-  padding: 0 10px;
+  height: 23px;
+  padding: 0 11px;
   border-radius: var(--radius-pill);
   background: var(--info-soft);
   color: var(--info);
@@ -657,7 +813,7 @@ button:focus-visible,
 }
 .status-pill.is-today,
 .status-cell.is-today {
-  background: var(--warning-soft);
+  background: rgba(224, 138, 43, 0.14);
   color: var(--attention);
 }
 .status-cell::before,
@@ -696,16 +852,20 @@ button:focus-visible,
   background: var(--attention);
 }
 
-/* 筛选条 / 表格容器：白面 + 1px 描边，替代「每页一张 el-card」 */
+/* 筛选条 / 表格容器：玻璃面，替代「每页一张 el-card」 */
 .search-card,
 .table-band {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 250, 255, 0.9));
+  -webkit-backdrop-filter: blur(16px) saturate(145%);
+  backdrop-filter: blur(16px) saturate(145%);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, var(--shadow-raised),
+    0 26px 60px -28px rgba(11, 42, 91, 0.2);
 }
 
 .empty-slate {
-  padding: 40px 0;
+  padding: 44px 0;
   color: var(--ink-soft);
   font-size: var(--text-sm);
   line-height: 1.7;
@@ -720,18 +880,21 @@ button:focus-visible,
   text-decoration: underline;
 }
 
-/* KPI 卡片：白面 + 细描边；数字 28/600 tabular */
+/* KPI 卡片：玻璃面；数字 30/600 tabular */
 .stat-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(245, 250, 255, 0.86));
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid var(--glass-line);
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-surface);
-  padding: 20px 24px;
+  box-shadow: var(--shadow-surface), var(--shadow-raised), var(--glass-sheen);
+  padding: 22px 24px;
   position: relative;
-  transition: box-shadow 0.16s ease, border-color 0.16s ease;
+  transition: transform var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
 }
 .stat-card:hover {
-  box-shadow: var(--shadow-raised);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-surface), 0 16px 38px rgba(9, 30, 66, 0.12), var(--glass-sheen);
 }
 .stat-card .stat-label {
   font-size: var(--text-sm);
@@ -740,11 +903,12 @@ button:focus-visible,
   margin-bottom: 6px;
 }
 .stat-card .stat-value {
+  font-family: var(--font-num);
   font-size: var(--text-xl);
   font-weight: 600;
-  color: var(--ink);
-  line-height: 1.2;
-  letter-spacing: -0.01em;
+  color: var(--deep);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 .stat-card .stat-trend {
@@ -754,18 +918,17 @@ button:focus-visible,
   margin-top: 8px;
 }
 
-/* ---------- 6. 动效语法 ---------- */
+/* ---------- 7. 动效语法 ---------- */
 
-/* 本系统的动效只有两类：
+/* 动效只有两类：
    ① 每页一次的入场编排（.reveal / .stagger，≤420ms，只动 opacity 与 transform）
-   ② 回答用户动作的瞬时反馈（.is-leaving / 行 hover 条 / 状态药丸 flash）
-   禁止：常驻循环动画（infinite）、逐卡 hover 特效、渐变装饰。 */
+   ② 回答用户动作的瞬时反馈（.is-leaving / 行 hover 条 / 药丸 flash / CTA 光扫）
+   禁止：常驻循环动画（infinite）、逐卡 hover 特效 */
 
-/* 入场：上移 6px + 淡入，一次即止 */
 @keyframes reveal-up {
   from {
     opacity: 0;
-    transform: translate3d(0, 6px, 0);
+    transform: translate3d(0, 8px, 0);
   }
   to {
     opacity: 1;
@@ -775,13 +938,11 @@ button:focus-visible,
 .reveal {
   animation: reveal-up var(--dur-2) var(--ease-out) both;
 }
-/* 列表项依次入场：用 --i 传序号，22ms 一档；超过 12 项不要再叠加 */
 .stagger {
   animation: reveal-up var(--dur-2) var(--ease-out) both;
   animation-delay: calc(var(--i, 0) * 22ms);
 }
 
-/* 行/卡片离场：淡出 + 收缩，用于「取消」「审核通过」后移除的行 */
 @keyframes leave-out {
   to {
     opacity: 0;
@@ -793,13 +954,12 @@ button:focus-visible,
   pointer-events: none;
 }
 
-/* 状态药丸变化：一次 tint 脉冲，表示「这个值刚变了」 */
 @keyframes pill-flash {
   0% {
     box-shadow: 0 0 0 0 var(--brand-soft);
   }
   40% {
-    box-shadow: 0 0 0 3px var(--brand-soft);
+    box-shadow: 0 0 0 4px var(--brand-soft);
   }
   100% {
     box-shadow: 0 0 0 0 transparent;
@@ -807,10 +967,9 @@ button:focus-visible,
 }
 .status-cell.is-updated,
 .status-pill.is-updated {
-  animation: pill-flash 200ms var(--ease-out) both;
+  animation: pill-flash 220ms var(--ease-out) both;
 }
 
-/* 指针落位：时刻带的「此刻」指针从 08:00 扫到当前位置 */
 @keyframes needle-in {
   from {
     opacity: 0;
@@ -825,50 +984,77 @@ button:focus-visible,
   animation: needle-in var(--dur-3) var(--ease-out) both;
 }
 
-/* 路由切换：内容区淡入 6px，不动布局 */
+/* 光扫：主 CTA 悬停时一道高光从左掠过（micro-delight，一次即止） */
+@keyframes sheen-sweep {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(220%);
+  }
+}
+.sheen {
+  position: relative;
+  overflow: hidden;
+}
+.sheen::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 45%;
+  pointer-events: none;
+  transform: translateX(-120%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+  opacity: 0;
+}
+.sheen:hover::after {
+  opacity: 1;
+  animation: sheen-sweep 520ms var(--ease-out) both;
+}
+
+/* 路由切换：内容区淡入 8px，不动布局 */
 .page-swap-enter-active,
 .page-swap-leave-active {
   transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
 }
 .page-swap-enter-from {
   opacity: 0;
-  transform: translate3d(0, 6px, 0);
+  transform: translate3d(0, 8px, 0);
 }
 .page-swap-leave-to {
   opacity: 0;
 }
 
-/* 按下反馈：1px 位移，仅用于主操作按钮 */
 .press:active {
   transform: translateY(1px);
 }
 
-/* 菜单项：底色与文字色都走一次短过渡，避免切换时硬跳 */
 .el-menu-item,
 .header-menu-item {
-  transition: color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+  transition: color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
 }
 
-/* 表格行：悬停时首列长出品牌竖条（background-size 从 0 到 2px） */
+/* 表格行：悬停时首列长出品牌渐变竖条 */
 .el-table__body tr > td:first-child {
   background-repeat: no-repeat;
   background-position: left center;
   background-size: 0 100%;
   transition: background-size var(--dur-1) var(--ease-out);
 }
-
 .el-table__body tr:hover > td:first-child {
-  background-image: linear-gradient(var(--brand), var(--brand));
   background-size: 2px 100%;
 }
-/* 页头：每页进入时一次编排（只动 opacity/transform，不动布局） */
+
+/* 页头：每页进入时一次编排 */
 .page-head {
   animation: reveal-up var(--dur-2) var(--ease-out) both;
 }
 
-/* ---------- 7. 动效克制 ---------- */
+/* ---------- 8. 动效克制 ---------- */
 
-/* 用户偏好减少动效：关闭全部过渡与动画（含入场延迟，避免「等待后突然出现」） */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

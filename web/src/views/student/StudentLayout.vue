@@ -143,14 +143,16 @@ async function handleLogout() {
 }
 
 .logo-badge {
-  height: 26px;
-  padding: 0 9px;
+  height: 28px;
+  padding: 0 11px;
   border-radius: var(--radius-sm);
-  background: var(--brand-soft);
-  color: var(--brand);
+  background: var(--grad);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(29, 111, 224, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
+  font-family: var(--font-num);
   font-size: var(--text-sm);
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -232,10 +234,11 @@ async function handleLogout() {
   background: var(--brand-soft);
 }
 .user-avatar {
-  background: var(--brand);
-  color: var(--surface);
+  background: var(--grad);
+  color: #fff;
   font-size: var(--text-xs);
   font-weight: 600;
+  box-shadow: 0 4px 12px rgba(29, 111, 224, 0.28);
 }
 .user-name {
   font-size: var(--text-sm);

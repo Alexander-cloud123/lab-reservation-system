@@ -31,7 +31,7 @@ AI 助手单独剪了约 30 秒片段（时长随上游吐字波动），展示�
 
 ## 项目预览
 
-截图来自本机真实运行（种子账号登录，1440×900），可用 `node web/scripts/capture-screens.mjs` 复现：
+界面母题为「晨光玻璃」：夜蓝→天蓝→薄荷青的渐变承载身份，半透明玻璃面与浮起阴影构成层次，晨光橙只标记「此刻」。截图来自本机真实运行（种子账号登录，1440×900），可用 `node web/scripts/capture-screens.mjs` 复现；设计依据与 token 见 [界面设计规范](docs/界面设计规范.md)：
 
 <table>
   <tr>
@@ -240,7 +240,7 @@ cd web; node scripts/capture-screens.mjs       # 采集 README 预览截图
 | 技术开发规格书 | [`spec.md`](spec.md) |
 | 协作章程与红线约束 | [`AGENTS.md`](AGENTS.md) |
 | 运行与配置（环境变量 / AI / Redis / 端口） | [`docs/运行与配置.md`](docs/运行与配置.md) |
-| 界面设计规范（墨蓝门牌体系 / token / 公共原语） | [docs/界面设计规范.md](docs/界面设计规范.md) |
+| 界面设计规范（晨光玻璃体系 / token / 材质与动效 / 已消除的 AI 默认外观） | [docs/界面设计规范.md](docs/界面设计规范.md) |
 | 安全基线（部署加固项与验证命令） | [`docs/安全基线.md`](docs/安全基线.md) |
 | 可靠性验证（故障演练 / 接口与页面性能基准） | [`docs/可靠性验证.md`](docs/可靠性验证.md) |
 | 演示视频分镜与录制说明 | [`docs/演示视频分镜.md`](docs/演示视频分镜.md) |

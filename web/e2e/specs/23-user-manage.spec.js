@@ -130,7 +130,7 @@ test.describe('管理端-用户管理（UserManage）', () => {
     // 下一页
     await page.locator('.el-pagination .btn-next').click()
     await expect(page.locator('.el-pager li.is-active')).toHaveText('2')
-    expect(await page.locator('tr.el-table__row').count(), '第 2 页应有数据').toBe(Math.min(total - 10, 10))
+    await expect(page.locator('tr.el-table__row'), '第 2 页应有数据').toHaveCount(Math.min(total - 10, 10))
 
     // 每页 20 条：先显式回第 1 页，再切每页条数。
     // 顺序反过来的竞态：在第 2 页切到 20 条/页时，EP 会因页码越界把页码夹紧到 1，

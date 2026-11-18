@@ -1452,4 +1452,68 @@ onMounted(async () => {
   color: var(--ink);
   font-size: var(--text-sm);
 }
+
+/* ---------- 第四轮（晨光玻璃）覆盖 ---------- */
+.identity-card,
+.quick-grid,
+.fav-grid,
+.msg-list,
+.settings-group,
+.overview-row {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-surface), var(--shadow-raised), var(--glass-sheen);
+}
+.identity-avatar {
+  background: var(--grad);
+  color: #fff;
+  box-shadow: 0 8px 22px rgba(29, 111, 224, 0.3);
+}
+.identity-role {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+.identity-name {
+  font-size: var(--text-lg);
+  letter-spacing: -0.01em;
+}
+.overview-value {
+  font-family: var(--font-num);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--deep);
+  font-variant-numeric: tabular-nums;
+}
+.quick-item,
+.fav-item,
+.msg-item,
+.settings-row {
+  border-radius: var(--radius-control);
+  transition: background-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
+}
+.quick-item:hover,
+.fav-item:hover,
+.msg-item:hover {
+  background: rgba(255, 255, 255, 0.72);
+  transform: translateX(2px);
+}
+.settings-group-title {
+  background: var(--grad-soft);
+  color: var(--deep);
+  font-weight: 600;
+}
+.msg-item.unread {
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: inset 3px 0 0 var(--sun);
+}
 </style>

@@ -323,4 +323,27 @@ const detail = computed(() => {
   line-height: 1.6;
   color: var(--ink-soft);
 }
+
+/* ---------- 第四轮（晨光玻璃）覆盖 ---------- */
+.ai-plan {
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-surface), var(--shadow-raised), var(--glass-sheen);
+}
+.plan-go {
+  background-image: var(--grad);
+  color: #fff;
+  border: 0;
+  box-shadow: var(--shadow-brand);
+}
+.plan-go:hover {
+  filter: brightness(1.06);
+  color: #fff;
+}
+.plan-row {
+  border-top: 1px solid var(--line);
+}
 </style>

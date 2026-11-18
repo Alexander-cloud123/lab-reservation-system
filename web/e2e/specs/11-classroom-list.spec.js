@@ -152,8 +152,12 @@ test.describe('教室列表页 - 筛选与展示', () => {
     const expected = hit.find((r) => r.id === 1)
     expect(expected, 'A101 应在筛选结果中').toBeTruthy()
 
+    // 卡片标题会去掉与门牌重复的编号前缀（如「A101多媒体教室」→「多媒体教室」）
+    const displayName = expected.name.startsWith(expected.roomNo)
+      ? expected.name.slice(expected.roomNo.length).trim() || expected.name
+      : expected.name
     const card = cardByNo(page, expected.roomNo)
-    await expect(card.locator('.room-name')).toHaveText(expected.name)
+    await expect(card.locator('.room-name')).toHaveText(displayName)
     await expect(card.locator('.room-no')).toHaveText(expected.roomNo)
     await expect(card.getByText(`${expected.building} 楼栋`)).toBeVisible()
     await expect(card.getByText(`容量 ${expected.capacity} 人`)).toBeVisible()

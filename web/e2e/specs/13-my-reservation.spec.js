@@ -62,9 +62,16 @@ async function seedPending(request, token, { classroomId, date, startTime, endTi
 }
 
 /** 点击状态标签页并等待列表请求，返回响应体（含请求 query 中的 status） */
-async function switchTab(page, label) {
+async function switchTab(page, label, expectedStatus) {
+  // 只等「本次点击」发出的那一个请求：页面初次加载的请求不带 status，
+  // 若它恰好还在途，会抢先命中 waitForResponse，导致拿到 status=null 的假结果。
   const [resp] = await Promise.all([
-    page.waitForResponse((r) => r.url().includes('/api/reservation/mine') && r.request().method() === 'GET'),
+    page.waitForResponse((r) => {
+      if (!r.url().includes('/api/reservation/mine') || r.request().method() !== 'GET') {
+        return false
+      }
+      return new URL(r.url()).searchParams.get('status') === expectedStatus
+    }),
     page.getByRole('tab', { name: label, exact: true }).click()
   ])
   return { status: new URL(resp.url()).searchParams.get('status'), body: await resp.json() }
@@ -115,7 +122,7 @@ test.describe('我的预约', () => {
       ['已驳回', '2', 'rejected'],
       ['已取消', '3', 'cancelled']
     ]) {
-      const { status: reqStatus, body } = await switchTab(page, label)
+      const { status: reqStatus, body } = await switchTab(page, label, status)
       expect(reqStatus, `「${label}」标签页请求状态参数`).toBe(status)
       expect(body.code, `「${label}」列表接口`).toBe(200)
       for (const r of body.data.records) {
@@ -126,7 +133,7 @@ test.describe('我的预约', () => {
     }
 
     // 回到「全部」：四种状态均可同时出现
-    const all = await switchTab(page, '全部')
+    const all = await switchTab(page, '全部', null)
     expect(all.status, '「全部」标签页不应带 status 参数').toBeNull()
     for (const key of Object.keys(purposes)) {
       await expect(rowBy(page, purposes[key])).toBeVisible()

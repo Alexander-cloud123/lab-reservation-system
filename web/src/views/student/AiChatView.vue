@@ -1054,4 +1054,67 @@ probeAiRecommend().catch(() => {})
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ---------- 第四轮（晨光玻璃）覆盖 ---------- */
+.ai-chat-sidebar {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  border-right: 1px solid var(--glass-line);
+  box-shadow: var(--shadow-surface), var(--glass-sheen);
+}
+.ai-chat-topbar {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  border-bottom: 1px solid var(--glass-line);
+  box-shadow: var(--shadow-surface), var(--glass-sheen);
+}
+.ai-chat-new {
+  background-image: var(--grad);
+  box-shadow: var(--shadow-brand);
+}
+.welcome-mark {
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  letter-spacing: -0.03em;
+}
+.ai-chat-suggestions {
+  gap: var(--space-md);
+}
+.suggest-item {
+  border-radius: var(--radius-md);
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--shadow-surface), var(--glass-sheen);
+  transition: transform var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out),
+    border-color var(--dur-2) var(--ease-out);
+}
+.suggest-item:hover {
+  transform: translateY(-2px);
+  border-color: rgba(29, 111, 224, 0.34);
+  box-shadow: var(--shadow-raised), var(--glass-sheen);
+}
+.ai-chat-dock {
+  background: transparent;
+}
+.ai-context-chip {
+  background: var(--grad-soft);
+  color: var(--deep);
+  border: 1px solid rgba(29, 111, 224, 0.2);
+}
+.ai-chat-back {
+  border-radius: var(--radius-control);
+}
+.topbar-state {
+  border: 1px solid var(--glass-line);
+  background: rgba(255, 255, 255, 0.7);
+}
+.ai-chat-jump {
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--shadow-float);
+}
 </style>

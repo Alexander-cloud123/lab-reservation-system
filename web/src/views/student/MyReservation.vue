@@ -342,4 +342,35 @@ onMounted(loadData)
     row-gap: 6px;
   }
 }
+
+/* ---------- 第四轮（晨光玻璃）覆盖 ---------- */
+.today-band {
+  background: var(--grad-soft);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--shadow-surface), var(--glass-sheen);
+  margin-bottom: var(--space-lg);
+}
+.today-band-label {
+  color: var(--attention);
+  font-weight: 600;
+}
+.today-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: var(--radius-pill);
+  background: rgba(224, 138, 43, 0.14);
+  color: var(--attention);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+.room-no {
+  font-family: var(--font-num);
+  letter-spacing: 0.03em;
+  color: var(--brand-deep);
+}
+.reserve-card {
+  overflow: hidden;
+}
 </style>

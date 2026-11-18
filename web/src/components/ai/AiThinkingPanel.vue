@@ -373,4 +373,20 @@ onBeforeUnmount(stopTimer)
     transition: none;
   }
 }
+
+/* ---------- 第四轮（晨光玻璃）覆盖 ---------- */
+.thinking {
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: var(--shadow-surface), var(--glass-sheen);
+}
+.reasoning {
+  background: var(--grad-soft);
+  border-left: 2px solid var(--sky);
+  border-radius: var(--radius-sm);
+}
+.step-dot {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+}
 </style>

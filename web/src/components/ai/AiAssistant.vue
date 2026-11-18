@@ -158,4 +158,15 @@ onBeforeUnmount(() => clearTimeout(hintTimer))
     animation: none;
   }
 }
+
+/* ---------- 第四轮（晨光玻璃）覆盖 ---------- */
+.assistant-ball {
+  background: var(--grad);
+  color: #fff;
+  box-shadow: 0 12px 32px rgba(11, 42, 91, 0.32), 0 0 0 1px rgba(255, 255, 255, 0.24) inset;
+}
+.assistant-ball:hover {
+  filter: brightness(1.06);
+  box-shadow: 0 16px 38px rgba(11, 42, 91, 0.38);
+}
 </style>

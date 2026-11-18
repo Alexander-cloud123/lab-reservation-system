@@ -67,12 +67,13 @@
         v-for="(room, index) in records"
         :key="room.id"
         class="room-card reveal stagger"
+        :class="`room-type-${room.type}`"
         :style="{ '--i': Math.min(index, 12) }"
         @click="goDetail(room)"
       >
         <div class="room-card-head">
           <div class="room-name-wrap">
-            <span class="room-name">{{ room.name }}</span>
+            <span class="room-name">{{ displayName(room) }}</span>
             <span class="room-no">{{ room.roomNo }}</span>
           </div>
           <span class="status-cell" :class="statusPill(room.statusLabel)">{{ room.statusLabel }}</span>
@@ -139,6 +140,15 @@ import { useUserStore } from '@/stores/user'
 import { ROOM_TYPES, typeText } from '@/utils/dict'
 
 /** 时刻带摘要：今天还有多少间教室有空档（按当前列表数据算，不额外请求） */
+// 教室显示名：库里 name 常已含门牌（如「A101多媒体教室」），与右侧门牌重复时去掉前缀
+function displayName(room) {
+  const roomNo = room.roomNo || ''
+  const name = room.name || ''
+  if (!roomNo || !name.startsWith(roomNo)) {
+    return name
+  }
+  return name.slice(roomNo.length).trim() || name
+}
 const bandSummary = computed(() => {
   const rooms = records.value || []
   const freeRooms = rooms.filter((room) => Number(room.todayRemainingSlots || 0) > 0)
@@ -338,22 +348,48 @@ onMounted(() => {
   min-height: 200px;
 }
 
-/* ---- 教室卡：白面 + 12px 圆角 + 一层浅影，hover 抬起 ---- */
+/* ---- 教室卡：玻璃面 + 左侧类型色条（类型一换，颜色就换，扫一眼可分类） ---- */
 .room-card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  padding: var(--space-xl);
-  background: var(--surface);
-  border: 1px solid var(--line);
+  padding: var(--space-xl) var(--space-xl) var(--space-lg);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(246, 251, 255, 0.88));
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid var(--glass-line);
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-surface);
+  box-shadow: var(--shadow-surface), var(--shadow-raised), var(--glass-sheen);
   cursor: pointer;
-  transition: box-shadow 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+  overflow: hidden;
+  transition: transform var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out),
+    border-color var(--dur-2) var(--ease-out);
+}
+.room-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 5px;
+  background: linear-gradient(180deg, var(--type-color, var(--brand)), rgba(255, 255, 255, 0.1));
+}
+.room-type-1 {
+  --type-color: var(--sky);
+}
+.room-type-2 {
+  --type-color: var(--aqua);
+}
+.room-type-3 {
+  --type-color: var(--sun);
 }
 .room-card:hover {
-  border-color: var(--brand-primary-border);
-  box-shadow: var(--shadow-raised);
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  border-color: rgba(29, 111, 224, 0.36);
+  box-shadow: var(--shadow-surface), 0 18px 42px rgba(9, 30, 66, 0.14), var(--glass-sheen);
+}
+.room-card:hover::before {
+  width: 6px;
 }
 .room-card:focus-visible {
   outline: 2px solid var(--brand);
@@ -388,16 +424,23 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   height: 24px;
-  padding: 0 8px;
-  border: 1px solid var(--line);
+  padding: 0 9px;
+  border: 1px solid rgba(29, 111, 224, 0.22);
   border-radius: var(--radius-sm);
-  background: var(--surface);
+  background: rgba(255, 255, 255, 0.72);
+  font-family: var(--font-num);
   font-size: var(--text-sm);
   font-weight: 600;
   line-height: 1;
-  color: var(--ink);
+  letter-spacing: 0.03em;
+  color: var(--brand-deep);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+.room-card:hover .room-no {
+  background: var(--brand-soft);
+  color: var(--brand);
 }
 
 .room-meta {
@@ -431,6 +474,7 @@ onMounted(() => {
 }
 .remain-slots b {
   margin: 0 2px;
+  font-family: var(--font-num);
   font-size: var(--text-md);
   font-weight: 600;
   color: var(--brand);

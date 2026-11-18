@@ -115,7 +115,7 @@
       <div class="section-head">
         <span class="section-title">消息通知</span>
         <div class="section-actions">
-          <el-tag v-if="unreadCount > 0" type="danger" size="small" round>{{ unreadCount }} 条未读</el-tag>
+          <span v-if="unreadCount > 0" class="status-cell is-pending unread-pill">{{ unreadCount }} 条未读</span>
           <el-button v-if="notifications.length" text type="primary" @click="markAllRead">全部标为已读</el-button>
         </div>
       </div>
@@ -664,6 +664,11 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* 未读计数只在挂载时脉冲一次，不常驻动画 */
+.unread-pill {
+  animation: pill-flash 1.6s var(--ease-out) 1;
+}
+
 /* ---- 页面标题栏 ---- */
 .page-sub {
   font-size: var(--text-xs);

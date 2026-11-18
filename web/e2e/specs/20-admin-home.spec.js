@@ -40,6 +40,23 @@ async function readCardValues(page) {
   return values
 }
 
+/**
+ * 首页 KPI 有 320ms 数数入场（useCountUp），读完立刻比对会读到中间帧。
+ * 连续两次读数一致才认为动画结束，返回稳定值。
+ */
+async function settleCardValues(page) {
+  let prev = null
+  const deadline = Date.now() + 2000
+  while (Date.now() < deadline) {
+    const values = await readCardValues(page)
+    const signature = JSON.stringify(values)
+    if (prev === signature) return values
+    prev = signature
+    await page.waitForTimeout(120)
+  }
+  return JSON.parse(prev)
+}
+
 /** 概览接口返回后 Vue 才会重渲染，教室里一定有数据（≥12），用它作为渲染完成信号 */
 async function waitCardsRendered(page) {
   await expect(page.locator('.stat-item')).toHaveCount(4)
@@ -56,6 +73,8 @@ test.describe('管理端-后台首页（AdminWelcome）', () => {
 
     // 等概览数据回填后再读值（仅等元素出现时，数值可能还是占位符）
     await waitCardsRendered(page)
+
+    await settleCardValues(page)
 
     for (const [label] of FIELDS) {
       await expect(statItem(page, label).locator('.stat-label')).toBeVisible()
@@ -80,7 +99,7 @@ test.describe('管理端-后台首页（AdminWelcome）', () => {
       await page.reload()
       await respPromise
       await waitCardsRendered(page)
-      values = await readCardValues(page)
+      values = await settleCardValues(page)
       api = expectOk(await getOverview(page.request, login.token), 'GET /api/stats/overview')
       matched = FIELDS.every(([, field]) => values[field] === api[field])
     }

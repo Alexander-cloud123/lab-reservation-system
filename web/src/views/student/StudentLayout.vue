@@ -51,7 +51,11 @@
 
     <!-- 主内容区 -->
     <el-main class="student-main">
-      <router-view />
+      <router-view v-slot="{ Component, route: currentRoute }">
+        <transition name="page-swap" mode="out-in">
+          <component :is="Component" :key="currentRoute.path" />
+        </transition>
+      </router-view>
     </el-main>
 
     <!-- 全局悬浮 AI 预约助手（R7，需求文档 2.4：学生端所有页面右下角；enabled=false 时悬浮球自动隐藏） -->

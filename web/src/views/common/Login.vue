@@ -5,13 +5,26 @@
       <div class="brand-grid" aria-hidden="true" />
       <div class="brand-inner">
         <div class="brand-code">
-          <span class="plate brand-plate">A101</span>
-          <span class="brand-code-note">教室预约系统</span>
+          <span class="brand-code-num">A101</span>
+          <span class="brand-code-note">教室预约系统，08:00 至 22:00 开放</span>
         </div>
         <h1 class="brand-name">
           高校实验室<br />预约管理系统
         </h1>
         <p class="brand-slogan">把空闲的教室，变成可查、可约、可追溯的时段。</p>
+
+        <!-- 静态刻度尺：与首页「时刻带」同源，说明 08:00–22:00 的可约窗口 -->
+        <div class="brand-ruler" aria-hidden="true">
+          <span class="brand-window" />
+          <span
+            v-for="hour in rulerHours"
+            :key="hour"
+            class="brand-tick"
+            :class="{ 'is-major': hour % 2 === 0 }"
+            :style="{ left: (hour / 24) * 100 + '%' }"
+          />
+        </div>
+
         <ul class="brand-steps">
           <li>
             <span class="step-title">找教室</span>
@@ -185,6 +198,9 @@ async function handleLogin() {
     loading.value = false
   }
 }
+/** 刻度尺：全天 0–24 小时，每小时一枚短刻度 */
+const rulerHours = Array.from({ length: 25 }, (_, index) => index)
+
 </script>
 
 <style scoped>
@@ -225,12 +241,15 @@ async function handleLogin() {
   gap: 12px;
   margin-bottom: 40px;
 }
-.brand-plate {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.22);
+/* 门牌数字：全站仅两处使用 --text-display 之一（另一处是首页时刻带的主时钟） */
+.brand-code-num {
+  font-family: var(--font-num);
+  font-size: var(--text-display);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.02em;
   color: var(--surface);
-  font-size: var(--text-sm);
-  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
 }
 .brand-code-note {
   font-size: var(--text-sm);
@@ -249,7 +268,37 @@ async function handleLogin() {
   font-size: var(--text-base);
   line-height: 1.75;
   color: rgba(255, 255, 255, 0.74);
-  margin-bottom: 48px;
+  margin-bottom: 20px;
+}
+
+/* 静态刻度尺：0–24 小时全天域，08:00–22:00 为可约窗口 */
+.brand-ruler {
+  position: relative;
+  height: 30px;
+  margin-bottom: 40px;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.brand-window {
+  position: absolute;
+  top: -1px;
+  left: 33.3333%;
+  width: 58.3334%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.brand-tick {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.brand-tick.is-major {
+  height: 10px;
+  background: rgba(255, 255, 255, 0.42);
 }
 .brand-steps {
   list-style: none;

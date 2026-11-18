@@ -249,7 +249,7 @@ test.describe('个人中心', () => {
     await expect(rejectMsg.locator('.msg-dot')).toBeVisible()
 
     // 未读计数标签存在
-    await expect(page.locator('.section-actions .el-tag')).toContainText('条未读')
+    await expect(page.locator('.section-actions .status-cell')).toContainText('条未读')
 
     // 单条标记已读：立即生效（未读样式与圆点当场消失，无需刷新）
     // 回归点：此前 markRead 只写 localStorage、不触发响应式更新，未读标记要刷新后才更新
@@ -266,10 +266,10 @@ test.describe('个人中心', () => {
     // 全部标为已读：立即生效（未读标记与计数标签当场消失），刷新后仍保持
     await page.getByRole('button', { name: '全部标为已读' }).click()
     await expect(page.locator('.msg-dot')).toHaveCount(0)
-    await expect(page.locator('.section-actions .el-tag')).toHaveCount(0)
+    await expect(page.locator('.section-actions .status-cell')).toHaveCount(0)
     await page.reload()
     await expect(page.locator('.msg-dot')).toHaveCount(0)
-    await expect(page.locator('.section-actions .el-tag')).toHaveCount(0)
+    await expect(page.locator('.section-actions .status-cell')).toHaveCount(0)
 
     // 收尾：待审核可取消；已驳回为终态（统一由 SQL 清理）
     await tryCancel(request, token, pendingId)

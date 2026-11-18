@@ -53,28 +53,17 @@
         />
       </div>
 
-      <!-- 横向时间轴可视化（08:00-22:00） -->
-      <div class="timeline">
-        <div class="timeline-axis">
-          <span v-for="h in axisHours" :key="h" class="axis-hour" :style="{ left: axisLeft(h) + '%' }">
-            {{ h }}:00
-          </span>
-        </div>
-        <div class="timeline-bar">
-          <div
-            v-for="(slot, idx) in classroom.occupiedSlots || []"
-            :key="idx"
-            class="timeline-slot"
-            :style="slotStyle(slot.startTime, slot.endTime)"
-            :title="slot.mine && slot.purpose ? `${slot.startTime}-${slot.endTime} ${slot.purpose}` : `${slot.startTime}-${slot.endTime}`"
-          >
-            {{ slot.startTime }}-{{ slot.endTime }}
-          </div>
-        </div>
-        <p v-if="!(classroom.occupiedSlots || []).length" class="slots-empty">
-          {{ queryDate || '今天' }} 暂无已通过的预约时段，可自由预约
-        </p>
-      </div>
+      <!-- 时段刻度尺：hover 空档即显可点提示，点一下把时段带回预约弹窗 -->
+      <TimeRuler
+        class="slots-ruler"
+        :slots="classroom.occupiedSlots || []"
+        :show-now="isViewingToday"
+        clickable
+        @pick="onPickSlot"
+      />
+      <p v-if="!(classroom.occupiedSlots || []).length" class="slots-empty">
+        {{ queryDate || '今天' }} 暂无已通过的预约时段，可自由预约
+      </p>
 
       <!-- 时段明细表 -->
       <el-table v-if="(classroom.occupiedSlots || []).length" :data="classroom.occupiedSlots">
@@ -218,6 +207,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, Calendar, Star, StarFilled } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
+import TimeRuler from '@/components/common/TimeRuler.vue'
 import { getClassroomDetail } from '@/api/classroom'
 import { checkConflict, submitReservation } from '@/api/reservation'
 import { toggleFavorite, getFavoriteList } from '@/api/favorite'
@@ -262,13 +252,7 @@ const reserveRules = {
   purpose: [{ required: true, message: '请填写预约用途', trigger: 'blur' }]
 }
 
-/** 时间轴可视范围：08:00 - 22:00 */
-const AXIS_START = 8
-const AXIS_END = 22
-const axisHours = []
-for (let h = AXIS_START; h <= AXIS_END; h++) {
-  axisHours.push(h)
-}
+
 
 /** 预约草稿 localStorage key（R4：按用户 + 教室维度存储 日期/时段/用途） */
 const draftKey = computed(() => `reservation_draft_${userStore.userInfo ? userStore.userInfo.id : ''}_${route.params.id}`)
@@ -319,25 +303,20 @@ async function handleToggleFavorite() {
   }
 }
 
-/** 时间轴刻度位置 */
-function axisLeft(hour) {
-  return ((hour - AXIS_START) / (AXIS_END - AXIS_START)) * 100
-}
+/** 查看的是否为今天：决定刻度尺是否显示「此刻」指针 */
+const isViewingToday = computed(() => {
+  const value = queryDate.value || dayjs().format('YYYY-MM-DD')
+  return value === dayjs().format('YYYY-MM-DD')
+})
 
-/** 占用色块位置与宽度 */
-function slotStyle(start, end) {
-  const startMin = timeToMin(start)
-  const endMin = timeToMin(end)
-  const rangeMin = (AXIS_END - AXIS_START) * 60
-  const left = ((startMin - AXIS_START * 60) / rangeMin) * 100
-  const width = ((endMin - startMin) / rangeMin) * 100
-  return { left: `${Math.max(left, 0)}%`, width: `${Math.min(width, 100 - Math.max(left, 0))}%` }
-}
-
-/** HH:mm → 分钟数 */
-function timeToMin(time) {
-  const [h, m] = time.split(':').map(Number)
-  return h * 60 + m
+/** 点击刻度尺空档：把时段回填进预约弹窗（仍需用户自己提交） */
+function onPickSlot({ start, end }) {
+  const draft = loadDraft() || {}
+  reserveForm.reserveDate = queryDate.value || dayjs().format('YYYY-MM-DD')
+  reserveForm.startTime = start
+  reserveForm.endTime = end
+  reserveForm.purpose = draft.purpose || ''
+  reserveVisible.value = true
 }
 
 /** 打开预约弹窗：优先回填已保存草稿，无草稿默认今天 */
@@ -668,48 +647,8 @@ onBeforeUnmount(invalidateConflict)
   line-height: 1.4;
 }
 
-.timeline {
-  position: relative;
+.slots-ruler {
   margin-bottom: var(--space-md);
-  padding: var(--space-sm) 0 var(--space-xs);
-}
-
-.timeline-axis {
-  position: relative;
-  height: 18px;
-}
-
-.axis-hour {
-  position: absolute;
-  transform: translateX(-50%);
-  color: var(--ink-soft);
-  font-size: var(--text-xs);
-  line-height: 18px;
-}
-
-.timeline-bar {
-  position: relative;
-  height: 36px;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  background: var(--page);
-}
-
-.timeline-slot {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  border-radius: var(--radius-sm);
-  background: var(--danger);
-  color: var(--surface);
-  font-size: var(--text-xs);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
 .slots-empty {

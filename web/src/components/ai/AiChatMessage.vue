@@ -87,6 +87,11 @@ async function copyAnswer() {
 </template>
 
 <style scoped>
+/* 每条消息出现时淡入 6px，不做循环 */
+.ai-chat-msg {
+  animation: reveal-up var(--dur-2) var(--ease-out) both;
+}
+
 .ai-chat-msg {
   display: flex;
   align-items: flex-start;

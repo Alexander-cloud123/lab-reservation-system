@@ -1,7 +1,11 @@
 <template>
-  <div class="classroom-list-page page-container">
+  <div class="classroom-list-page">
+    <!-- 时刻带：唯一满铺的墨蓝块，说明现在处在一天中的什么位置 -->
+    <TimeBand class="list-band" :summary="bandSummary" />
+
+    <div class="page-container">
     <!-- 页面标题 -->
-    <div class="page-head">
+    <div class="page-head reveal">
       <span class="page-title">教室列表</span>
       <span class="page-tip">共 {{ total }} 间教室，可按关键词、楼栋、类型与日期筛选</span>
     </div>
@@ -12,10 +16,11 @@
       :loading="aiLoading"
       :recommendations="recommendations"
       :message="aiNotice"
+      class="reveal stagger"
     />
 
     <!-- 搜索栏：关键词 / 楼栋 / 类型 / 日期筛选 -->
-    <div class="search-card table-band">
+    <div class="search-card table-band reveal stagger">
       <el-form :inline="true" :model="query" @submit.prevent>
         <el-form-item label="关键词">
           <el-input
@@ -59,9 +64,10 @@
     <!-- 教室卡片列表（Bento 卡片网格） -->
     <div v-loading="loading" class="card-grid">
       <div
-        v-for="room in records"
+        v-for="(room, index) in records"
         :key="room.id"
-        class="room-card"
+        class="room-card reveal stagger"
+        :style="{ '--i': Math.min(index, 12) }"
         @click="goDetail(room)"
       >
         <div class="room-card-head">
@@ -116,11 +122,13 @@
         @current-change="loadData"
       />
     </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import TimeBand from '@/components/common/TimeBand.vue'
 import { useRouter } from 'vue-router'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { listClassrooms } from '@/api/classroom'
@@ -130,6 +138,15 @@ import { probeAiRecommend } from '@/utils/aiProbe'
 import { useUserStore } from '@/stores/user'
 import { ROOM_TYPES, typeText } from '@/utils/dict'
 
+/** 时刻带摘要：今天还有多少间教室有空档（按当前列表数据算，不额外请求） */
+const bandSummary = computed(() => {
+  const rooms = records.value || []
+  const freeRooms = rooms.filter((room) => Number(room.todayRemainingSlots || 0) > 0)
+  if (!freeRooms.length) {
+    return `今天已开放 ${rooms.length} 间教室查询，先挑楼栋和时段看看`
+  }
+  return `今天还有 ${freeRooms.length} 间教室正好空着，可以直接约`
+})
 const router = useRouter()
 const userStore = useUserStore()
 const loading = ref(false)
@@ -288,6 +305,11 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* 时刻带满铺在页面最上方，其余内容交给 .page-container 的内距 */
+.list-band {
+  margin-bottom: var(--space-xl);
+}
+
 .page-tip {
   font-size: var(--text-sm);
   line-height: 1.6;

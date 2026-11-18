@@ -96,6 +96,8 @@ const C = {
 /** 饼图分段色：品牌蓝 + 功能色，无紫/霓虹 */
 const PIE_PALETTE = [C.brand, C.success, C.warning, C.attention, C.soft]
 
+/** 图表入场：一次 320ms 生长，三图错开 80ms 依次到位（不做循环动画） */
+const CHART_ANIM = { animation: true, animationDuration: 320, animationEasing: 'cubicOut' }
 const loading = ref(false)
 const quickRange = ref('30')
 const dateRange = ref([
@@ -204,6 +206,8 @@ function renderUsageRate(list) {
   const values = list.map((r) => r.usageRate)
   usageChart.setOption(
     {
+      ...CHART_ANIM,
+      animationDelay: 0,
       tooltip: {
         trigger: 'axis',
         formatter(params) {
@@ -263,6 +267,8 @@ function renderTrend(list) {
   }
   trendChart.setOption(
     {
+      ...CHART_ANIM,
+      animationDelay: 80,
       tooltip: { trigger: 'axis' },
       grid: { left: 48, right: 24, top: 32, bottom: 40 },
       xAxis: {
@@ -305,6 +311,8 @@ function renderTimeDistribution(list) {
   }
   timeDistChart.setOption(
     {
+      ...CHART_ANIM,
+      animationDelay: 160,
       tooltip: {
         trigger: 'item',
         formatter: (p) =>

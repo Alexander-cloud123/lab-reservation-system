@@ -55,7 +55,11 @@
 
       <!-- 主内容区 -->
       <el-main class="admin-main">
-        <router-view />
+        <router-view v-slot="{ Component, route: currentRoute }">
+          <transition name="page-swap" mode="out-in">
+            <component :is="Component" :key="currentRoute.path" />
+          </transition>
+        </router-view>
       </el-main>
     </el-container>
   </el-container>

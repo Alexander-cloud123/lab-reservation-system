@@ -4,6 +4,12 @@
       <span class="page-title">我的预约</span>
       <span class="page-tip">今日预约已置顶显示，待审核与已通过可取消</span>
     </div>
+    <!-- 今天这一条：把今天的预约压成一条刻度尺，一眼看出时段占在哪 -->
+    <div v-if="todaySlots.length" class="today-band surface reveal">
+      <span class="today-band-label">今天</span>
+      <TimeRuler class="today-band-ruler" compact :slots="todaySlots" />
+    </div>
+
     <div
       ref="listRegionRef"
       class="reserve-card surface"
@@ -92,10 +98,11 @@
 </template>
 
 <script setup>
-import { nextTick, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
+import TimeRuler from '@/components/common/TimeRuler.vue'
 import { getMyReservations, cancelReservation } from '@/api/reservation'
 import { statusText } from '@/utils/dict'
 
@@ -106,6 +113,9 @@ const total = ref(0)
 const activeStatus = ref('all')
 /** 列表区域（取消成功后的焦点落点，避免触发按钮被移除后焦点悬空到 body） */
 const listRegionRef = ref()
+/** 正在离场的行（取消成功后先淡出再刷新，避免行瞬间消失） */
+const leavingIds = reactive(new Set())
+
 /** 正在取消的预约 ID（R6：请求期间禁用所有取消按钮，防止快速连续点击重复提交） */
 const cancelingId = ref(null)
 
@@ -140,9 +150,23 @@ async function loadData() {
   }
 }
 
-/** 行样式：今日预约突出显示 */
+/** 今天仍在生效的预约：渲染成顶部刻度尺（已取消的不画） */
+const todaySlots = computed(() =>
+  (records.value || [])
+    .filter((row) => row.reserveDate === today && row.status !== 3)
+    .map((row) => ({ startTime: row.startTime, endTime: row.endTime, mine: true, purpose: row.purpose }))
+)
+
+/** 行样式：今日预约突出显示；正在取消的行先淡出再刷新 */
 function rowClassName({ row }) {
-  return row.reserveDate === today ? 'today-row' : ''
+  const classes = []
+  if (row.reserveDate === today) {
+    classes.push('today-row')
+  }
+  if (leavingIds.has(row.id)) {
+    classes.push('is-leaving')
+  }
+  return classes.join(' ')
 }
 
 /** 判断是否为今天 */
@@ -181,6 +205,10 @@ async function handleCancel(row) {
   try {
     await cancelReservation(row.id)
     ElMessage.success('取消成功')
+    // 先让该行淡出 180ms，再刷新列表，避免行瞬间消失
+    leavingIds.add(row.id)
+    await new Promise((resolve) => setTimeout(resolve, 180))
+    leavingIds.delete(row.id)
     await loadData()
     // 触发按钮随状态更新被移除，Element Plus 焦点复原目标已脱离 DOM（否则焦点落到 body）。
     // 无障碍验收 C4：把焦点交给列表区域（role=region，tabindex=-1），键盘用户可在列表内继续 Tab。
@@ -205,6 +233,26 @@ onMounted(loadData)
 </script>
 
 <style scoped>
+.today-band {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+
+.today-band-label {
+  flex: none;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.today-band-ruler {
+  flex: 1;
+  min-width: 0;
+}
+
 .my-reservation-page {
   max-width: 1200px;
   margin: 0 auto;

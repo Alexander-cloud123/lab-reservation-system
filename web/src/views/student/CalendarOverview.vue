@@ -680,6 +680,14 @@ onBeforeUnmount(() => {
 }
 
 /* 事件块内部两行：时段（等宽数字防跳动）+ 教室名（超长省略号） */
+/* 日历事件：hover 时轻轻抬起 1px，同时加深左边线 */
+.calendar-container :deep(.res-event-body) {
+  transition: transform var(--dur-1) var(--ease-out), border-left-color var(--dur-1) var(--ease-out);
+}
+
+.calendar-container :deep(.fc-event:hover .res-event-body) {
+  transform: translateY(-1px);
+}
 .calendar-container :deep(.res-event-body) {
   display: flex;
   min-width: 0;

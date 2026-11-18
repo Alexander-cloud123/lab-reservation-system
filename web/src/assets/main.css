@@ -101,6 +101,24 @@
   /* 字体：中文系统栈，不引入 WebFont */
   --font-family-sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
     'Microsoft YaHei', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+
+  /* 显示级字号：仅允许「时刻带主时钟」与「登录门牌」两处使用，审计脚本会查 */
+  --text-display: 52px;
+
+  /* 时刻带（Time Band）派生值：墨蓝带内的暗部与次级文字 */
+  --brand-ink: #132f6b;
+  --on-brand: rgba(255, 255, 255, 0.72);
+  --grid-ink: rgba(255, 255, 255, 0.06);
+
+  /* 键盘焦点环（与 outline 并用时保持一致的半径） */
+  --ring: 0 0 0 3px rgba(27, 63, 143, 0.18);
+
+  /* 动效：三档时长 + 两条缓动；全站只允许用这三个变量 */
+  --dur-1: 120ms;
+  --dur-2: 220ms;
+  --dur-3: 420ms;
+  --ease-out: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --ease-inout: cubic-bezier(0.6, 0, 0.2, 1);
 }
 
 /* ---------- 2. Element Plus 主题变量覆盖 ---------- */
@@ -223,6 +241,7 @@ button:focus-visible,
 }
 
 /* 数字 / 时间 / 统计值：等宽数字，避免跳动（不用等宽字体做标签） */
+.num,
 .tabular-nums,
 .stat-value,
 .el-table .cell,
@@ -343,6 +362,17 @@ button:focus-visible,
 }
 .el-table .el-table__body tr:hover > td.el-table__cell {
   background: #f8fafc;
+}
+/* 行 hover：首列左侧 2px 品牌条从左向外长出（唯一的表格动效） */
+.el-table .el-table__body tr > td.el-table__cell:first-child {
+  background-image: linear-gradient(var(--brand), var(--brand));
+  background-repeat: no-repeat;
+  background-position: left center;
+  background-size: 0 100%;
+  transition: background-size var(--dur-1) var(--ease-out);
+}
+.el-table .el-table__body tr:hover > td.el-table__cell:first-child {
+  background-size: 2px 100%;
 }
 .el-table .el-table__row--striped td.el-table__cell,
 .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
@@ -523,6 +553,8 @@ button:focus-visible,
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-surface);
   padding: var(--space-xl);
+  /* 内高光：白面在冷灰底上有纸感，替代第二/第三种阴影 */
+  box-shadow: var(--shadow-surface), inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 /* 分区：靠 32px 留白与小标题分组，不用装饰细线 */
@@ -722,16 +754,130 @@ button:focus-visible,
   margin-top: 8px;
 }
 
-/* ---------- 6. 动效克制 ---------- */
+/* ---------- 6. 动效语法 ---------- */
 
-/* 用户偏好减少动效：关闭全部过渡与动画 */
+/* 本系统的动效只有两类：
+   ① 每页一次的入场编排（.reveal / .stagger，≤420ms，只动 opacity 与 transform）
+   ② 回答用户动作的瞬时反馈（.is-leaving / 行 hover 条 / 状态药丸 flash）
+   禁止：常驻循环动画（infinite）、逐卡 hover 特效、渐变装饰。 */
+
+/* 入场：上移 6px + 淡入，一次即止 */
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.reveal {
+  animation: reveal-up var(--dur-2) var(--ease-out) both;
+}
+/* 列表项依次入场：用 --i 传序号，22ms 一档；超过 12 项不要再叠加 */
+.stagger {
+  animation: reveal-up var(--dur-2) var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 22ms);
+}
+
+/* 行/卡片离场：淡出 + 收缩，用于「取消」「审核通过」后移除的行 */
+@keyframes leave-out {
+  to {
+    opacity: 0;
+    transform: translate3d(0, -4px, 0);
+  }
+}
+.is-leaving {
+  animation: leave-out 180ms var(--ease-inout) both;
+  pointer-events: none;
+}
+
+/* 状态药丸变化：一次 tint 脉冲，表示「这个值刚变了」 */
+@keyframes pill-flash {
+  0% {
+    box-shadow: 0 0 0 0 var(--brand-soft);
+  }
+  40% {
+    box-shadow: 0 0 0 3px var(--brand-soft);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+.status-cell.is-updated,
+.status-pill.is-updated {
+  animation: pill-flash 200ms var(--ease-out) both;
+}
+
+/* 指针落位：时刻带的「此刻」指针从 08:00 扫到当前位置 */
+@keyframes needle-in {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.needle-in {
+  animation: needle-in var(--dur-3) var(--ease-out) both;
+}
+
+/* 路由切换：内容区淡入 6px，不动布局 */
+.page-swap-enter-active,
+.page-swap-leave-active {
+  transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
+}
+.page-swap-enter-from {
+  opacity: 0;
+  transform: translate3d(0, 6px, 0);
+}
+.page-swap-leave-to {
+  opacity: 0;
+}
+
+/* 按下反馈：1px 位移，仅用于主操作按钮 */
+.press:active {
+  transform: translateY(1px);
+}
+
+/* 菜单项：底色与文字色都走一次短过渡，避免切换时硬跳 */
+.el-menu-item,
+.header-menu-item {
+  transition: color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+
+/* 表格行：悬停时首列长出品牌竖条（background-size 从 0 到 2px） */
+.el-table__body tr > td:first-child {
+  background-repeat: no-repeat;
+  background-position: left center;
+  background-size: 0 100%;
+  transition: background-size var(--dur-1) var(--ease-out);
+}
+
+.el-table__body tr:hover > td:first-child {
+  background-image: linear-gradient(var(--brand), var(--brand));
+  background-size: 2px 100%;
+}
+/* 页头：每页进入时一次编排（只动 opacity/transform，不动布局） */
+.page-head {
+  animation: reveal-up var(--dur-2) var(--ease-out) both;
+}
+
+/* ---------- 7. 动效克制 ---------- */
+
+/* 用户偏好减少动效：关闭全部过渡与动画（含入场延迟，避免「等待后突然出现」） */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
     scroll-behavior: auto !important;
   }
 }

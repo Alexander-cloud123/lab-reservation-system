@@ -159,6 +159,7 @@ onBeforeUnmount(stopTimer)
   color: var(--ink-soft);
   overflow: hidden;
   transition: border-color 0.16s ease;
+  animation: reveal-up var(--dur-2) var(--ease-out) both;
 }
 
 .thinking:hover {
@@ -269,12 +270,18 @@ onBeforeUnmount(stopTimer)
   list-style: none;
 }
 
+/* 步骤逐条出现：每次新增一条都淡入，已存在的不会重播 */
 .step {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
   height: 28px;
   color: var(--ink);
+  animation: reveal-up var(--dur-2) var(--ease-out) both;
+}
+
+.step.is-running .step-dot {
+  animation: thinking-pulse 1.15s ease-in-out infinite;
 }
 
 .step-dot {

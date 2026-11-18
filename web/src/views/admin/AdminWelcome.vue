@@ -11,25 +11,28 @@
       </span>
     </div>
 
+    <!-- 精简时刻带：管理端也看得到现在处在一天的什么位置 -->
+    <TimeBand class="welcome-band reveal" compact :summary="bandSummary" />
+
     <!-- 今日概览：一张白面，四列数据 -->
-    <div class="surface stat-band">
+    <div class="surface stat-band reveal stagger" style="--i: 1">
       <div class="stat-item">
         <div class="stat-label">今日预约</div>
-        <div class="stat-value">{{ overview.todayReservationCount ?? 0 }}</div>
+        <div class="stat-value">{{ todayCount }}</div>
       </div>
       <div class="stat-item">
         <div class="stat-label">待审核</div>
-        <div class="stat-value" :class="{ 'is-attention': (overview.pendingAuditCount ?? 0) > 0 }">
-          {{ overview.pendingAuditCount ?? 0 }}
+        <div class="stat-value" :class="{ 'is-attention': overview.pendingAuditCount > 0 }">
+          {{ pendingCount }}
         </div>
       </div>
       <div class="stat-item">
         <div class="stat-label">教室总数</div>
-        <div class="stat-value">{{ overview.classroomCount ?? 0 }}</div>
+        <div class="stat-value">{{ classroomCount }}</div>
       </div>
       <div class="stat-item">
         <div class="stat-label">用户总数</div>
-        <div class="stat-value">{{ overview.userCount ?? 0 }}</div>
+        <div class="stat-value">{{ userCount }}</div>
       </div>
     </div>
 
@@ -40,23 +43,23 @@
         <span class="section-note">也可从左侧菜单进入</span>
       </div>
       <div class="quick-grid">
-        <div class="quick-card" v-clickable @click="go('/admin/users')">
+        <div class="quick-card reveal stagger" style="--i: 2" v-clickable @click="go('/admin/users')">
           <span class="quick-name">用户管理</span>
           <span class="quick-desc">查看与维护系统用户</span>
         </div>
-        <div class="quick-card" v-clickable @click="go('/admin/classrooms')">
+        <div class="quick-card reveal stagger" style="--i: 3" v-clickable @click="go('/admin/classrooms')">
           <span class="quick-name">教室资源管理</span>
           <span class="quick-desc">维护教室与资源信息</span>
         </div>
-        <div class="quick-card" v-clickable @click="go('/admin/audits')">
+        <div class="quick-card reveal stagger" style="--i: 4" v-clickable @click="go('/admin/audits')">
           <span class="quick-name">预约审核</span>
           <span class="quick-desc">处理待审核预约申请</span>
         </div>
-        <div class="quick-card" v-clickable @click="go('/admin/records')">
+        <div class="quick-card reveal stagger" style="--i: 5" v-clickable @click="go('/admin/records')">
           <span class="quick-name">预约记录</span>
           <span class="quick-desc">查询全量预约与导出</span>
         </div>
-        <div class="quick-card" v-clickable @click="go('/admin/dashboard')">
+        <div class="quick-card reveal stagger" style="--i: 6" v-clickable @click="go('/admin/dashboard')">
           <span class="quick-name">数据看板</span>
           <span class="quick-desc">可视化统计与趋势分析</span>
         </div>
@@ -94,6 +97,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { getOverview } from '@/api/stats'
+import TimeBand from '@/components/common/TimeBand.vue'
+import { useCountUp } from '@/composables/useCountUp'
 
 const userStore = useUserStore()
 const router = useRouter()
@@ -117,6 +122,22 @@ async function loadOverview() {
 onMounted(loadOverview)
 
 /** 快捷入口跳转 */
+/** 概览数字：入场时从 0 数到目标值，只在首次拿到数据时播放 */
+const todayCount = useCountUp(computed(() => overview.value.todayReservationCount ?? 0))
+const pendingCount = useCountUp(computed(() => overview.value.pendingAuditCount ?? 0))
+const classroomCount = useCountUp(computed(() => overview.value.classroomCount ?? 0))
+const userCount = useCountUp(computed(() => overview.value.userCount ?? 0))
+
+/** 时刻带摘要：今天的预约与待审核量 */
+const bandSummary = computed(() => {
+  const today = overview.value.todayReservationCount ?? 0
+  const pending = overview.value.pendingAuditCount ?? 0
+  const parts = [`今天有 ${today} 个预约`]
+  if (pending > 0) {
+    parts.push(`${pending} 个在等审核`)
+  }
+  return parts.join('，')
+})
 function go(path) {
   router.push(path)
 }
@@ -128,6 +149,9 @@ function go(path) {
 }
 
 /* 今日概览：四列数据，列间靠留白分隔 */
+.welcome-band {
+  margin-bottom: var(--space-xl);
+}
 .stat-band {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

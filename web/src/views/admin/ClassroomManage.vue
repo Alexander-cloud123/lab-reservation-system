@@ -81,7 +81,7 @@
         <el-table-column prop="roomNo" label="编号" width="88" />
         <el-table-column prop="type" label="类型" width="96">
           <template #default="{ row }">
-            <el-tag :type="typeTagType(row.type)">{{ typeText(row.type) }}</el-tag>
+            <span class="status-cell">{{ typeText(row.type) }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="capacity" label="容量" width="80" />
@@ -90,9 +90,9 @@
         </el-table-column>
         <el-table-column prop="status" label="状态" width="84">
           <template #default="{ row }">
-            <el-tag :type="row.status === 1 ? 'success' : 'danger'">
+            <span class="status-cell" :class="row.status === 1 ? 'is-approved' : 'is-rejected'">
               {{ row.status === 1 ? '可用' : '停用' }}
-            </el-tag>
+            </span>
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="160">
@@ -394,11 +394,6 @@ async function handleBatchStatus(status) {
   } catch {
     // 用户取消或接口报错（统一提示）
   }
-}
-
-/** 类型标签色 */
-function typeTagType(type) {
-  return { 1: 'primary', 2: 'success', 3: 'warning' }[type] || 'info'
 }
 
 /** 时间格式化 */

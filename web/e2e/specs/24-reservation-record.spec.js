@@ -54,14 +54,14 @@ test.describe('管理端-预约记录（ReservationRecord）', () => {
 
     const row = rowOf(page, rec.purpose)
     await expect(row, '四条件组合查询应命中自造记录').toBeVisible()
-    await expect(row.locator('.el-tag', { hasText: '已通过' })).toBeVisible()
+    await expect(row.locator('.status-cell', { hasText: '已通过' })).toBeVisible()
     await expect(row).toContainText(rec.date)
     await expect(row).toContainText(`${rec.startTime}-${rec.endTime}`)
     await expect(row).toContainText('zhangsan')
 
     // 状态筛选生效：结果集不应出现其他状态
-    await expect(page.locator('tr.el-table__row .el-tag', { hasText: '待审核' })).toHaveCount(0)
-    await expect(page.locator('tr.el-table__row .el-tag', { hasText: '已驳回' })).toHaveCount(0)
+    await expect(page.locator('tr.el-table__row .status-cell', { hasText: '待审核' })).toHaveCount(0)
+    await expect(page.locator('tr.el-table__row .status-cell', { hasText: '已驳回' })).toHaveCount(0)
 
     // 教室筛选生效：其它教室的记录不应出现（用种子教室 C301 的记录做反向验证）
     await expect(rowOf(page, 'C301')).toHaveCount(0)

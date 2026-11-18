@@ -97,7 +97,7 @@
         <el-table-column prop="purpose" label="用途" min-width="140" show-overflow-tooltip />
         <el-table-column prop="status" label="状态" width="88">
           <template #default="{ row }">
-            <el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag>
+            <span class="status-cell" :class="statusCellClass(row.status)">{{ statusText(row.status) }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="auditRemark" label="审核备注" min-width="120" show-overflow-tooltip>
@@ -138,7 +138,7 @@ import dayjs from 'dayjs'
 import { Search, Refresh, Download } from '@element-plus/icons-vue'
 import { pageManageReservations, exportReservations } from '@/api/reservation'
 import { pageClassrooms } from '@/api/classroom'
-import { statusText, statusTagType } from '@/utils/dict'
+import { statusText, statusCellClass } from '@/utils/dict'
 
 const loading = ref(false)
 const exporting = ref(false)

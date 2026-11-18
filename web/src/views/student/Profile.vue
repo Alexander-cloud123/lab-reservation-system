@@ -259,9 +259,9 @@
             <el-icon :size="17"><component :is="msgIcon(activeMsg.type)" /></el-icon>
           </div>
           <span class="msg-detail-room">{{ activeMsg.detail.classroomName }}</span>
-          <el-tag :type="statusTagType(activeMsg.detail.status)" size="small" round>
+          <span class="status-cell" :class="statusCellClass(activeMsg.detail.status)">
             {{ statusText(activeMsg.detail.status) }}
-          </el-tag>
+          </span>
         </div>
         <dl class="msg-detail-list">
           <div class="msg-detail-row">
@@ -311,7 +311,7 @@ import { getFavoriteList } from '@/api/favorite'
 import { getMyReservations } from '@/api/reservation'
 import { useUserStore } from '@/stores/user'
 import { formatDateTime } from '@/utils/time'
-import { statusTagType, statusText, typeText } from '@/utils/dict'
+import { statusCellClass, statusText, typeText } from '@/utils/dict'
 
 // 为满足 multi-word 规则并便于 devtools 辨识
 defineOptions({ name: 'ProfileView' })

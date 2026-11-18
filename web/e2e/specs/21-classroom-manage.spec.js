@@ -122,7 +122,7 @@ test.describe('管理端-教室资源管理（ClassroomManage）', () => {
     const row = rowOf(page, name)
     await expect(row).toBeVisible()
     await expect(row).toContainText('66')
-    await expect(row.locator('.el-tag', { hasText: '实验室' })).toBeVisible()
+    await expect(row.locator('.status-cell', { hasText: '实验室' })).toBeVisible()
 
     // 取回 id 以便收尾删除
     const data = expectOk(await listClassroomsManage(page.request, token, { page: 1, size: 50, keyword: name }), '按名称查教室')
@@ -186,7 +186,7 @@ test.describe('管理端-教室资源管理（ClassroomManage）', () => {
     await expectMessage(page, '修改成功')
     const updated = rowOf(page, room.name)
     await expect(updated).toContainText('88')
-    await expect(updated.locator('.el-tag', { hasText: '机房' })).toBeVisible()
+    await expect(updated.locator('.status-cell', { hasText: '机房' })).toBeVisible()
   })
 
   test('启用/停用切换（自建 E2E 教室）', async ({ page }) => {
@@ -194,19 +194,19 @@ test.describe('管理端-教室资源管理（ClassroomManage）', () => {
     await searchKeyword(page, room.name)
 
     const row = () => rowOf(page, room.name)
-    await expect(row().locator('.el-tag', { hasText: '可用' })).toBeVisible()
+    await expect(row().locator('.status-cell', { hasText: '可用' })).toBeVisible()
 
     await row().getByRole('button', { name: '停用' }).click()
     const box = page.locator('.el-message-box')
     await expect(box).toContainText('停用确认')
     await box.getByRole('button', { name: '确定停用' }).click()
     await expectMessage(page, '停用成功')
-    await expect(row().locator('.el-tag', { hasText: '停用' })).toBeVisible()
+    await expect(row().locator('.status-cell', { hasText: '停用' })).toBeVisible()
 
     await row().getByRole('button', { name: '启用' }).click()
     await page.locator('.el-message-box').getByRole('button', { name: '确定启用' }).click()
     await expectMessage(page, '启用成功')
-    await expect(row().locator('.el-tag', { hasText: '可用' })).toBeVisible()
+    await expect(row().locator('.status-cell', { hasText: '可用' })).toBeVisible()
   })
 
   test('批量启用/停用（勾选多条自建 E2E 教室）', async ({ page }) => {
@@ -233,8 +233,8 @@ test.describe('管理端-教室资源管理（ClassroomManage）', () => {
     await expect(box).toContainText('批量停用确认')
     await box.getByRole('button', { name: '确定停用' }).click()
     await expectMessage(page, '批量停用成功')
-    await expect(rowOf(page, roomA.name).locator('.el-tag', { hasText: '停用' })).toBeVisible()
-    await expect(rowOf(page, roomB.name).locator('.el-tag', { hasText: '停用' })).toBeVisible()
+    await expect(rowOf(page, roomA.name).locator('.status-cell', { hasText: '停用' })).toBeVisible()
+    await expect(rowOf(page, roomB.name).locator('.status-cell', { hasText: '停用' })).toBeVisible()
 
     // 列表刷新后选择被清空，需重新勾选
     await rowOf(page, roomA.name).locator('.el-checkbox').click()
@@ -242,8 +242,8 @@ test.describe('管理端-教室资源管理（ClassroomManage）', () => {
     await batchEnable.click()
     await page.locator('.el-message-box').getByRole('button', { name: '确定启用' }).click()
     await expectMessage(page, '批量启用成功')
-    await expect(rowOf(page, roomA.name).locator('.el-tag', { hasText: '可用' })).toBeVisible()
-    await expect(rowOf(page, roomB.name).locator('.el-tag', { hasText: '可用' })).toBeVisible()
+    await expect(rowOf(page, roomA.name).locator('.status-cell', { hasText: '可用' })).toBeVisible()
+    await expect(rowOf(page, roomB.name).locator('.status-cell', { hasText: '可用' })).toBeVisible()
   })
 
   test('删除自建 E2E 教室（二次确认后成功）', async ({ page }) => {

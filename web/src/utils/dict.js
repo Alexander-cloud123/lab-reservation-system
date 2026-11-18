@@ -49,8 +49,8 @@ export function statusText(status) {
   return hit ? hit.label : '未知'
 }
 
-/** 状态 → Element Plus tag 类型；未知值兜底 'info' */
-export function statusTagType(status) {
-  const hit = RES_STATUS.find((s) => String(s.value) === String(status))
-  return hit ? hit.tag : 'info'
+/** 状态 → 晨光药丸修饰类；未知值兜底 'is-canceled' */
+export function statusCellClass(status) {
+  const map = { 0: 'is-pending', 1: 'is-approved', 2: 'is-rejected', 3: 'is-canceled' }
+  return map[String(status)] || 'is-canceled'
 }

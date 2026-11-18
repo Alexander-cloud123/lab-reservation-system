@@ -133,7 +133,7 @@
         <el-descriptions-item label="日期">{{ detail.reserveDate }}</el-descriptions-item>
         <el-descriptions-item label="时段">{{ detail.startTime }} - {{ detail.endTime }}</el-descriptions-item>
         <el-descriptions-item label="状态">
-          <el-tag :type="statusTagType(detail.status)" size="small">{{ statusText(detail.status) }}</el-tag>
+          <span class="status-cell" :class="statusCellClass(detail.status)">{{ statusText(detail.status) }}</span>
         </el-descriptions-item>
         <el-descriptions-item v-if="detail.purpose" label="预约用途">{{ detail.purpose }}</el-descriptions-item>
         <el-descriptions-item v-if="detail.auditRemark" label="审核备注">{{ detail.auditRemark }}</el-descriptions-item>
@@ -153,7 +153,7 @@ import dayjs from 'dayjs'
 import { listClassrooms } from '@/api/classroom'
 import { checkConflict, submitReservation, getCalendarReservations } from '@/api/reservation'
 import { validateBooking } from '@/utils/booking'
-import { statusText, statusTagType } from '@/utils/dict'
+import { statusText, statusCellClass } from '@/utils/dict'
 
 const loading = ref(false)
 const classrooms = ref([])

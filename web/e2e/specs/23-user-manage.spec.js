@@ -53,8 +53,8 @@ test.describe('管理端-用户管理（UserManage）', () => {
     const row = rowOf(page, u.username)
     await expect(row).toBeVisible()
     await expect(row).toContainText(u.name)
-    await expect(row.locator('.el-tag', { hasText: '学生' })).toBeVisible()
-    await expect(row.locator('.el-tag', { hasText: '正常' })).toBeVisible()
+    await expect(row.locator('.status-cell', { hasText: '学生' })).toBeVisible()
+    await expect(row.locator('.status-cell', { hasText: '正常' })).toBeVisible()
     // 精确命中：其他账号不应出现在结果里
     for (const account of SEED_ACCOUNTS) {
       await expect(rowOf(page, account), `关键词为唯一账号时不应混入 ${account}`).toHaveCount(0)
@@ -70,7 +70,7 @@ test.describe('管理端-用户管理（UserManage）', () => {
     await searchUser(page, u.username)
 
     const row = () => rowOf(page, u.username)
-    await expect(row().locator('.el-tag', { hasText: '正常' })).toBeVisible()
+    await expect(row().locator('.status-cell', { hasText: '正常' })).toBeVisible()
 
     // 禁用（二次确认）
     await row().getByRole('button', { name: '禁用' }).click()
@@ -78,7 +78,7 @@ test.describe('管理端-用户管理（UserManage）', () => {
     await expect(box).toContainText('禁用确认')
     await box.getByRole('button', { name: '确定禁用' }).click()
     await expectMessage(page, '禁用成功')
-    await expect(row().locator('.el-tag', { hasText: '禁用' })).toBeVisible()
+    await expect(row().locator('.status-cell', { hasText: '禁用' })).toBeVisible()
 
     const denied = await rawLogin(page.request, u.username, u.password, 0)
     expect(denied.body && denied.body.code, `禁用用户不应能登录：${denied.text.slice(0, 120)}`).not.toBe(200)
@@ -87,7 +87,7 @@ test.describe('管理端-用户管理（UserManage）', () => {
     await row().getByRole('button', { name: '启用' }).click()
     await page.locator('.el-message-box').getByRole('button', { name: '确定启用' }).click()
     await expectMessage(page, '启用成功')
-    await expect(row().locator('.el-tag', { hasText: '正常' })).toBeVisible()
+    await expect(row().locator('.status-cell', { hasText: '正常' })).toBeVisible()
 
     const allowed = await rawLogin(page.request, u.username, u.password, 0)
     expect(allowed.body && allowed.body.code, `启用后应可登录：${allowed.text.slice(0, 120)}`).toBe(200)

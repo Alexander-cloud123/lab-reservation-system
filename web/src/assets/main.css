@@ -816,6 +816,11 @@ button:focus-visible,
   background: rgba(224, 138, 43, 0.14);
   color: var(--attention);
 }
+.status-pill.is-brand,
+.status-cell.is-brand {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
 .status-cell::before,
 .status-pill::before {
   content: '';

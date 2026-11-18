@@ -67,7 +67,16 @@ async function seedApproved(page, tag) {
 async function selectRow(page, purpose) {
   const row = rowOf(page, purpose)
   await expect(row).toBeVisible()
-  await row.locator('.el-checkbox').click()
+  // Element Plus 多选列偶发吞掉首次 label 点击（尤其接口刚返回、行刚渲染时），做有界重试后终态断言兜底
+  for (let i = 0; i < 3; i++) {
+    await row.locator('.el-checkbox').first().click()
+    try {
+      await expect(row.locator('.el-checkbox').first()).toHaveClass(/is-checked/, { timeout: 500 })
+      return
+    } catch {
+      await page.waitForTimeout(150)
+    }
+  }
   await expect(row.locator('.el-checkbox').first()).toHaveClass(/is-checked/)
 }
 
@@ -85,7 +94,7 @@ test.describe('管理端-预约审核（AuditManage）', () => {
 
     const row = rowOf(page, seeded.purpose)
     await expect(row, '自造待审核记录应出现在筛选结果中').toBeVisible()
-    await expect(row.locator('.el-tag', { hasText: '待审核' })).toBeVisible()
+    await expect(row.locator('.status-cell', { hasText: '待审核' })).toBeVisible()
     await expect(row).toContainText('zhangsan')
 
     // 关键词（用户账号）再筛一层，仍应命中
@@ -123,7 +132,7 @@ test.describe('管理端-预约审核（AuditManage）', () => {
     await page.getByRole('button', { name: '查询' }).click()
     const updated = rowOf(page, seeded.purpose)
     await expect(updated).toBeVisible()
-    await expect(updated.locator('.el-tag', { hasText: '已通过' })).toBeVisible()
+    await expect(updated.locator('.status-cell', { hasText: '已通过' })).toBeVisible()
     await expect(updated).toContainText('已处理')
 
     // 接口交叉复核：该记录确为已通过（不是仅前端渲染）
@@ -165,7 +174,7 @@ test.describe('管理端-预约审核（AuditManage）', () => {
     await page.getByRole('button', { name: '查询' }).click()
     const updated = rowOf(page, seeded.purpose)
     await expect(updated).toBeVisible()
-    await expect(updated.locator('.el-tag', { hasText: '已驳回' })).toBeVisible()
+    await expect(updated.locator('.status-cell', { hasText: '已驳回' })).toBeVisible()
     await expect(updated, '审核备注应回写为所选快捷原因').toContainText('时间冲突')
   })
 
@@ -191,8 +200,8 @@ test.describe('管理端-预约审核（AuditManage）', () => {
     // 切到「已通过」筛选，两条都应为已通过
     await pickOption(page, searchItem(page, '状态'), '已通过')
     await page.getByRole('button', { name: '查询' }).click()
-    await expect(rowOf(page, a.purpose).locator('.el-tag', { hasText: '已通过' })).toBeVisible()
-    await expect(rowOf(page, b.purpose).locator('.el-tag', { hasText: '已通过' })).toBeVisible()
+    await expect(rowOf(page, a.purpose).locator('.status-cell', { hasText: '已通过' })).toBeVisible()
+    await expect(rowOf(page, b.purpose).locator('.status-cell', { hasText: '已通过' })).toBeVisible()
   })
 
   test('批量驳回：已通过记录不参与（不被改动）', async ({ page }) => {
@@ -216,8 +225,8 @@ test.describe('管理端-预约审核（AuditManage）', () => {
     // 后端只对 1 条待审核生效
     await expectMessage(page, '批量驳回成功，共 1 条')
 
-    await expect(rowOf(page, pending.purpose).locator('.el-tag', { hasText: '已驳回' })).toBeVisible()
-    await expect(rowOf(page, approved.purpose).locator('.el-tag', { hasText: '已通过' })).toBeVisible()
+    await expect(rowOf(page, pending.purpose).locator('.status-cell', { hasText: '已驳回' })).toBeVisible()
+    await expect(rowOf(page, approved.purpose).locator('.status-cell', { hasText: '已通过' })).toBeVisible()
     // 接口交叉复核：已通过记录状态与审核备注均未被改动
     const record = await findManageByPurpose(page.request, adminToken, approved.purpose, {
       status: 1,

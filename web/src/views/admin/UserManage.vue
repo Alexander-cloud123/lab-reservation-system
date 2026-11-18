@@ -59,16 +59,16 @@
         </el-table-column>
         <el-table-column prop="role" label="角色" width="80">
           <template #default="{ row }">
-            <el-tag :type="row.role === 1 ? 'warning' : 'primary'">
+            <span class="status-cell" :class="row.role === 1 ? 'is-brand' : ''">
               {{ row.role === 1 ? '管理员' : '学生' }}
-            </el-tag>
+            </span>
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="88">
           <template #default="{ row }">
-            <el-tag :type="row.status === 1 ? 'success' : 'danger'">
+            <span class="status-cell" :class="row.status === 1 ? 'is-approved' : 'is-rejected'">
               {{ row.status === 1 ? '正常' : '禁用' }}
-            </el-tag>
+            </span>
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="160">

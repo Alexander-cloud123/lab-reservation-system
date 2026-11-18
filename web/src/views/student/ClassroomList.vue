@@ -27,17 +27,17 @@
             v-model="query.keyword"
             placeholder="教室名称 / 编号"
             clearable
-            style="width: 200px"
+            style="width: 180px"
             @keyup.enter="handleSearch"
           />
         </el-form-item>
         <el-form-item label="楼栋">
-          <el-select v-model="query.building" placeholder="全部" clearable style="width: 130px">
+          <el-select v-model="query.building" placeholder="全部" clearable style="width: 132px">
             <el-option v-for="b in buildingOptions" :key="b" :label="b" :value="b" />
           </el-select>
         </el-form-item>
         <el-form-item label="类型">
-          <el-select v-model="query.type" placeholder="全部" clearable style="width: 140px">
+          <el-select v-model="query.type" placeholder="全部" clearable style="width: 132px">
             <el-option v-for="t in ROOM_TYPES" :key="t.value" :label="t.label" :value="t.value" />
           </el-select>
         </el-form-item>
@@ -45,11 +45,11 @@
           <el-date-picker
             v-model="query.date"
             type="date"
-            placeholder="查看某日占用情况"
+            placeholder="选择日期"
             value-format="YYYY-MM-DD"
             :disabled-date="(d) => d && d.getTime() < Date.now() - 86400000"
             clearable
-            style="width: 180px"
+            style="width: 140px"
           />
         </el-form-item>
         <el-form-item>
@@ -331,9 +331,31 @@ onMounted(() => {
   margin-bottom: var(--space-xl);
   padding: var(--space-lg) var(--space-xl);
 }
+.search-card :deep(.el-form--inline) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px var(--space-md);
+}
 .search-card :deep(.el-form-item) {
   margin-bottom: 0;
-  margin-right: var(--space-xl);
+  margin-right: 0;
+}
+.search-card :deep(.el-form--inline .el-form-item:last-child) {
+  margin-left: auto;
+}
+.search-card :deep(.el-button) {
+  height: 36px;
+  border-radius: var(--radius-control);
+  font-size: var(--text-sm);
+  padding: 0 18px;
+}
+.search-card :deep(.el-button + .el-button) {
+  margin-left: 12px;
+}
+.search-card :deep(.el-input__inner::placeholder),
+.search-card :deep(.el-select__placeholder) {
+  color: var(--ink-soft);
 }
 .search-card :deep(.el-form-item__label) {
   font-size: var(--text-sm);

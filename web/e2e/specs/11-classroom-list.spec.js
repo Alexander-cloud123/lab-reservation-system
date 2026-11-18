@@ -130,7 +130,7 @@ test.describe('教室列表页 - 筛选与展示', () => {
       purpose: e2ePurpose('11-日期筛选')
     })
 
-    await pickDate(page, '查看某日占用情况', seeded.date)
+    await pickDate(page, '选择日期', seeded.date)
     await clickSearch(page)
 
     const card = cardByNo(page, 'A101')

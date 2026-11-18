@@ -466,6 +466,7 @@ probeAiRecommend().catch(() => {})
           {{ degradedNotice || aiOff || 'AI 生成，仅供参考；仅解答预约相关问题' }}
         </p>
         <AiChatComposer
+          ref="composerRef"
           v-model="input"
           :sending="sending"
           @send="onSend"

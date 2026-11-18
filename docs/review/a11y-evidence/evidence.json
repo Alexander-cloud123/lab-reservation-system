@@ -1,18 +1,18 @@
 {
-  "generatedAt": "2026-11-07T10:50:01.782Z",
+  "generatedAt": "2026-11-18T03:12:24.543Z",
   "web": "http://127.0.0.1:8088",
   "api": "http://127.0.0.1:8080",
   "results": [
     {
       "item": "A1",
       "status": "pass",
-      "evidence": "抽屉标题在无障碍树=true，欢迎语存在=true，焦点进入抽屉=true（activeElement=SPAN）；关闭按钮可访问名称正常=true（i18n 原始 key 泄漏=false）",
+      "evidence": "抽屉标题在无障碍树=true，欢迎语存在=true，焦点进入抽屉=true（activeElement=TEXTAREA aria-label=向 AI 预约助手提问）；关闭按钮可访问名称正常=true（i18n 原始 key 泄漏=false）",
       "note": "机器证据=无障碍树含标题/欢迎语 + 焦点归属 + 关闭按钮名称；实际播报语句与停留位置仍需人耳确认"
     },
     {
       "item": "A1b",
       "status": "info",
-      "evidence": "抽屉容器属性：assistant-drawer el-drawer rtl open role=dialog aria-modal=true aria-label=AI 预约助手",
+      "evidence": "抽屉容器属性：对话页容器=section.ai-chat-page ai-assistant，侧栏 aria-label=会话列表，流式区 aria-busy=false",
       "note": "结构性信息，不是清单条目"
     },
     {
@@ -42,7 +42,7 @@
     {
       "item": "B1",
       "status": "pass",
-      "evidence": "Tab 2 次后焦点落在快捷卡片；AX 快照中卡片名命中 3/3；焦点样式 outline=solid 2px rgb(20, 86, 240)，box-shadow=none",
+      "evidence": "Tab 2 次后焦点落在快捷卡片；AX 快照中卡片名命中 3/3；焦点样式 outline=solid 2px rgb(27, 63, 143)，box-shadow=none",
       "note": "机器证据=role/tabindex/焦点样式/无障碍树名称；「按钮 + 卡片名称」的实际播报需人耳"
     },
     {
@@ -96,7 +96,7 @@
     {
       "item": "C4",
       "status": "pass",
-      "evidence": "确认框打开时焦点在框内=true（「确定取消」）；确认后焦点=DIV.el-card is-never-shadow reserve-card role=region aria-label=「我的预约列表」，悬空到 body=false；Tab 后焦点仍在列表区域=true（「全部」）",
+      "evidence": "确认框打开时焦点在框内=true（「确定取消」）；确认后焦点=DIV.reserve-card surface role=region aria-label=「我的预约列表」，悬空到 body=false；Tab 后焦点仍在列表区域=true（「全部」）",
       "note": "机器证据=确认后焦点归属 + Tab 续走；读屏器实际播报「取消成功 / 我的预约列表」的听感仍可人工抽检"
     }
   ]

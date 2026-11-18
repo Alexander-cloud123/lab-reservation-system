@@ -225,9 +225,18 @@ try {
     const ball = aPage.getByRole('button', { name: '打开 AI 预约助手' })
     await ball.waitFor({ state: 'visible', timeout: 20000 })
     await ball.click()
-    const drawer = aPage.locator('.assistant-drawer')
+    // R14 起助手由 380px 抽屉改为全屏对话页（/student/ai）
+    await aPage.waitForURL(/\/student\/ai$/, { timeout: 10000 })
+    const drawer = aPage.locator('.ai-chat-page')
     await drawer.waitFor({ state: 'visible', timeout: 10000 })
-    await aPage.waitForTimeout(400)
+    // 路由切换用 page-swap（out-in 过渡约 440ms），焦点落在对话页输入框可能晚于 400ms
+    await aPage
+      .waitForFunction(() => {
+        const el = document.activeElement
+        return !!(el && el.closest && el.closest('.ai-chat-page'))
+      }, null, { timeout: 5000 })
+      .catch(() => {})
+    await aPage.waitForTimeout(200)
     const snap = await drawer.ariaSnapshot()
     save('a1-drawer.aria.yaml', snap)
     await shot(aPage, 'a1-drawer-open.png')
@@ -236,7 +245,7 @@ try {
       const el = document.activeElement
       return {
         tag: el ? el.tagName : '',
-        inDrawer: !!(el && el.closest('.assistant-drawer')),
+        inDrawer: !!(el && el.closest('.ai-chat-page')),
         label: (el && el.getAttribute && el.getAttribute('aria-label')) || '',
         text: n(el && el.textContent).slice(0, 60)
       }
@@ -246,7 +255,8 @@ try {
     const hasTitle = snap.includes('AI 预约助手') || drawerText.includes('AI 预约助手')
     const hasWelcome = drawerText.includes('你好，我是 AI 预约助手')
     const closeNameLeak = snap.includes('el.drawer.close')
-    const closeNamed = snap.includes('button "关闭"')
+    // 全屏对话页没有抽屉关闭按钮，改为校验「返回教室列表」导航按钮可访问名称
+    const closeNamed = snap.includes('button "返回教室列表"')
     rec(
       'A1',
       focus.inDrawer && hasTitle && closeNamed ? 'pass' : 'fail',
@@ -255,11 +265,11 @@ try {
     )
     await installLiveObserver(aPage)
     await aPage.evaluate(() => {
-      const drawer = document.querySelector('.assistant-drawer')
-      const roleHost = drawer ? drawer.closest('[role="dialog"]') : null
-      window.__drawerRole = roleHost
-        ? `${roleHost.className} role=${roleHost.getAttribute('role')} aria-modal=${roleHost.getAttribute('aria-modal')} aria-label=${roleHost.getAttribute('aria-label') || '(无)'}`
-        : '(未找到 role=dialog 容器)'
+      const page = document.querySelector('.ai-chat-page')
+      const sidebar = document.querySelector('.ai-chat-sidebar')
+      window.__drawerRole = page
+        ? `对话页容器=${page.tagName.toLowerCase()}.${page.className}，侧栏 aria-label=${sidebar ? sidebar.getAttribute('aria-label') : '(无)'}，流式区 aria-busy=${document.querySelector('.ai-chat-stream')?.getAttribute('aria-busy')}`
+        : '(未找到对话页容器)'
     })
     rec(
       'A1b',
@@ -281,7 +291,7 @@ try {
     const nonEmpty = [...new Set(log.filter(Boolean))]
     const statusCount = await aPage.locator('p[role="status"]').count()
     save('a2-live-log.json', JSON.stringify({ answer, live, visible, log, statusCount }, null, 2))
-    await shot(aPage, 'a2-final-answer.png', aPage.locator('.el-drawer'))
+    await shot(aPage, 'a2-final-answer.png', aPage.locator('.ai-chat-page'))
     const single = nonEmpty.length === 1 && nonEmpty[0] === live
     rec(
       'A2',
@@ -306,7 +316,7 @@ try {
     const live = await liveText(aPage)
     const visible = await lastBubbleText(aPage)
     save('a3b-markdown.json', JSON.stringify({ answer, live, visible }, null, 2))
-    await shot(aPage, 'a3b-markdown-answer.png', aPage.locator('.el-drawer'))
+    await shot(aPage, 'a3b-markdown-answer.png', aPage.locator('.ai-chat-page'))
     const equal = live === visible
     const hasMarkers = /[*#`>]|\n|^\d\./m.test(live)
     rec(
@@ -336,7 +346,7 @@ try {
     const logAfter = await aPage.evaluate(() => window.__liveLog.map((t) => (t || '').replace(/\s+/g, ' ').trim()))
     const liveAfter = await liveText(aPage)
     save('a4-stop.json', JSON.stringify({ wasStreaming, logBefore, liveBefore, visibleAfterStop, logAfter, liveAfter }, null, 2))
-    await shot(aPage, 'a4-after-stop.png', aPage.locator('.el-drawer'))
+    await shot(aPage, 'a4-after-stop.png', aPage.locator('.ai-chat-page'))
     const stable = JSON.stringify(logBefore) === JSON.stringify(logAfter) && liveBefore === liveAfter
     const retained = visibleAfterStop.length > 0
     rec(

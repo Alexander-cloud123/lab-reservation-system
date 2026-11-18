@@ -1,11 +1,31 @@
-- dialog "AI 预约助手":
-  - heading "AI 预约助手" [level=2]
-  - button "关闭":
-    - img
-  - paragraph: 你好，我是 AI 预约助手。可以问我如何预约教室、如何取消预约、审核流程、我的预约记录等问题。
-  - status
-  - text: 请输入预约相关问题
-  - textbox "请输入预约相关问题":
+- status
+- complementary "会话列表":
+  - strong: AI 预约助手
+  - text: 实验室预约系统
+  - button "新对话"
+  - searchbox "搜索历史会话"
+  - navigation "历史会话":
+    - paragraph: 还没有历史会话，先提一个问题吧
+  - paragraph: 仅解答预约相关问题，只读不写
+- main:
+  - button "返回教室列表"
+  - text: 新对话 就绪
+  - heading "你好，我是 AI 预约助手" [level=1]
+  - paragraph: 可以帮你查空教室、解释预约与审核规则，也会把思考过程摊开给你看。
+  - list:
+    - listitem:
+      - button "明天下午有哪些空教室？"
+    - listitem:
+      - button "怎么取消一条已通过的预约？"
+    - listitem:
+      - button "预约冲突是怎么判定的？"
+    - listitem:
+      - button "管理员审核一般要多久？"
+    - listitem:
+      - button "帮我约明天的机房，30 人左右"
+  - paragraph: AI 生成，仅供参考；仅解答预约相关问题
+  - textbox "向 AI 预约助手提问":
     - /placeholder: 问我：怎么预约 / 怎么取消 / 审核要多久…
-  - button "发送"
-  - text: AI 生成，仅供参考 · 仅解答预约相关问题
+  - text: Enter 发送，Shift+Enter 换行
+  - button "发送" [disabled]
+  - paragraph: AI 生成内容仅供参考，预约结果以系统记录与管理员审核为准。

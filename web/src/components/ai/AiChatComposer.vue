@@ -101,7 +101,6 @@ defineExpose({ focus })
         </button>
       </div>
     </div>
-    <p class="composer-note">AI 生成内容仅供参考，预约结果以系统记录与管理员审核为准。</p>
   </div>
 </template>
 
@@ -219,14 +218,6 @@ defineExpose({ focus })
   outline-offset: 2px;
 }
 
-.composer-note {
-  margin: var(--space-sm) 2px 0;
-  color: var(--ink-soft);
-  font-size: var(--text-xs);
-  line-height: 1.6;
-  text-align: center;
-}
-
 @media (max-width: 720px) {
   .composer-hint {
     display: none;
@@ -256,8 +247,7 @@ defineExpose({ focus })
   filter: brightness(1.06);
   color: #fff;
 }
-.composer-hint,
-.composer-note {
+.composer-hint {
   color: var(--ink-mute);
 }
 </style>

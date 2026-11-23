@@ -372,7 +372,7 @@ probeAiRecommend().catch(() => {})
         </p>
       </nav>
 
-      <p class="sidebar-foot">仅解答预约相关问题，只读不写</p>
+      <p class="sidebar-foot">只读不写，预约操作需你手动提交</p>
     </aside>
 
     <main class="ai-chat-main">

@@ -31,17 +31,17 @@
             @keyup.enter="handleSearch"
           />
         </el-form-item>
-        <el-form-item label="楼栋">
+        <el-form-item v-if="filtersExpanded" label="楼栋">
           <el-select v-model="query.building" placeholder="全部" clearable style="width: 132px">
             <el-option v-for="b in buildingOptions" :key="b" :label="b" :value="b" />
           </el-select>
         </el-form-item>
-        <el-form-item label="类型">
+        <el-form-item v-if="filtersExpanded" label="类型">
           <el-select v-model="query.type" placeholder="全部" clearable style="width: 132px">
             <el-option v-for="t in ROOM_TYPES" :key="t.value" :label="t.label" :value="t.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="占用日期">
+        <el-form-item v-if="filtersExpanded" label="占用日期">
           <el-date-picker
             v-model="query.date"
             type="date"
@@ -55,6 +55,9 @@
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
           <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button text type="primary" :icon="filtersExpanded ? ArrowUp : ArrowDown" :aria-expanded="filtersExpanded" @click="filtersExpanded = !filtersExpanded">
+            {{ filtersExpanded ? '收起筛选' : '更多筛选' }}
+          </el-button>
           <!-- AI 快速预约入口（R7，需求文档 2.4：搜索栏旁；enabled=false 时入口隐藏） -->
           <AiQuickReserve :ai-enabled="aiEnabled" />
         </el-form-item>
@@ -128,7 +131,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import TimeBand from '@/components/common/TimeBand.vue'
 import { useRouter } from 'vue-router'
-import { Refresh, Search } from '@element-plus/icons-vue'
+import { Refresh, Search, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import { listClassrooms } from '@/api/classroom'
 import AiRecommendCard from '@/components/ai/AiRecommendCard.vue'
 import AiQuickReserve from '@/components/ai/AiQuickReserve.vue'
@@ -206,6 +209,9 @@ const query = reactive({
   type: null,
   date: null
 })
+
+/** 渐进式披露：次级筛选折叠在「更多筛选」后面 */
+const filtersExpanded = ref(false)
 
 /** 保存筛选条件到 localStorage */
 function saveFilter() {

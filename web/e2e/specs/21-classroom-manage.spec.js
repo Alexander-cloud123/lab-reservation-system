@@ -12,7 +12,7 @@ import { test, expect } from '@playwright/test'
 import { loginAs } from '../helpers/auth'
 import { expectOk } from '../helpers/api'
 import { createClassroomApi, deleteClassroomApi, listClassroomsManage, uniqueTag } from '../helpers/admin'
-import { formItem, searchItem, rowOf, pickOption, expectMessage } from '../helpers/ui'
+import { formItem, searchItem, rowOf, pickOption, expectMessage, openMoreFilters } from '../helpers/ui'
 
 let token = null
 let createdRoomIds = []
@@ -80,6 +80,7 @@ test.describe('管理端-教室资源管理（ClassroomManage）', () => {
 
     // ② 楼栋
     await page.getByRole('button', { name: '重置' }).click()
+    await openMoreFilters(page)
     await pickOption(page, searchItem(page, '楼栋'), 'E2E乙栋')
     await page.getByRole('button', { name: '查询' }).click()
     await expect(rowOf(page, roomB.name)).toBeVisible()

@@ -15,6 +15,7 @@ import { loginAs, apiLogin } from '../helpers/auth'
 import { expectOk, listClassrooms, tryCancel } from '../helpers/api'
 import { pageToken, seedApprovedAny } from '../helpers/stable-seed'
 import { mockAiOff } from '../helpers/ai'
+import { openMoreFilters } from '../helpers/ui'
 import { e2ePurpose, futureDate, SLOTS } from '../helpers/data'
 
 const PAGE = '/student/home'
@@ -90,6 +91,7 @@ test.describe('教室列表页 - 筛选与展示', () => {
 
   test('楼栋 / 类型组合筛选：结果全部符合所选条件', async ({ page }) => {
     await openList(page)
+    await openMoreFilters(page)
 
     const buildingSelect = page.locator('.el-form-item').filter({ hasText: '楼栋' }).locator('.el-select')
     await pickSelect(page, buildingSelect, BUILDING)
@@ -130,6 +132,7 @@ test.describe('教室列表页 - 筛选与展示', () => {
       purpose: e2ePurpose('11-日期筛选')
     })
 
+    await openMoreFilters(page)
     await pickDate(page, '选择日期', seeded.date)
     await clickSearch(page)
 
@@ -226,6 +229,7 @@ test.describe('教室列表页 - 筛选与展示', () => {
 
     const keyword = page.getByPlaceholder('教室名称 / 编号')
     await keyword.fill('A1')
+    await openMoreFilters(page)
     const buildingSelect = page.locator('.el-form-item').filter({ hasText: '楼栋' }).locator('.el-select')
     await pickSelect(page, buildingSelect, BUILDING)
     await clickSearch(page)

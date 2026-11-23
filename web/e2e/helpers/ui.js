@@ -22,6 +22,15 @@ export function searchItem(page, label) {
   return formItem(page.locator('.search-card'), label)
 }
 
+/** 展开「更多筛选」（列表页次级筛选默认折叠，按需展开；已展开则不重复点击） */
+export async function openMoreFilters(page) {
+  const toggle = page.locator('.search-card').getByRole('button', { name: /更多筛选|收起筛选/ })
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') {
+    await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  }
+}
+
 /** 表格数据行（el-table__row 只在 tbody 出现，表头是 el-table__header-row） */
 export function rowOf(page, text) {
   return page.locator('tr.el-table__row').filter({ hasText: text })

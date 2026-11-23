@@ -14,7 +14,16 @@
     <!-- 筛选条：一张白面，控件同高（需求文档 2.4 第 12 页） -->
     <div class="search-card">
       <el-form :inline="true" :model="query" @submit.prevent>
-        <el-form-item label="日期范围">
+        <el-form-item label="用户">
+          <el-input
+            v-model="query.keyword"
+            placeholder="账号 / 姓名"
+            clearable
+            style="width: 160px"
+            @keyup.enter="handleSearch"
+          />
+        </el-form-item>
+        <el-form-item v-if="filtersExpanded" label="日期范围">
           <el-date-picker
             v-model="dateRange"
             type="daterange"
@@ -25,7 +34,7 @@
             style="width: 260px"
           />
         </el-form-item>
-        <el-form-item label="教室">
+        <el-form-item v-if="filtersExpanded" label="教室">
           <el-select
             v-model="query.classroomId"
             placeholder="全部教室"
@@ -41,16 +50,7 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="用户">
-          <el-input
-            v-model="query.keyword"
-            placeholder="账号 / 姓名"
-            clearable
-            style="width: 160px"
-            @keyup.enter="handleSearch"
-          />
-        </el-form-item>
-        <el-form-item label="状态">
+        <el-form-item v-if="filtersExpanded" label="状态">
           <el-select v-model="query.status" placeholder="全部" clearable style="width: 112px">
             <el-option label="待审核" :value="0" />
             <el-option label="已通过" :value="1" />
@@ -61,6 +61,9 @@
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
           <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button text type="primary" :icon="filtersExpanded ? ArrowUp : ArrowDown" :aria-expanded="filtersExpanded" @click="filtersExpanded = !filtersExpanded">
+            {{ filtersExpanded ? '收起筛选' : '更多筛选' }}
+          </el-button>
         </el-form-item>
       </el-form>
     </div>
@@ -135,7 +138,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
-import { Search, Refresh, Download } from '@element-plus/icons-vue'
+import { Search, Refresh, Download, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import { pageManageReservations, exportReservations } from '@/api/reservation'
 import { pageClassrooms } from '@/api/classroom'
 import { statusText, statusCellClass } from '@/utils/dict'
@@ -155,6 +158,9 @@ const query = reactive({
   classroomId: undefined,
   keyword: ''
 })
+
+/** 渐进式披露：次级筛选折叠在「更多筛选」后面 */
+const filtersExpanded = ref(false)
 
 /** 组装查询参数（空值剔除，避免向后端传多余参数） */
 function buildParams() {

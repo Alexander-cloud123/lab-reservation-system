@@ -7,7 +7,7 @@ import { test, expect } from '@playwright/test'
 import { loginAs, apiLogin } from '../helpers/auth'
 import { e2ePurpose, futureDate } from '../helpers/data'
 import { seedReservation, fetchClassroomMap, exportReservationsApi, uniqueTag } from '../helpers/admin'
-import { searchItem, rowOf, pickOption, fillDateRange, expectMessage } from '../helpers/ui'
+import { searchItem, rowOf, pickOption, fillDateRange, expectMessage, openMoreFilters } from '../helpers/ui'
 
 const CLASSROOM_IDS = [6, 7, 8]
 const DATES = [futureDate(7), futureDate(8), futureDate(9)]
@@ -47,6 +47,7 @@ test.describe('管理端-预约记录（ReservationRecord）', () => {
     const rec = await seedRecord(page, '记录筛选')
 
     await searchItem(page, '用户').getByRole('textbox').fill('zhangsan')
+    await openMoreFilters(page)
     await pickOption(page, searchItem(page, '状态'), '已通过')
     await pickOption(page, searchItem(page, '教室'), roomLabel(rec.room))
     await fillDateRange(page, rec.date, rec.date)
@@ -76,6 +77,7 @@ test.describe('管理端-预约记录（ReservationRecord）', () => {
     const rec = await seedRecord(page, '记录导出')
 
     // 先收窄筛选范围（也顺带验证「按条件导出」）
+    await openMoreFilters(page)
     await pickOption(page, searchItem(page, '状态'), '已通过')
     await pickOption(page, searchItem(page, '教室'), roomLabel(rec.room))
     await fillDateRange(page, rec.date, rec.date)

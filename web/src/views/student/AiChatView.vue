@@ -153,6 +153,16 @@ const suggestions = computed(() => {
   return [{ icon: 'spark', text: '这间教室明天下午有空吗？' }, ...baseSuggestions]
 })
 
+/** 渐进式披露：默认只给 3 条建议，其余点「更多建议」展开 */
+const showAllSuggestions = ref(false)
+const hasMoreSuggestions = computed(() => suggestions.value.length > 3)
+const visibleSuggestions = computed(() =>
+  showAllSuggestions.value ? suggestions.value : suggestions.value.slice(0, 3)
+)
+function toggleSuggestions() {
+  showAllSuggestions.value = !showAllSuggestions.value
+}
+
 async function onDeleteConversation(conversation) {
   try {
     await ElMessageBox.confirm(`删除后无法恢复，确定删除「${conversation.title}」？`, '删除会话', {
@@ -406,7 +416,7 @@ probeAiRecommend().catch(() => {})
             <h1>你好，我是 AI 预约助手</h1>
             <p>可以帮你查空教室、解释预约与审核规则，也会把思考过程摊开给你看。</p>
             <ul class="ai-chat-suggestions">
-              <li v-for="item in suggestions" :key="item.text">
+              <li v-for="item in visibleSuggestions" :key="item.text">
                 <button type="button" class="suggest-item" @click="ask(item.text)">
                   <span class="suggest-icon" aria-hidden="true">
                     <svg v-if="item.icon === 'spark'" viewBox="0 0 24 24" width="16" height="16">
@@ -433,6 +443,17 @@ probeAiRecommend().catch(() => {})
                           </button>
               </li>
             </ul>
+
+            <button
+              v-if="hasMoreSuggestions"
+              type="button"
+              class="suggest-more"
+              :aria-expanded="showAllSuggestions"
+              @click="toggleSuggestions"
+            >
+              <span>{{ showAllSuggestions ? '收起建议' : '更多建议' }}</span>
+              <span class="suggest-more-chevron" :class="{ 'is-open': showAllSuggestions }" aria-hidden="true"></span>
+            </button>
           </div>
 
           <AiChatMessage
@@ -1029,6 +1050,43 @@ probeAiRecommend().catch(() => {})
 
 .chat-tip.is-info {
   color: var(--info);
+}
+
+.suggest-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 2px;
+  border: 0;
+  background: none;
+  color: var(--brand);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.suggest-more:hover {
+  text-decoration: underline;
+}
+
+.suggest-more:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.suggest-more-chevron {
+  width: 6px;
+  height: 6px;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.18s ease;
+}
+
+.suggest-more-chevron.is-open {
+  transform: rotate(225deg);
 }
 
 @media (max-width: 1024px) {

@@ -19,10 +19,7 @@
       - button "怎么取消一条已通过的预约？"
     - listitem:
       - button "预约冲突是怎么判定的？"
-    - listitem:
-      - button "管理员审核一般要多久？"
-    - listitem:
-      - button "帮我约明天的机房，30 人左右"
+  - button "更多建议"
   - paragraph: AI 生成，仅供参考；仅解答预约相关问题
   - textbox "向 AI 预约助手提问":
     - /placeholder: 问我：怎么预约 / 怎么取消 / 审核要多久…

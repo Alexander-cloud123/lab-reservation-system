@@ -21,13 +21,13 @@
             @keyup.enter="handleSearch"
           />
         </el-form-item>
-        <el-form-item label="角色">
+        <el-form-item v-if="filtersExpanded" label="角色">
           <el-select v-model="query.role" placeholder="全部" clearable style="width: 132px">
             <el-option label="学生" :value="0" />
             <el-option label="管理员" :value="1" />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
+        <el-form-item v-if="filtersExpanded" label="状态">
           <el-select v-model="query.status" placeholder="全部" clearable style="width: 132px">
             <el-option label="正常" :value="1" />
             <el-option label="禁用" :value="0" />
@@ -36,6 +36,9 @@
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
           <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button text type="primary" :icon="filtersExpanded ? ArrowUp : ArrowDown" :aria-expanded="filtersExpanded" @click="filtersExpanded = !filtersExpanded">
+            {{ filtersExpanded ? '收起筛选' : '更多筛选' }}
+          </el-button>
         </el-form-item>
       </el-form>
     </div>
@@ -122,7 +125,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Refresh } from '@element-plus/icons-vue'
+import { Search, Refresh, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { pageUsers, updateUserStatus, resetUserPassword } from '@/api/user'
 import { useUserStore } from '@/stores/user'
@@ -142,6 +145,9 @@ const query = reactive({
   role: null,
   status: null
 })
+
+/** 渐进式披露：次级筛选折叠在「更多筛选」后面 */
+const filtersExpanded = ref(false)
 
 /** 加载用户列表 */
 async function loadData() {

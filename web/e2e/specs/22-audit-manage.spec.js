@@ -11,7 +11,7 @@ import { test, expect } from '@playwright/test'
 import { loginAs, apiLogin } from '../helpers/auth'
 import { e2ePurpose, futureDate } from '../helpers/data'
 import { uniqueTag, seedReservation, findManageByPurpose } from '../helpers/admin'
-import { searchItem, rowOf, pickOption, fillDateRange, setPageSize, expectMessage } from '../helpers/ui'
+import { searchItem, rowOf, pickOption, fillDateRange, setPageSize, expectMessage, openMoreFilters } from '../helpers/ui'
 
 /** 本任务分配到的资源，避免与其他并行任务抢同一教室/日期 */
 const CLASSROOM_IDS = [6, 7, 8]
@@ -28,6 +28,7 @@ let usedSlots = []
 /** 打开筛选：每页 50 条 + 日期范围（必要时加状态），保证自造记录稳定落在当前页 */
 async function openFiltered(page, { status } = {}) {
   await setPageSize(page, '50条/页')
+  await openMoreFilters(page)
   if (status !== undefined) {
     await pickOption(page, searchItem(page, '状态'), status)
   }

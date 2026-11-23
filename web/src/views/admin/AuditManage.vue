@@ -12,7 +12,16 @@
     <!-- 筛选条：一张白面，控件同高 -->
     <div class="search-card">
       <el-form :inline="true" :model="query" @submit.prevent>
-        <el-form-item label="状态">
+        <el-form-item label="关键词">
+          <el-input
+            v-model="query.keyword"
+            placeholder="用户账号 / 姓名 / 教室名称"
+            clearable
+            style="width: 220px"
+            @keyup.enter="handleSearch"
+          />
+        </el-form-item>
+        <el-form-item v-if="filtersExpanded" label="状态">
           <el-select v-model="query.status" placeholder="全部" clearable style="width: 120px">
             <el-option label="待审核" :value="0" />
             <el-option label="已通过" :value="1" />
@@ -20,7 +29,7 @@
             <el-option label="已取消" :value="3" />
           </el-select>
         </el-form-item>
-        <el-form-item label="日期范围">
+        <el-form-item v-if="filtersExpanded" label="日期范围">
           <el-date-picker
             v-model="dateRange"
             type="daterange"
@@ -31,18 +40,12 @@
             style="width: 260px"
           />
         </el-form-item>
-        <el-form-item label="关键词">
-          <el-input
-            v-model="query.keyword"
-            placeholder="用户账号 / 姓名 / 教室名称"
-            clearable
-            style="width: 220px"
-            @keyup.enter="handleSearch"
-          />
-        </el-form-item>
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
           <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          <el-button text type="primary" :icon="filtersExpanded ? ArrowUp : ArrowDown" :aria-expanded="filtersExpanded" @click="filtersExpanded = !filtersExpanded">
+            {{ filtersExpanded ? '收起筛选' : '更多筛选' }}
+          </el-button>
         </el-form-item>
       </el-form>
     </div>
@@ -216,7 +219,7 @@
 <script setup>
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Refresh, CircleCheck, CircleClose } from '@element-plus/icons-vue'
+import { Search, Refresh, CircleCheck, CircleClose, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import { pageManageReservations, auditReservation, batchAuditReservations } from '@/api/reservation'
 import { aiComplianceCheckStream } from '@/api/ai'
 import { useUserStore } from '@/stores/user'
@@ -378,6 +381,9 @@ const query = reactive({
   status: undefined,
   keyword: ''
 })
+
+/** 渐进式披露：次级筛选折叠在「更多筛选」后面 */
+const filtersExpanded = ref(false)
 
 /** 驳回弹窗状态（单条/批量共用） */
 const rejectVisible = ref(false)

@@ -17,7 +17,7 @@ test.describe('E2E 骨架冒烟', () => {
     await loginAs(page, { who: 'student', path: '/student/home' })
     await expect(page).toHaveURL(/\/student\/home/)
     // 种子教室 A101 应在列表中（证明列表接口通了、表格渲染了）
-    await expect(page.getByText('A101').first()).toBeVisible()
+    await expect(page.locator('.room-card').filter({ hasText: 'A101' }).first()).toBeVisible()
   })
 
   test('管理员登录 → 直达管理端首页并渲染 4 张数据卡', async ({ page }) => {

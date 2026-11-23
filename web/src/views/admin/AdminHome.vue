@@ -3,7 +3,7 @@
     <!-- 顶部栏 -->
     <el-header class="admin-header">
       <div class="header-left">
-        <div class="logo-badge" aria-hidden="true">A101</div>
+        <div class="logo-badge" aria-hidden="true">预约</div>
         <span class="header-logo">高校实验室预约管理系统</span>
         <span class="role-chip">管理端</span>
       </div>
@@ -153,11 +153,10 @@ async function handleLogout() {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-num);
+  font-family: var(--font-family-sans);
   font-size: var(--text-sm);
   font-weight: 600;
-  letter-spacing: 0.06em;
-  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
 }
 
 .header-logo {

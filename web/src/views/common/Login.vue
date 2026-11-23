@@ -5,8 +5,8 @@
       <div class="brand-grid" aria-hidden="true" />
       <div class="brand-inner">
         <div class="brand-code">
-          <span class="brand-code-num">A101</span>
-          <span class="brand-code-note">教室预约系统，08:00 至 22:00 开放</span>
+          <span class="brand-code-num">预约</span>
+          <span class="brand-code-note">08:00 至 22:00 开放</span>
         </div>
         <h1 class="brand-name">
           高校实验室<br />预约管理系统
@@ -253,13 +253,12 @@ const rulerHours = Array.from({ length: 25 }, (_, index) => index)
 }
 /* 门牌数字：全站仅两处大字号之一（另一处是首页 hero 主时钟） */
 .brand-code-num {
-  font-family: var(--font-num);
+  font-family: var(--font-family-sans);
   font-size: var(--text-display-xl);
   font-weight: 600;
   line-height: 1;
-  letter-spacing: -0.03em;
+  letter-spacing: 0.02em;
   color: #fff;
-  font-variant-numeric: tabular-nums;
   text-shadow: 0 2px 24px rgba(4, 20, 46, 0.28);
 }
 .brand-code-note {

@@ -41,7 +41,7 @@
             <el-option v-for="t in ROOM_TYPES" :key="t.value" :label="t.label" :value="t.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="日期">
+        <el-form-item label="占用日期">
           <el-date-picker
             v-model="query.date"
             type="date"
@@ -69,6 +69,8 @@
         class="room-card reveal stagger"
         :class="`room-type-${room.type}`"
         :style="{ '--i': Math.min(index, 12) }"
+        v-clickable
+        :aria-label="`${room.roomNo} ${room.name}，查看详情并预约`"
         @click="goDetail(room)"
       >
         <div class="room-card-head">
@@ -94,13 +96,8 @@
           <span>{{ query.date }} 当天已有 <b>{{ room.occupiedSlots.length }}</b> 个时段被预约</span>
         </div>
 
-        <p class="room-equipment" v-if="room.equipment">设备：{{ room.equipment }}</p>
-        <p class="room-desc">{{ room.description || '暂无备注' }}</p>
-
         <div class="room-foot">
-          <el-button type="primary" size="small" plain @click.stop="goDetail(room)">
-            查看详情并预约
-          </el-button>
+          <span class="card-cta" aria-hidden="true">查看详情并预约</span>
         </div>
       </div>
 
@@ -520,28 +517,6 @@ onMounted(() => {
   font-weight: 600;
 }
 
-.room-equipment {
-  font-size: var(--text-sm);
-  line-height: 1.6;
-  color: var(--ink-soft);
-  margin-bottom: var(--space-sm);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.room-desc {
-  font-size: var(--text-sm);
-  line-height: 1.7;
-  color: var(--ink-soft);
-  margin-bottom: var(--space-lg);
-  flex: 1;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
 .room-foot {
   display: flex;
   justify-content: flex-start;
@@ -549,16 +524,13 @@ onMounted(() => {
   padding-top: var(--space-md);
   margin-top: auto;
 }
-.room-foot :deep(.el-button) {
-  height: 34px;
-  padding: 0 2px;
-  border: 0;
-  background: transparent;
+.room-foot .card-cta {
+  font-size: var(--text-sm);
+  line-height: 1;
   font-weight: 600;
   color: var(--brand);
 }
-.room-foot :deep(.el-button:hover) {
-  background: transparent;
+.room-card:hover .card-cta {
   color: var(--brand-primary-hover);
   text-decoration: underline;
   text-underline-offset: 3px;

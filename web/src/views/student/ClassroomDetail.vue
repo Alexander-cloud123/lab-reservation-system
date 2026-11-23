@@ -61,6 +61,7 @@
         clickable
         @pick="onPickSlot"
       />
+      <p class="slots-hint">点击空白时段，直接带入预约</p>
       <p v-if="!(classroom.occupiedSlots || []).length" class="slots-empty">
         {{ queryDate || '今天' }} 暂无已通过的预约时段，可自由预约
       </p>
@@ -649,6 +650,13 @@ onBeforeUnmount(invalidateConflict)
 
 .slots-ruler {
   margin-bottom: var(--space-md);
+}
+
+.slots-hint {
+  margin: 0 0 var(--space-md);
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+  line-height: 1.6;
 }
 
 .slots-empty {

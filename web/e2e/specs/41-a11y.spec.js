@@ -5,16 +5,16 @@
  * src/directives/clickable.js 以 v-clickable 补齐 role="button"、tabindex="0" 与
  * Enter/空格键激活（空格需 preventDefault 防页面滚动），本文件为其回归断言。
  *
- * 覆盖全量 19 处（6 文件 / 9 类），逐类断言三件事：
+ * 覆盖全量 20 处（6 文件 / 10 类），逐类断言三件事：
  *   ① 按钮语义完整：role="button" + tabindex="0"
  *   ② Tab 可真实到达（不是仅有 tabindex 属性）
  *   ③ Enter / 空格激活后的行为与鼠标点击一致
  * 分布：AdminWelcome .quick-card×5、Profile .quick-item×4 / .settings-row.clickable×4 /
  *      .fav-item×1 / .msg-item×1、AuditManage .ai-tag-clickable×1 / .reason-tag×1、
- *      AiRecommendCard .recommend-item×1、AiQuickReserve .room-pick-item×1。
+ *      AiRecommendCard .recommend-item×1、AiQuickReserve .room-pick-item×1、ClassroomList .room-card（整卡）。
  *
- * 刻意排除：ClassroomList 的 .room-card——其内部已有真实 el-button，
- * 再补按钮语义会造成交互元素嵌套与双 Tab 停靠，故不加 v-clickable，也不在此断言。
+ * 注：ClassroomList 的 .room-card 早期因内部 el-button 与整卡点击冲突而不加 v-clickable；
+ * 现整卡已移除内部按钮（改为视觉占位 .card-cta）并补齐 v-clickable，因此纳入本文件断言。
  *
  * 数据策略：优先用 page.route 造确定性数据（收藏列表 / 我的预约 / AI 接口），
  * 只有「审核页待审核行」必须落库（驳回弹窗依赖真实行），收尾用 tryCancel 撤销。
@@ -313,5 +313,17 @@ test.describe('键盘可达性（v-clickable）', () => {
     const name = (await picks.first().locator('.room-pick-name').innerText()).trim()
     await picks.first().press('Enter')
     await expect(dialog.locator('.picked-room')).toContainText(name)
+  })
+
+  test('教室列表卡片：整卡语义完整，Tab/Enter 直达详情', async ({ page }) => {
+    await mockAiOff(page)
+    await loginAs(page, { who: 'student', path: '/student/home', aiEnabled: false })
+    const cards = page.locator('.room-card')
+    await expect(cards.first()).toBeVisible()
+    await expectButtonSemantics(cards.first(), '教室卡片')
+    await expectTabReachable(page, cards.first())
+
+    await cards.first().press('Enter')
+    await expect(page).toHaveURL(/\/student\/classrooms\/\d+$/)
   })
 })

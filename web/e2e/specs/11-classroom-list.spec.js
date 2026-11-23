@@ -140,7 +140,7 @@ test.describe('教室列表页 - 筛选与展示', () => {
     await tryCancel(request, token, seeded.id)
   })
 
-  test('卡片展示字段：名称/编号/楼栋/容量/类型/今日剩余/设备/按钮', async ({ page, request }) => {
+  test('卡片展示字段：名称/编号/楼栋/容量/类型/今日剩余/详情入口', async ({ page, request }) => {
     const { token } = await apiLogin(request, 'student')
     const rooms = expectOk(await listClassrooms(request, token, { page: 1, size: 100 }), '取教室列表').records
     const room = rooms.find((r) => r.id === 1)
@@ -161,14 +161,13 @@ test.describe('教室列表页 - 筛选与展示', () => {
     await expect(card.locator('.room-no')).toHaveText(expected.roomNo)
     await expect(card.getByText(`${expected.building} 楼栋`)).toBeVisible()
     await expect(card.getByText(`容量 ${expected.capacity} 人`)).toBeVisible()
-    await expect(card.getByRole('button', { name: '查看详情并预约' })).toBeVisible()
+    await expect(card).toHaveAttribute('role', 'button')
+    await expect(card.locator('.card-cta')).toHaveText('查看详情并预约')
     await expect(card.locator('.remain-slots')).toContainText('今日剩余')
     await expect(card.locator('.remain-slots')).toContainText('时段可约')
     // 类型标签文案（1-普通教室）
     expect(expected.type).toBe(1)
     await expect(card.locator('.room-type')).toHaveText('普通教室')
-    // 备注描述（有则展示，无则「暂无备注」）
-    await expect(card.locator('.room-desc')).toHaveText(expected.description || '暂无备注')
   })
 
   test('分页切换：改页长后翻页生效', async ({ page }) => {

@@ -134,6 +134,8 @@
   --brand-ink: var(--deep);
   --on-brand: rgba(255, 255, 255, 0.78);
   --grid-ink: rgba(255, 255, 255, 0.07);
+  /* 浅色页面上叠加的排课表行线（极淡，只在留白负空间可见） */
+  --paper-rule: rgba(11, 42, 91, 0.04);
 
   /* 键盘焦点环 */
   --ring: 0 0 0 3px rgba(29, 111, 224, 0.18);
@@ -280,6 +282,19 @@ body {
     linear-gradient(165deg, #eaf2ff 0%, #eef3fb 46%, #effaf8 100%);
   background-repeat: no-repeat;
   background-attachment: fixed;
+}
+
+/*
+ * 页面底纹：整页可见的排课表行线（1px / 96px，4% 墨色）。
+ * 只画在 #app 这一层——内容面（卡片/表格/弹窗）自己有不透明底，行线只在留白负空间可见。
+ */
+#app {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    var(--paper-rule) 0 1px,
+    transparent 1px 96px
+  );
+  background-attachment: local;
 }
 
 /* 键盘焦点：天光蓝细环 */

@@ -255,7 +255,8 @@ async function handleLogout() {
 }
 
 .student-main {
-  background: var(--page);
+  /* 透明：让 #app 的页面底纹（排课表行线）透出，内容面自己有不透明底 */
+  background: transparent;
   padding: 0;
   overflow-y: auto;
 }

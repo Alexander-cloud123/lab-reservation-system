@@ -134,8 +134,8 @@
   --brand-ink: var(--deep);
   --on-brand: rgba(255, 255, 255, 0.78);
   --grid-ink: rgba(255, 255, 255, 0.07);
-  /* 浅色页面上叠加的排课表行线（极淡，只在留白负空间可见） */
-  --paper-rule: rgba(11, 42, 91, 0.04);
+  /* 留白纸纹：32px 极淡点阵（颗粒层见 #app 的 SVG 噪声，约 5%） */
+  --paper-dot: rgba(11, 42, 91, 0.09);
 
   /* 键盘焦点环 */
   --ring: 0 0 0 3px rgba(29, 111, 224, 0.18);
@@ -285,16 +285,16 @@ body {
 }
 
 /*
- * 页面底纹：整页可见的排课表行线（1px / 96px，4% 墨色）。
- * 只画在 #app 这一层——内容面（卡片/表格/弹窗）自己有不透明底，行线只在留白负空间可见。
+ * 页面留白纸纹：无方向的细颗粒 + 32px 极淡点阵，合起来是「图纸/纸面」而不是「表格」。
+ * 为什么不用等距横线：横线有方向，遇到卡片矩形边缘必然被硬切断，接缝处读作「表格线被卡片盖住」，
+ * 是表格感而不是纸感；颗粒与点阵各向同性，不与任何矩形边缘打架。
+ * 只画在 #app 这一层——内容面（卡片/表格/弹窗）自带不透明底，纹理只在留白负空间可见。
+ * 颗粒层是平铺的低透明度 SVG 噪声（5%），平铺块 180px 且 stitchTiles 保证无缝。
  */
 #app {
-  background-image: repeating-linear-gradient(
-    to bottom,
-    var(--paper-rule) 0 1px,
-    transparent 1px 96px
-  );
-  background-attachment: local;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E"),
+    radial-gradient(circle, var(--paper-dot) 0 1.2px, transparent 1.4px);
+  background-size: 180px 180px, 32px 32px;
 }
 
 /* 键盘焦点：天光蓝细环 */

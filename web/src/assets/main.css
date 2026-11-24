@@ -243,6 +243,23 @@
   box-sizing: border-box;
 }
 
+/* 移动端点按：去掉 300ms 双击缩放延迟与点击高亮闪烁（WCAG 2.5 / Vercel Touch） */
+button,
+a,
+[role='button'] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 标题字句均衡换行，避免孤行（Vercel Typography） */
+h1,
+h2,
+.page-title,
+.login-title,
+.brand-name {
+  text-wrap: balance;
+}
+
 /* 页面底：冷调浅蓝 + 两团极淡的光晕（固定不动，滚动时不抖） */
 html,
 body,

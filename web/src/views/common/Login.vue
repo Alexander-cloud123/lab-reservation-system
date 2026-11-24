@@ -52,7 +52,7 @@
         <el-form ref="formRef" :model="form" :rules="rules" label-width="0" size="large" @keyup.enter="handleLogin" @validate="onFormValidate">
           <el-form-item prop="role">
             <el-radio-group v-model="form.role" class="role-group">
-              <el-radio-button :value="0">学 生</el-radio-button>
+              <el-radio-button :value="0">学生</el-radio-button>
               <el-radio-button :value="1">管理员</el-radio-button>
             </el-radio-group>
           </el-form-item>
@@ -66,6 +66,9 @@
               v-model="form.username"
               placeholder="请输入登录账号"
               aria-label="登录账号"
+              name="username"
+              autocomplete="username"
+              spellcheck="false"
               :aria-invalid="fieldInvalid.username ? 'true' : undefined"
               :aria-describedby="fieldInvalid.username ? 'login-username-error' : undefined"
               :prefix-icon="User"
@@ -81,6 +84,8 @@
               type="password"
               placeholder="请输入密码"
               aria-label="密码"
+              name="password"
+              autocomplete="current-password"
               :aria-invalid="fieldInvalid.password ? 'true' : undefined"
               :aria-describedby="fieldInvalid.password ? 'login-password-error' : undefined"
               :prefix-icon="Lock"
@@ -89,7 +94,7 @@
             />
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" class="login-btn" :loading="loading" @click="handleLogin">登 录</el-button>
+            <el-button type="primary" class="login-btn" :loading="loading" @click="handleLogin">登录</el-button>
           </el-form-item>
         </el-form>
 

@@ -6,7 +6,7 @@
   - searchbox "搜索历史会话"
   - navigation "历史会话":
     - paragraph: 还没有历史会话，先提一个问题吧
-  - paragraph: 仅解答预约相关问题，只读不写
+  - paragraph: 只读不写，预约操作需你手动提交
 - main:
   - button "返回教室列表"
   - text: 新对话 就绪
@@ -25,4 +25,3 @@
     - /placeholder: 问我：怎么预约 / 怎么取消 / 审核要多久…
   - text: Enter 发送，Shift+Enter 换行
   - button "发送" [disabled]
-  - paragraph: AI 生成内容仅供参考，预约结果以系统记录与管理员审核为准。

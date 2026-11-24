@@ -36,28 +36,28 @@
 
         <el-form ref="formRef" :model="form" :rules="rules" label-width="80px" size="large">
           <el-form-item label="学号" prop="studentNo">
-            <el-input v-model="form.studentNo" placeholder="请输入学号" maxlength="20" />
+            <el-input v-model="form.studentNo" name="studentNo" autocomplete="off" placeholder="请输入学号" maxlength="20" />
           </el-form-item>
           <el-form-item label="姓名" prop="name">
-            <el-input v-model="form.name" placeholder="请输入真实姓名" maxlength="20" />
+            <el-input v-model="form.name" name="name" autocomplete="name" placeholder="请输入真实姓名" maxlength="20" />
           </el-form-item>
           <el-form-item label="手机号" prop="phone">
-            <el-input v-model="form.phone" placeholder="选填，11 位手机号" maxlength="11" />
+            <el-input v-model="form.phone" type="tel" name="phone" autocomplete="tel" inputmode="tel" placeholder="选填，11 位手机号" maxlength="11" />
           </el-form-item>
           <el-form-item label="邮箱" prop="email">
-            <el-input v-model="form.email" placeholder="选填" maxlength="50" />
+            <el-input v-model="form.email" type="email" name="email" autocomplete="email" inputmode="email" spellcheck="false" placeholder="选填" maxlength="50" />
           </el-form-item>
           <el-form-item label="登录账号" prop="username">
-            <el-input v-model="form.username" placeholder="登录唯一账号" maxlength="32" />
+            <el-input v-model="form.username" name="username" autocomplete="username" spellcheck="false" placeholder="登录唯一账号" maxlength="32" />
           </el-form-item>
           <el-form-item label="密码" prop="password">
-            <el-input v-model="form.password" type="password" placeholder="不少于 6 位" show-password />
+            <el-input v-model="form.password" type="password" name="password" autocomplete="new-password" placeholder="不少于 6 位" show-password />
           </el-form-item>
           <el-form-item label="确认密码" prop="confirmPassword">
-            <el-input v-model="form.confirmPassword" type="password" placeholder="再次输入密码" show-password />
+            <el-input v-model="form.confirmPassword" type="password" name="confirmPassword" autocomplete="new-password" placeholder="再次输入密码" show-password />
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" class="register-btn" :loading="loading" @click="handleRegister">注 册</el-button>
+            <el-button type="primary" class="register-btn" :loading="loading" @click="handleRegister">注册</el-button>
           </el-form-item>
         </el-form>
 

@@ -546,7 +546,7 @@ try {
   const { ctx: d3Ctx, page: d3Page } = await newPage(browser, { auth: false })
   await step('D3', async () => {
     await d3Page.goto(`${WEB}/login`)
-    await d3Page.getByRole('button', { name: '登 录' }).click()
+    await d3Page.getByRole('button', { name: '登录' }).click()
     await d3Page.waitForTimeout(600)
     const info = await d3Page.evaluate(() => {
       const errors = [...document.querySelectorAll('.el-form-item__error')]

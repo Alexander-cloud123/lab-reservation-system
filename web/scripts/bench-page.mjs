@@ -31,7 +31,7 @@ for (const arg of process.argv.slice(2)) {
 
 const VIEWPORT = { width: 1440, height: 900 };
 const ACCOUNTS = {
-  student: { user: 'zhangsan', password: '123456', role: '学 生', done: /\/student\// },
+  student: { user: 'zhangsan', password: '123456', role: '学生', done: /\/student\// },
   admin: { user: 'admin', password: 'admin123', role: '管理员', done: /\/admin\// },
 };
 

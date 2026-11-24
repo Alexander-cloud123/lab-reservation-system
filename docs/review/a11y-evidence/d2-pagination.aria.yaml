@@ -1,4 +1,4 @@
-- text: 共 15 条
+- text: 共 65 条
 - combobox
 - text: 10条/页
 - img
@@ -7,6 +7,11 @@
 - list:
   - listitem "第 1 页": "1"
   - listitem "第 2 页": "2"
+  - listitem "第 3 页": "3"
+  - listitem "第 4 页": "4"
+  - listitem "第 5 页": "5"
+  - listitem "第 6 页": "6"
+  - listitem "第 7 页": "7"
 - button "下一页":
   - img
 - text: 前往

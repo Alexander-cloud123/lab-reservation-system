@@ -23,9 +23,9 @@ import { ACCOUNTS, apiLogin, loginAs, clearAuth } from '../helpers/auth'
 import { expectOk, listMine, seedApprovedReservation, tryCancel } from '../helpers/api'
 import { CLASSROOMS, e2ePurpose, today } from '../helpers/data'
 
-/** 登录按钮文案带字间距（源代码为「登 录」），用正则放宽空白 */
+/** 登录按钮文案（正则放宽空白，兼容历史「登 录」字距文案） */
 const LOGIN_BTN = /登\s*录/
-/** 注册按钮文案（源代码为「注 册」） */
+/** 注册按钮文案（正则放宽空白，兼容历史「注 册」字距文案） */
 const REGISTER_BTN = /注\s*册/
 
 /** 填写登录表单（角色默认学生=0，登录页初始即为学生） */

@@ -476,7 +476,7 @@ probeAiRecommend().catch(() => {})
       <p class="sidebar-foot">只读不写，预约操作需你手动提交</p>
     </aside>
 
-    <main class="ai-chat-main">
+    <div class="ai-chat-main">
       <header class="ai-chat-topbar">
         <button
           type="button"
@@ -499,7 +499,7 @@ probeAiRecommend().catch(() => {})
         >
           会话
         </button>
-        <span class="topbar-title">{{ title }}</span>
+        <h1 class="topbar-title">{{ title }}</h1>
         <span class="topbar-state">{{ sending ? '回答中…' : '就绪' }}</span>
       </header>
 
@@ -525,7 +525,7 @@ probeAiRecommend().catch(() => {})
           <div v-if="!hasMessages" class="ai-chat-welcome">
             <span class="welcome-mark" aria-hidden="true">AI 助手</span>
 
-            <h1>你好，我是 AI 预约助手</h1>
+            <h2>你好，我是 AI 预约助手</h2>
             <p>可以帮你查空教室、解释预约与审核规则，也会把思考过程摊开给你看。</p>
             <ul class="ai-chat-suggestions">
               <li v-for="item in visibleSuggestions" :key="item.text">
@@ -609,7 +609,7 @@ probeAiRecommend().catch(() => {})
 
       <!-- R15-1：方案卡的「去预约」复用既有确认弹窗（隐藏自带触发按钮） -->
       <AiQuickReserve ref="quickReserveRef" :ai-enabled="false" />
-    </main>
+    </div>
   </section>
 </template>
 
@@ -929,6 +929,7 @@ probeAiRecommend().catch(() => {})
 
 .topbar-title {
   flex: 1;
+  margin: 0;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1046,7 +1047,7 @@ probeAiRecommend().catch(() => {})
   font-weight: 600;
 }
 
-.ai-chat-welcome h1 {
+.ai-chat-welcome h2 {
   margin: var(--space-lg) 0 var(--space-sm);
   color: var(--ink);
   font-size: var(--text-xl);
@@ -1336,10 +1337,6 @@ probeAiRecommend().catch(() => {})
   box-shadow: var(--shadow-brand);
 }
 .welcome-mark {
-  background: var(--grad);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
   letter-spacing: -0.03em;
 }
 .ai-chat-suggestions {

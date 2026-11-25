@@ -1,5 +1,6 @@
 <template>
   <el-container class="admin-layout">
+    <a href="#admin-main" class="skip-link" @click.prevent="focusMain">跳至主内容</a>
     <!-- 顶部栏 -->
     <el-header class="admin-header">
       <div class="header-left">
@@ -97,9 +98,9 @@
       </el-aside>
 
       <!-- 主内容区 -->
-      <el-main class="admin-main">
+      <el-main id="admin-main" ref="mainRef" class="admin-main" tabindex="-1">
         <router-view v-slot="{ Component, route: currentRoute }">
-          <transition name="page-swap" mode="out-in">
+          <transition name="page-swap" mode="out-in" @after-enter="handleMainAfterEnter">
             <component :is="Component" :key="currentRoute.path" />
           </transition>
         </router-view>
@@ -120,6 +121,30 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const userInfo = computed(() => userStore.userInfo)
+
+const mainRef = ref(null)
+
+function getMainElement() {
+  const main = mainRef.value
+  return main ? (main.$el || main) : null
+}
+
+/** 跳转链接保留锚点语义，但由脚本显式聚焦可编程主区 */
+function focusMain() {
+  const main = getMainElement()
+  if (main) main.focus()
+}
+
+/** 组件以 path 为 key，故仅在路径切换完成时复位滚动并聚焦；首载与 query 变化不触发 */
+function handleMainAfterEnter() {
+  const main = getMainElement()
+  if (!main) return
+  main.scrollTop = 0
+  // 若用户在过渡期间已聚焦新页控件，保留其上下文，不抢回主区。
+  const active = document.activeElement
+  if (active && active !== main && main.contains(active)) return
+  main.focus({ preventScroll: true })
+}
 
 /** 窄屏管理菜单：复用桌面侧栏，打开后限制焦点在浮层内 */
 const mobileMenuOpen = ref(false)

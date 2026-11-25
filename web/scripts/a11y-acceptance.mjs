@@ -598,7 +598,7 @@ try {
         })
     )
     await d4Page.goto(`${WEB}/student/classrooms/${roomId}`)
-    await d4Page.locator('.room-name-wrap h2').waitFor({ state: 'visible', timeout: 20000 })
+    await d4Page.locator('.room-name-wrap h1').waitFor({ state: 'visible', timeout: 20000 })
     await d4Page.locator('.action-bar').getByRole('button', { name: '预约申请' }).click()
     const alert = d4Page.locator('.conflict-alert')
     await alert.first().waitFor({ state: 'visible', timeout: 15000 })

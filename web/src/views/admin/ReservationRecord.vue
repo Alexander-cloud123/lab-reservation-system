@@ -61,7 +61,7 @@
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
           <el-button :icon="Refresh" @click="handleReset">重置</el-button>
-          <el-button text type="primary" :icon="filtersExpanded ? ArrowUp : ArrowDown" :aria-expanded="filtersExpanded" @click="filtersExpanded = !filtersExpanded">
+          <el-button text type="primary" :icon="filtersExpanded ? ArrowUp : ArrowDown" :aria-expanded="filtersExpanded" @click="toggleFilters">
             {{ filtersExpanded ? '收起筛选' : '更多筛选' }}
           </el-button>
         </el-form-item>
@@ -148,8 +148,8 @@
           :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next, jumper"
           background
-          @size-change="handleSearch"
-          @current-change="loadData"
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
         />
       </div>
     </div>
@@ -157,8 +157,10 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { compactQuery, queryDate, queryEnum, queryInteger, queryText, sameQuery } from '@/utils/routeQuery'
 import dayjs from 'dayjs'
 import { Search, Refresh, Download, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import { pageManageReservations, exportReservations } from '@/api/reservation'
@@ -185,6 +187,97 @@ const query = reactive({
 
 /** 渐进式披露：次级筛选折叠在「更多筛选」后面 */
 const filtersExpanded = ref(false)
+
+const route = useRoute()
+const router = useRouter()
+const PAGE_SIZES = [10, 20, 50, 100]
+const DEFAULT_SIZE = 10
+let listSeq = 0
+let activeDataKey = ''
+
+function parseRouteQuery(raw) {
+  const status = queryEnum(raw.status, ['all', '0', '1', '2', '3'])
+  const start = queryDate(raw.start)
+  const end = queryDate(raw.end)
+  const validRange = start && end && start <= end
+  return {
+    page: queryInteger(raw.page, { fallback: 1, min: 1 }),
+    size: queryInteger(raw.size, { fallback: DEFAULT_SIZE, min: 1, allowed: PAGE_SIZES }),
+    keyword: queryText(raw.q),
+    status: status === '' || status === 'all' ? undefined : Number(status),
+    start: validRange ? start : '',
+    end: validRange ? end : '',
+    classroomId: queryInteger(raw.classroomId, { fallback: null, min: 1 }),
+    expanded: queryEnum(raw.expanded, ['1']) === '1'
+  }
+}
+
+function toRouteQuery(state) {
+  return compactQuery({
+    page: state.page === 1 ? '' : state.page,
+    size: state.size === DEFAULT_SIZE ? '' : state.size,
+    q: queryText(state.keyword),
+    status: state.status === undefined ? '' : state.status,
+    start: state.start,
+    end: state.end,
+    classroomId: state.classroomId === null || state.classroomId === undefined ? '' : state.classroomId,
+    expanded: state.expanded ? '1' : ''
+  })
+}
+
+function dataKey(state) {
+  return JSON.stringify([
+    state.page,
+    state.size,
+    state.keyword,
+    state.status,
+    state.start,
+    state.end,
+    state.classroomId
+  ])
+}
+
+function applyRouteState(state) {
+  query.page = state.page
+  query.size = state.size
+  query.keyword = state.keyword
+  query.status = state.status
+  query.classroomId = state.classroomId
+  dateRange.value = state.start && state.end ? [state.start, state.end] : null
+  filtersExpanded.value = state.expanded
+}
+
+function pushRoute() {
+  const start = dateRange.value && dateRange.value.length === 2 ? dateRange.value[0] : ''
+  const end = dateRange.value && dateRange.value.length === 2 ? dateRange.value[1] : ''
+  const target = toRouteQuery({ ...query, start, end, expanded: filtersExpanded.value })
+  if (sameQuery(target, route.query)) return false
+  router.push({ path: route.path, query: target })
+  return true
+}
+
+function toggleFilters() {
+  filtersExpanded.value = !filtersExpanded.value
+  pushRoute()
+}
+
+watch(
+  () => route.query,
+  (raw) => {
+    const state = parseRouteQuery(raw)
+    applyRouteState(state)
+    const normalized = toRouteQuery(state)
+    if (Object.keys(normalized).length !== Object.keys(raw).length || !sameQuery(normalized, raw)) {
+      router.replace({ path: route.path, query: normalized })
+    }
+    const nextDataKey = dataKey(state)
+    if (nextDataKey !== activeDataKey) {
+      activeDataKey = nextDataKey
+      loadData()
+    }
+  },
+  { immediate: true }
+)
 
 /** 折叠后仅摘要展示高级条件；一直可见的用户关键词不在此重复。 */
 const activeAdvancedFilters = computed(() => {
@@ -214,7 +307,7 @@ function clearAdvancedFilter(key) {
     query[key] = undefined
   }
   query.page = 1
-  loadData()
+  pushRoute()
 }
 
 /** 组装查询参数（空值剔除，避免向后端传多余参数） */
@@ -245,26 +338,40 @@ async function loadClassrooms() {
 
 /** 加载预约记录列表 */
 async function loadData() {
+  const seq = ++listSeq
   loading.value = true
   loadError.value = false
+  const params = buildParams()
   try {
-    const res = await pageManageReservations(buildParams())
+    const res = await pageManageReservations(params)
+    if (seq !== listSeq) return
     records.value = res.data.records
     total.value = res.data.total
     hasLoaded.value = true
     loadError.value = false
   } catch {
+    if (seq !== listSeq) return
     loadError.value = true
     // 统一错误提示已由 request.js 处理；旧数据保持不动。
   } finally {
-    loading.value = false
+    if (seq === listSeq) loading.value = false
   }
 }
 
-/** 查询（重置页码）/ 重置 */
+/** 查询与分页统一写入 URL，由路由监听器负责加载。 */
 function handleSearch() {
+  query.keyword = query.keyword.trim()
   query.page = 1
-  loadData()
+  if (!pushRoute()) loadData()
+}
+
+function handlePageChange() {
+  pushRoute()
+}
+
+function handleSizeChange() {
+  query.page = 1
+  pushRoute()
 }
 
 function handleReset() {
@@ -273,7 +380,7 @@ function handleReset() {
   query.keyword = ''
   dateRange.value = null
   query.page = 1
-  loadData()
+  if (!pushRoute()) loadData()
 }
 
 /** 导出 Excel：按当前筛选条件导出全部命中记录（xlsx 文件流） */
@@ -303,10 +410,7 @@ function formatDateTime(value) {
   return value ? dayjs(value).format('YYYY-MM-DD HH:mm:ss') : '-'
 }
 
-onMounted(() => {
-  loadData()
-  loadClassrooms()
-})
+onMounted(loadClassrooms)
 </script>
 
 <style scoped>

@@ -40,7 +40,7 @@
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
           <el-button :icon="Refresh" @click="handleReset">重置</el-button>
-          <el-button text type="primary" :icon="filtersExpanded ? ArrowUp : ArrowDown" :aria-expanded="filtersExpanded" @click="filtersExpanded = !filtersExpanded">
+          <el-button text type="primary" :icon="filtersExpanded ? ArrowUp : ArrowDown" :aria-expanded="filtersExpanded" @click="toggleFilters">
             {{ filtersExpanded ? '收起筛选' : '更多筛选' }}
           </el-button>
         </el-form-item>
@@ -154,7 +154,7 @@
           layout="total, sizes, prev, pager, next, jumper"
           background
           @size-change="handleSizeChange"
-          @current-change="loadData"
+          @current-change="handlePageChange"
         />
       </div>
     </div>
@@ -213,8 +213,10 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { compactQuery, queryEnum, queryInteger, queryText, sameQuery } from '@/utils/routeQuery'
 import { Search, Refresh, Plus, CircleCheck, CircleClose, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import {
@@ -248,6 +250,85 @@ const query = reactive({
 /** 渐进式披露：次级筛选折叠在「更多筛选」后面 */
 const filtersExpanded = ref(false)
 
+const route = useRoute()
+const router = useRouter()
+const PAGE_SIZES = [10, 20, 50]
+const DEFAULT_SIZE = 10
+const BUILDING_PAGE_SIZE = 500
+let listSeq = 0
+let buildingSeq = 0
+let activeDataKey = ''
+
+function parseRouteQuery(raw) {
+  const type = queryEnum(raw.type, ROOM_TYPES.map((item) => item.value))
+  const status = queryEnum(raw.status, ['all', '0', '1'])
+  return {
+    page: queryInteger(raw.page, { fallback: 1, min: 1 }),
+    size: queryInteger(raw.size, { fallback: DEFAULT_SIZE, min: 1, allowed: PAGE_SIZES }),
+    keyword: queryText(raw.q),
+    building: queryText(raw.building) || null,
+    type: type === '' ? null : Number(type),
+    status: status === '' || status === 'all' ? null : Number(status),
+    expanded: queryEnum(raw.expanded, ['1']) === '1'
+  }
+}
+
+function toRouteQuery(state) {
+  return compactQuery({
+    page: state.page === 1 ? '' : state.page,
+    size: state.size === DEFAULT_SIZE ? '' : state.size,
+    q: queryText(state.keyword),
+    building: queryText(state.building),
+    type: state.type === null ? '' : state.type,
+    status: state.status === null ? '' : state.status,
+    expanded: state.expanded ? '1' : ''
+  })
+}
+
+function dataKey(state) {
+  return JSON.stringify([state.page, state.size, state.keyword, state.building, state.type, state.status])
+}
+
+function applyRouteState(state) {
+  query.page = state.page
+  query.size = state.size
+  query.keyword = state.keyword
+  query.building = state.building
+  query.type = state.type
+  query.status = state.status
+  filtersExpanded.value = state.expanded
+}
+
+function pushRoute() {
+  const target = toRouteQuery({ ...query, expanded: filtersExpanded.value })
+  if (sameQuery(target, route.query)) return false
+  router.push({ path: route.path, query: target })
+  return true
+}
+
+function toggleFilters() {
+  filtersExpanded.value = !filtersExpanded.value
+  pushRoute()
+}
+
+watch(
+  () => route.query,
+  (raw) => {
+    const state = parseRouteQuery(raw)
+    applyRouteState(state)
+    const normalized = toRouteQuery(state)
+    if (Object.keys(normalized).length !== Object.keys(raw).length || !sameQuery(normalized, raw)) {
+      router.replace({ path: route.path, query: normalized })
+    }
+    const nextDataKey = dataKey(state)
+    if (nextDataKey !== activeDataKey) {
+      activeDataKey = nextDataKey
+      loadData()
+    }
+  },
+  { immediate: true }
+)
+
 /** 折叠后仅摘要展示高级条件；一直可见的关键词不在此重复。 */
 const activeAdvancedFilters = computed(() => {
   const filters = []
@@ -267,7 +348,7 @@ const activeAdvancedFilters = computed(() => {
 function clearAdvancedFilter(key) {
   query[key] = null
   query.page = 1
-  loadData()
+  pushRoute()
 }
 
 /** 新增/编辑弹窗状态 */
@@ -297,50 +378,81 @@ const formRules = {
 
 /** 加载教室列表 */
 async function loadData() {
+  const seq = ++listSeq
   loading.value = true
   loadError.value = false
+  const params = {
+    page: query.page,
+    size: query.size,
+    keyword: query.keyword || undefined,
+    building: query.building || undefined,
+    type: query.type === null || query.type === '' ? undefined : query.type,
+    status: query.status === null || query.status === '' ? undefined : query.status
+  }
   try {
-    const params = {
-      page: query.page,
-      size: query.size,
-      keyword: query.keyword || undefined,
-      building: query.building || undefined,
-      type: query.type === null || query.type === '' ? undefined : query.type,
-      status: query.status === null || query.status === '' ? undefined : query.status
-    }
     const res = await pageClassrooms(params)
+    if (seq !== listSeq) return
     records.value = res.data.records
     total.value = res.data.total
     hasLoaded.value = true
     loadError.value = false
-    collectBuildings()
+    mergeLoadedBuildings()
   } catch {
+    if (seq !== listSeq) return
     loadError.value = true
     // 统一错误提示已由 request.js 处理；旧数据保持不动。
   } finally {
-    loading.value = false
+    if (seq === listSeq) loading.value = false
   }
 }
 
-/** 收集当前页楼栋（供筛选下拉），跨页合并去重 */
-function collectBuildings() {
-  records.value.forEach((r) => {
-    if (r.building && !buildingOptions.value.includes(r.building)) {
-      buildingOptions.value.push(r.building)
-    }
-  })
+/** 在全量字典上合并当前页楼栋；字典失败时也能回退，且能反映其他端新增的数据。 */
+function mergeLoadedBuildings() {
+  const values = [...buildingOptions.value, ...records.value.map((room) => room.building)]
+  buildingOptions.value = [...new Set(values.filter(Boolean))].sort((left, right) =>
+    String(left).localeCompare(String(right), 'zh-CN')
+  )
 }
 
-/** 查询（重置页码后加载） */
+/** 独立读取全量教室，按 total 取完所有页后生成楼栋字典。 */
+async function loadBuildingOptions() {
+  const seq = ++buildingSeq
+  try {
+    const first = await pageClassrooms({ page: 1, size: BUILDING_PAGE_SIZE })
+    if (seq !== buildingSeq) return
+    const rows = [...(first.data.records || [])]
+    const reportedTotal = Number(first.data.total)
+    const pageCount = Math.ceil((Number.isFinite(reportedTotal) ? reportedTotal : rows.length) / BUILDING_PAGE_SIZE)
+    for (let page = 2; page <= pageCount; page += 1) {
+      const res = await pageClassrooms({ page, size: BUILDING_PAGE_SIZE })
+      if (seq !== buildingSeq) return
+      rows.push(...(res.data.records || []))
+    }
+    buildingOptions.value = [...new Set(rows.map((room) => room.building).filter(Boolean))].sort((left, right) =>
+      String(left).localeCompare(String(right), 'zh-CN')
+    )
+  } catch {
+    if (seq !== buildingSeq) return
+    mergeLoadedBuildings()
+    // 字典失败不阻断列表；统一错误提示已由 request.js 处理。
+  }
+}
+
+/** 查询与分页统一写入 URL，由路由监听器负责加载。 */
 function handleSearch() {
+  query.keyword = query.keyword.trim()
   query.page = 1
-  loadData()
+  if (!pushRoute()) loadData()
+}
+
+function handlePageChange() {
+  pushRoute()
 }
 
 /** 修改每页条数时先回到第一页，避免原高页码越过新分页边界。 */
 function handleSizeChange() {
   query.page = 1
-  loadData()
+  pushRoute()
 }
 
 /** 重置筛选条件 */
@@ -350,7 +462,7 @@ function handleReset() {
   query.type = null
   query.status = null
   query.page = 1
-  loadData()
+  if (!pushRoute()) loadData()
 }
 
 /** 表格多选 */
@@ -395,6 +507,7 @@ async function handleSubmit() {
     }
     dialogVisible.value = false
     loadData()
+    loadBuildingOptions()
   } catch {
     // 统一错误提示已由 request.js 处理
   } finally {
@@ -419,6 +532,7 @@ async function handleDelete(row) {
     await deleteClassroom(row.id)
     ElMessage.success('删除成功')
     loadData()
+    loadBuildingOptions()
   } catch {
     // 用户取消或接口报错（统一提示）
   }
@@ -463,7 +577,7 @@ function formatTime(time) {
   return time ? dayjs(time).format('YYYY-MM-DD HH:mm') : '-'
 }
 
-onMounted(loadData)
+onMounted(loadBuildingOptions)
 </script>
 
 <style scoped>

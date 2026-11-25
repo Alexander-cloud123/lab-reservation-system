@@ -258,7 +258,7 @@ test.describe('前端实时校验（教室详情页）', () => {
     await page.goto(`/student/classrooms/${room.id}`)
 
     // 等详情加载完成（教室名渲染出来）后再打开弹窗，保证冲突检测带得上 classroomId
-    await expect(page.locator('.room-name-wrap h2')).not.toBeEmpty()
+    await expect(page.locator('.room-name-wrap h1')).not.toBeEmpty()
     await page.locator('.action-bar').getByRole('button', { name: '预约申请' }).click()
 
     // 重叠：提示冲突 + 提交按钮禁用
@@ -294,7 +294,7 @@ test.describe('前端实时校验（教室详情页）', () => {
     )
     await page.goto(`/student/classrooms/${room.id}`)
 
-    await expect(page.locator('.room-name-wrap h2')).not.toBeEmpty()
+    await expect(page.locator('.room-name-wrap h1')).not.toBeEmpty()
     await page.locator('.action-bar').getByRole('button', { name: '预约申请' }).click()
 
     // 仅断言前端给出时间倒置提示；提交按钮的 disabled 只跟随"冲突"结果，此处不断言以免锁死实现细节

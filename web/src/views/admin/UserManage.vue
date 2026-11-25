@@ -36,7 +36,7 @@
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
           <el-button :icon="Refresh" @click="handleReset">重置</el-button>
-          <el-button text type="primary" :icon="filtersExpanded ? ArrowUp : ArrowDown" :aria-expanded="filtersExpanded" @click="filtersExpanded = !filtersExpanded">
+          <el-button text type="primary" :icon="filtersExpanded ? ArrowUp : ArrowDown" :aria-expanded="filtersExpanded" @click="toggleFilters">
             {{ filtersExpanded ? '收起筛选' : '更多筛选' }}
           </el-button>
         </el-form-item>
@@ -137,7 +137,7 @@
           layout="total, sizes, prev, pager, next, jumper"
           background
           @size-change="handleSizeChange"
-          @current-change="loadData"
+          @current-change="handlePageChange"
         />
       </div>
     </div>
@@ -145,8 +145,10 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { compactQuery, queryEnum, queryInteger, queryText, sameQuery } from '@/utils/routeQuery'
 import { Search, Refresh, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { pageUsers, updateUserStatus, resetUserPassword } from '@/api/user'
@@ -173,6 +175,80 @@ const query = reactive({
 /** 渐进式披露：次级筛选折叠在「更多筛选」后面 */
 const filtersExpanded = ref(false)
 
+const route = useRoute()
+const router = useRouter()
+const PAGE_SIZES = [10, 20, 50]
+const DEFAULT_SIZE = 10
+let listSeq = 0
+let activeDataKey = ''
+
+function parseRouteQuery(raw) {
+  const role = queryEnum(raw.role, ['0', '1'])
+  const status = queryEnum(raw.status, ['all', '0', '1'])
+  return {
+    page: queryInteger(raw.page, { fallback: 1, min: 1 }),
+    size: queryInteger(raw.size, { fallback: DEFAULT_SIZE, min: 1, allowed: PAGE_SIZES }),
+    keyword: queryText(raw.q),
+    role: role === '' ? null : Number(role),
+    status: status === '' || status === 'all' ? null : Number(status),
+    expanded: queryEnum(raw.expanded, ['1']) === '1'
+  }
+}
+
+function toRouteQuery(state) {
+  return compactQuery({
+    page: state.page === 1 ? '' : state.page,
+    size: state.size === DEFAULT_SIZE ? '' : state.size,
+    q: queryText(state.keyword),
+    role: state.role === null ? '' : state.role,
+    status: state.status === null ? '' : state.status,
+    expanded: state.expanded ? '1' : ''
+  })
+}
+
+function dataKey(state) {
+  return JSON.stringify([state.page, state.size, state.keyword, state.role, state.status])
+}
+
+function applyRouteState(state) {
+  query.page = state.page
+  query.size = state.size
+  query.keyword = state.keyword
+  query.role = state.role
+  query.status = state.status
+  filtersExpanded.value = state.expanded
+}
+
+function pushRoute() {
+  const target = toRouteQuery({ ...query, expanded: filtersExpanded.value })
+  if (sameQuery(target, route.query)) return false
+  router.push({ path: route.path, query: target })
+  return true
+}
+
+function toggleFilters() {
+  filtersExpanded.value = !filtersExpanded.value
+  pushRoute()
+}
+
+watch(
+  () => route.query,
+  (raw) => {
+    const state = parseRouteQuery(raw)
+    applyRouteState(state)
+    const normalized = toRouteQuery(state)
+    if (Object.keys(normalized).length !== Object.keys(raw).length || !sameQuery(normalized, raw)) {
+      router.replace({ path: route.path, query: normalized })
+    }
+    const nextDataKey = dataKey(state)
+    if (nextDataKey !== activeDataKey) {
+      activeDataKey = nextDataKey
+      loadData()
+    }
+  },
+  { immediate: true }
+)
+
 /** 折叠后仅摘要展示高级条件；一直可见的关键词不在此重复。 */
 const activeAdvancedFilters = computed(() => {
   const filters = []
@@ -189,44 +265,52 @@ const activeAdvancedFilters = computed(() => {
 function clearAdvancedFilter(key) {
   query[key] = null
   query.page = 1
-  loadData()
+  pushRoute()
 }
 
 /** 加载用户列表 */
 async function loadData() {
+  const seq = ++listSeq
   loading.value = true
   loadError.value = false
+  const params = {
+    page: query.page,
+    size: query.size,
+    keyword: query.keyword || undefined,
+    role: query.role === null || query.role === '' ? undefined : query.role,
+    status: query.status === null || query.status === '' ? undefined : query.status
+  }
   try {
-    const params = {
-      page: query.page,
-      size: query.size,
-      keyword: query.keyword || undefined,
-      role: query.role === null || query.role === '' ? undefined : query.role,
-      status: query.status === null || query.status === '' ? undefined : query.status
-    }
     const res = await pageUsers(params)
+    if (seq !== listSeq) return
     records.value = res.data.records
     total.value = res.data.total
     hasLoaded.value = true
     loadError.value = false
   } catch {
+    if (seq !== listSeq) return
     loadError.value = true
     // 统一错误提示已由 request.js 处理；旧数据保持不动。
   } finally {
-    loading.value = false
+    if (seq === listSeq) loading.value = false
   }
 }
 
-/** 查询（重置页码后加载） */
+/** 查询与分页统一写入 URL，由路由监听器负责加载。 */
 function handleSearch() {
+  query.keyword = query.keyword.trim()
   query.page = 1
-  loadData()
+  if (!pushRoute()) loadData()
+}
+
+function handlePageChange() {
+  pushRoute()
 }
 
 /** 修改每页条数时先回到第一页，避免原高页码越过新分页边界。 */
 function handleSizeChange() {
   query.page = 1
-  loadData()
+  pushRoute()
 }
 
 /** 重置筛选条件 */
@@ -235,7 +319,7 @@ function handleReset() {
   query.role = null
   query.status = null
   query.page = 1
-  loadData()
+  if (!pushRoute()) loadData()
 }
 
 /** 启用/禁用（二次确认） */
@@ -275,7 +359,6 @@ function formatTime(time) {
   return time ? dayjs(time).format('YYYY-MM-DD HH:mm') : '-'
 }
 
-onMounted(loadData)
 </script>
 
 <style scoped>

@@ -43,7 +43,7 @@
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
           <el-button :icon="Refresh" @click="handleReset">重置</el-button>
-          <el-button text type="primary" :icon="filtersExpanded ? ArrowUp : ArrowDown" :aria-expanded="filtersExpanded" @click="filtersExpanded = !filtersExpanded">
+          <el-button text type="primary" :icon="filtersExpanded ? ArrowUp : ArrowDown" :aria-expanded="filtersExpanded" @click="toggleFilters">
             {{ filtersExpanded ? '收起筛选' : '更多筛选' }}
           </el-button>
         </el-form-item>
@@ -186,7 +186,7 @@
           layout="total, sizes, prev, pager, next, jumper"
           background
           @size-change="handleSizeChange"
-          @current-change="loadData"
+          @current-change="handlePageChange"
         />
       </div>
     </div>
@@ -239,8 +239,10 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { compactQuery, queryDate, queryEnum, queryInteger, queryText, sameQuery } from '@/utils/routeQuery'
 import { Search, Refresh, CircleCheck, CircleClose, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import { pageManageReservations, auditReservation, batchAuditReservations } from '@/api/reservation'
 import { aiComplianceCheckStream } from '@/api/ai'
@@ -409,6 +411,85 @@ const query = reactive({
 /** 渐进式披露：次级筛选折叠在「更多筛选」后面 */
 const filtersExpanded = ref(false)
 
+const route = useRoute()
+const router = useRouter()
+const PAGE_SIZES = [10, 20, 50]
+const DEFAULT_SIZE = 10
+let activeDataKey = ''
+
+function parseRouteQuery(raw) {
+  const status = queryEnum(raw.status, ['all', '0', '1', '2', '3'])
+  const start = queryDate(raw.start)
+  const end = queryDate(raw.end)
+  const validRange = start && end && start <= end
+  return {
+    page: queryInteger(raw.page, { fallback: 1, min: 1 }),
+    size: queryInteger(raw.size, { fallback: DEFAULT_SIZE, min: 1, allowed: PAGE_SIZES }),
+    keyword: queryText(raw.q),
+    status: status === '' || status === 'all' ? undefined : Number(status),
+    start: validRange ? start : '',
+    end: validRange ? end : '',
+    expanded: queryEnum(raw.expanded, ['1']) === '1'
+  }
+}
+
+function toRouteQuery(state) {
+  return compactQuery({
+    page: state.page === 1 ? '' : state.page,
+    size: state.size === DEFAULT_SIZE ? '' : state.size,
+    q: queryText(state.keyword),
+    status: state.status === undefined ? '' : state.status,
+    start: state.start,
+    end: state.end,
+    expanded: state.expanded ? '1' : ''
+  })
+}
+
+function dataKey(state) {
+  return JSON.stringify([state.page, state.size, state.keyword, state.status, state.start, state.end])
+}
+
+function applyRouteState(state) {
+  query.page = state.page
+  query.size = state.size
+  query.keyword = state.keyword
+  query.status = state.status
+  dateRange.value = state.start && state.end ? [state.start, state.end] : null
+  filtersExpanded.value = state.expanded
+}
+
+function pushRoute() {
+  const start = dateRange.value && dateRange.value.length === 2 ? dateRange.value[0] : ''
+  const end = dateRange.value && dateRange.value.length === 2 ? dateRange.value[1] : ''
+  const target = toRouteQuery({ ...query, start, end, expanded: filtersExpanded.value })
+  if (sameQuery(target, route.query)) return false
+  router.push({ path: route.path, query: target })
+  return true
+}
+
+function toggleFilters() {
+  filtersExpanded.value = !filtersExpanded.value
+  pushRoute()
+}
+
+watch(
+  () => route.query,
+  (raw) => {
+    const state = parseRouteQuery(raw)
+    applyRouteState(state)
+    const normalized = toRouteQuery(state)
+    if (Object.keys(normalized).length !== Object.keys(raw).length || !sameQuery(normalized, raw)) {
+      router.replace({ path: route.path, query: normalized })
+    }
+    const nextDataKey = dataKey(state)
+    if (nextDataKey !== activeDataKey) {
+      activeDataKey = nextDataKey
+      loadData()
+    }
+  },
+  { immediate: true }
+)
+
 /** 折叠后仅摘要展示高级条件；一直可见的关键词不在此重复。 */
 const activeAdvancedFilters = computed(() => {
   const filters = []
@@ -429,7 +510,7 @@ function clearAdvancedFilter(key) {
     query[key] = undefined
   }
   query.page = 1
-  loadData()
+  pushRoute()
 }
 
 /** 驳回弹窗状态（单条/批量共用） */
@@ -481,16 +562,21 @@ async function loadData() {
   }
 }
 
-/** 查询 / 重置 */
+/** 查询与分页统一写入 URL，由路由监听器负责加载。 */
 function handleSearch() {
+  query.keyword = query.keyword.trim()
   query.page = 1
-  loadData()
+  if (!pushRoute()) loadData()
+}
+
+function handlePageChange() {
+  pushRoute()
 }
 
 /** 修改每页条数时先回到第一页，避免原高页码越过新分页边界。 */
 function handleSizeChange() {
   query.page = 1
-  loadData()
+  pushRoute()
 }
 
 function handleReset() {
@@ -498,7 +584,7 @@ function handleReset() {
   query.keyword = ''
   dateRange.value = null
   query.page = 1
-  loadData()
+  if (!pushRoute()) loadData()
 }
 
 /** 表格多选 */
@@ -596,7 +682,6 @@ async function handleBatchAudit(status) {
   }
 }
 
-onMounted(loadData)
 onBeforeUnmount(() => {
   listSeq += 1
   cancelComplianceChecks()

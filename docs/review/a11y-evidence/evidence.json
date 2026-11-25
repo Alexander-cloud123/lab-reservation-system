@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-25T12:19:09.671Z",
+  "generatedAt": "2026-11-25T13:49:25.964Z",
   "web": "http://127.0.0.1:8088",
   "api": "http://127.0.0.1:8080",
   "results": [
@@ -42,7 +42,7 @@
     {
       "item": "B1",
       "status": "pass",
-      "evidence": "Tab 2 次后焦点落在快捷卡片；AX 快照中卡片名命中 3/3；焦点样式 outline=solid 2px rgb(29, 111, 224)，box-shadow=none",
+      "evidence": "Tab 3 次后焦点落在快捷卡片；AX 快照中卡片名命中 3/3；焦点样式 outline=solid 2px rgb(29, 111, 224)，box-shadow=none",
       "note": "机器证据=role/tabindex/焦点样式/无障碍树名称；「按钮 + 卡片名称」的实际播报需人耳"
     },
     {

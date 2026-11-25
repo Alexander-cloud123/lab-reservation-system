@@ -1,7 +1,7 @@
 <template>
   <div class="my-reservation-page page-container">
     <div class="page-head">
-      <span class="page-title">我的预约</span>
+      <h1 class="page-title">我的预约</h1>
       <span class="page-tip">今日预约已置顶显示，待审核与已通过可取消</span>
     </div>
     <!-- 今天这一条：把今天的预约压成一条刻度尺，一眼看出时段占在哪 -->
@@ -101,7 +101,7 @@
           layout="total, sizes, prev, pager, next, jumper"
           background
           @size-change="handleSizeChange"
-          @current-change="loadData"
+          @current-change="handlePageChange"
         />
       </div>
     </div>
@@ -109,8 +109,9 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { compactQuery, queryEnum, queryInteger, sameQuery } from '@/utils/routeQuery'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
 import TimeRuler from '@/components/common/TimeRuler.vue'
@@ -142,28 +143,90 @@ const query = reactive({
   status: undefined
 })
 
+const route = useRoute()
+const PAGE_SIZES = [10, 20, 50]
+const DEFAULT_SIZE = 10
+let listSeq = 0
+let activeDataKey = ''
+
+function parseRouteQuery(raw) {
+  const status = queryEnum(raw.status, ['all', '0', '1', '2', '3'])
+  return {
+    page: queryInteger(raw.page, { fallback: 1, min: 1 }),
+    size: queryInteger(raw.size, { fallback: DEFAULT_SIZE, min: 1, allowed: PAGE_SIZES }),
+    status: status === '' || status === 'all' ? undefined : Number(status)
+  }
+}
+
+function toRouteQuery(state) {
+  return compactQuery({
+    page: state.page === 1 ? '' : state.page,
+    size: state.size === DEFAULT_SIZE ? '' : state.size,
+    status: state.status === undefined ? '' : state.status
+  })
+}
+
+function dataKey(state) {
+  return JSON.stringify([state.page, state.size, state.status === undefined ? 'all' : state.status])
+}
+
+function applyRouteState(state) {
+  query.page = state.page
+  query.size = state.size
+  query.status = state.status
+  activeStatus.value = state.status === undefined ? 'all' : String(state.status)
+}
+
+function pushRoute() {
+  const target = toRouteQuery(query)
+  if (sameQuery(target, route.query)) return false
+  router.push({ path: route.path, query: target })
+  return true
+}
+
+watch(
+  () => route.query,
+  (raw) => {
+    const state = parseRouteQuery(raw)
+    applyRouteState(state)
+    const normalized = toRouteQuery(state)
+    if (Object.keys(normalized).length !== Object.keys(raw).length || !sameQuery(normalized, raw)) {
+      router.replace({ path: route.path, query: normalized })
+    }
+    const nextDataKey = dataKey(state)
+    if (nextDataKey !== activeDataKey) {
+      activeDataKey = nextDataKey
+      loadData()
+    }
+  },
+  { immediate: true }
+)
+
 /** 加载我的预约（今日优先由后端在分页前全局排序，前端保持服务端页内顺序） */
 async function loadData() {
+  const seq = ++listSeq
   loading.value = true
+  const params = {
+    page: query.page,
+    size: query.size
+  }
+  if (query.status !== undefined) {
+    params.status = query.status
+  }
   try {
-    const params = {
-      page: query.page,
-      size: query.size
-    }
-    if (query.status !== undefined) {
-      params.status = query.status
-    }
     const res = await getMyReservations(params)
+    if (seq !== listSeq) return
     records.value = res.data.records
     total.value = res.data.total
     hasLoaded.value = true
     loadError.value = false
   } catch {
+    if (seq !== listSeq) return
     // 保留旧列表；无数据时展示局部错误态，有数据时仅提示可能未更新
     loadError.value = true
     // 统一错误提示已由 request.js 处理
   } finally {
-    loading.value = false
+    if (seq === listSeq) loading.value = false
   }
 }
 
@@ -196,17 +259,21 @@ function statusDotClass(status) {
   return { 0: 'is-pending', 1: 'is-approved', 2: 'is-rejected', 3: 'is-canceled' }[status] || 'is-canceled'
 }
 
-/** 切换每页条数时先回第 1 页，避免高页码被新页长夹紧后产生竞态 */
+/** 翻页与页长变化只负责导航，数据加载统一由 route.query 监听器触发。 */
+function handlePageChange() {
+  pushRoute()
+}
+
 function handleSizeChange() {
   query.page = 1
-  loadData()
+  pushRoute()
 }
 
 /** 切换状态标签页 */
 function handleTabChange(name) {
   query.status = name === 'all' ? undefined : Number(name)
   query.page = 1
-  loadData()
+  if (!pushRoute()) loadData()
 }
 
 /** 取消预约（二次确认 + 请求期间防重复点击） */
@@ -252,7 +319,6 @@ function goList() {
   router.push('/student/home')
 }
 
-onMounted(loadData)
 </script>
 
 <style scoped>

@@ -3,7 +3,7 @@
     <!-- 页面标题栏：时间感知问候（2025 趋势：个性化首屏） -->
     <div class="page-head">
       <div>
-        <div class="page-title">{{ greeting }}，{{ displayName }}</div>
+        <h1 class="page-title">{{ greeting }}，{{ displayName }}</h1>
         <div class="page-sub">管理身份资料、预约数据与账户安全</div>
       </div>
     </div>

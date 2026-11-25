@@ -2,7 +2,7 @@
  * 管理端 25 —— 数据看板（/admin/dashboard，Dashboard.vue）
  *
  * 覆盖：三个 ECharts 图表渲染出 canvas、时间范围切换（近7天/近30天/近90天/本年）、
- *       自定义日期范围、刷新按钮生效。
+ *       自定义日期范围、刷新按钮生效、默认折叠的可访问数据表。
  */
 import { test, expect } from '@playwright/test'
 import dayjs from 'dayjs'
@@ -42,6 +42,24 @@ test.describe('管理端-数据看板（Dashboard）', () => {
       await expect(chartCard(page, title)).toBeVisible()
     }
     await expectAllChartsRendered(page)
+  })
+
+  test('三个图表均提供键盘可展开的文本数据表', async ({ page }) => {
+    await expectAllChartsRendered(page)
+    for (const title of CHARTS) {
+      const card = chartCard(page, title)
+      const details = card.locator('details.dashboard-chart-table')
+      const summary = details.locator('summary')
+      await expect(summary).toHaveText('查看数据表')
+      await expect(details).not.toHaveAttribute('open', '')
+      await summary.focus()
+      await page.keyboard.press('Enter')
+      await expect(details).toHaveAttribute('open', '')
+      await expect(details.locator('table')).toBeVisible()
+      await expect(details.locator('caption')).toHaveText(`${title}数据`)
+      expect(await details.locator('tbody tr').count(), `「${title}」应有文本数据行`).toBeGreaterThan(0)
+      await expect(details.locator('th[scope="col"]').first()).toBeVisible()
+    }
   })
 
   test('时间范围切换：近7天 / 近30天 / 近90天 / 本年', async ({ page }) => {

@@ -6,7 +6,7 @@
     <div class="page-container">
     <!-- 页面标题 -->
     <div class="page-head reveal">
-      <span class="page-title">教室列表</span>
+      <h1 class="page-title">教室列表</h1>
       <span class="page-tip">
         {{ loadError && !records.length ? '可按关键词、楼栋、类型与日期筛选' : `共 ${total} 间教室，可按关键词、楼栋、类型与日期筛选` }}
       </span>
@@ -57,7 +57,7 @@
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
           <el-button :icon="Refresh" @click="handleReset">重置</el-button>
-          <el-button text type="primary" :icon="filtersExpanded ? ArrowUp : ArrowDown" :aria-expanded="filtersExpanded" @click="filtersExpanded = !filtersExpanded">
+          <el-button text type="primary" :icon="filtersExpanded ? ArrowUp : ArrowDown" :aria-expanded="filtersExpanded" @click="toggleFilters">
             {{ filtersExpanded ? '收起筛选' : '更多筛选' }}
           </el-button>
           <!-- AI 快速预约入口（R7，需求文档 2.4：搜索栏旁；enabled=false 时入口隐藏） -->
@@ -148,7 +148,7 @@
         layout="total, sizes, prev, pager, next, jumper"
         background
         @size-change="handleSizeChange"
-        @current-change="loadData"
+        @current-change="handlePageChange"
       />
     </div>
     </div>
@@ -158,8 +158,9 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import TimeBand from '@/components/common/TimeBand.vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { Refresh, Search, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
+import { compactQuery, queryDate, queryEnum, queryInteger, queryText, sameQuery } from '@/utils/routeQuery'
 import { listClassrooms } from '@/api/classroom'
 import AiRecommendCard from '@/components/ai/AiRecommendCard.vue'
 import AiQuickReserve from '@/components/ai/AiQuickReserve.vue'
@@ -188,6 +189,7 @@ const bandSummary = computed(() => {
   }
   return `今天还有 ${freeRooms.length} 间教室正好空着，可以直接约`
 })
+const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const loading = ref(false)
@@ -246,6 +248,88 @@ const query = reactive({
 /** 渐进式披露：次级筛选折叠在「更多筛选」后面 */
 const filtersExpanded = ref(false)
 
+const PAGE_SIZES = [6, 12, 24]
+const DEFAULT_SIZE = 12
+const MANAGED_KEYS = ['page', 'size', 'q', 'building', 'type', 'date', 'expanded']
+const BUILDING_PAGE_SIZE = 500
+let listSeq = 0
+let buildingSeq = 0
+let activeDataKey = ''
+let initialRouteHandled = false
+let skipFilterSave = false
+
+function parseRouteQuery(raw) {
+  const type = queryEnum(raw.type, ROOM_TYPES.map((item) => item.value))
+  return {
+    page: queryInteger(raw.page, { fallback: 1, min: 1 }),
+    size: queryInteger(raw.size, { fallback: DEFAULT_SIZE, min: 1, allowed: PAGE_SIZES }),
+    keyword: queryText(raw.q),
+    building: queryText(raw.building) || null,
+    type: type === '' ? null : Number(type),
+    date: queryDate(raw.date) || null,
+    expanded: queryEnum(raw.expanded, ['1']) === '1'
+  }
+}
+
+function toRouteQuery(state) {
+  return compactQuery({
+    page: state.page === 1 ? '' : state.page,
+    size: state.size === DEFAULT_SIZE ? '' : state.size,
+    q: queryText(state.keyword),
+    building: queryText(state.building),
+    type: state.type === null ? '' : state.type,
+    date: queryDate(state.date),
+    expanded: state.expanded ? '1' : ''
+  })
+}
+
+function dataKey(state) {
+  return JSON.stringify([state.page, state.size, state.keyword, state.building, state.type, state.date])
+}
+
+function applyRouteState(state) {
+  query.page = state.page
+  query.size = state.size
+  query.keyword = state.keyword
+  query.building = state.building
+  query.type = state.type
+  query.date = state.date
+  filtersExpanded.value = state.expanded
+}
+
+function pushRoute() {
+  const target = toRouteQuery({ ...query, expanded: filtersExpanded.value })
+  if (sameQuery(target, route.query)) return false
+  router.push({ path: route.path, query: target })
+  return true
+}
+
+function toggleFilters() {
+  filtersExpanded.value = !filtersExpanded.value
+  pushRoute()
+}
+
+watch(
+  () => route.query,
+  (raw) => {
+    const hasManagedQuery = MANAGED_KEYS.some((key) => Object.prototype.hasOwnProperty.call(raw, key))
+    const restoreMemory = !initialRouteHandled && !hasManagedQuery
+    initialRouteHandled = true
+    const state = restoreMemory ? restoreFilter() : parseRouteQuery(raw)
+    applyRouteState(state)
+    const normalized = toRouteQuery(state)
+    if (restoreMemory || Object.keys(normalized).length !== Object.keys(raw).length || !sameQuery(normalized, raw)) {
+      router.replace({ path: route.path, query: normalized })
+    }
+    const nextDataKey = dataKey(state)
+    if (nextDataKey !== activeDataKey) {
+      activeDataKey = nextDataKey
+      loadData()
+    }
+  },
+  { immediate: true }
+)
+
 /** 收起时需要回显的高级条件；关键词常驻搜索栏，不计入摘要 */
 const advancedFilters = computed(() => {
   const filters = []
@@ -263,90 +347,135 @@ const advancedFilters = computed(() => {
 
 /** 保存筛选条件到 localStorage */
 function saveFilter() {
-  localStorage.setItem(
-    FILTER_KEY(),
-    JSON.stringify({
-      keyword: query.keyword || '',
-      building: query.building || null,
-      type: query.type === null || query.type === '' ? null : query.type,
-      date: query.date || null
-    })
-  )
+  try {
+    localStorage.setItem(
+      FILTER_KEY(),
+      JSON.stringify({
+        keyword: query.keyword || '',
+        building: query.building || null,
+        type: query.type === null || query.type === '' ? null : query.type,
+        date: query.date || null
+      })
+    )
+  } catch {
+    // 存储不可用时不阻断筛选与查询
+  }
 }
 
-/** 还原上次筛选条件 */
+/** 仅在首次进入且 URL 没有受管参数时还原旧筛选；还原值仍按 URL schema 校验。 */
 function restoreFilter() {
   try {
     const saved = JSON.parse(localStorage.getItem(FILTER_KEY()) || 'null')
-    if (saved) {
-      query.keyword = saved.keyword || ''
-      query.building = saved.building || null
-      query.type = saved.type === undefined || saved.type === null ? null : saved.type
-      query.date = saved.date || null
+    if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+      return parseRouteQuery({
+        q: saved.keyword,
+        building: saved.building,
+        type: saved.type,
+        date: saved.date
+      })
     }
   } catch {
     // 本地数据损坏时忽略，使用默认条件
   }
+  return parseRouteQuery({})
 }
 
 /** 加载教室列表 */
 async function loadData() {
+  const seq = ++listSeq
   loading.value = true
+  const params = {
+    page: query.page,
+    size: query.size,
+    keyword: query.keyword || undefined,
+    building: query.building || undefined,
+    type: query.type === null || query.type === '' ? undefined : query.type,
+    date: query.date || undefined
+  }
   try {
-    const params = {
-      page: query.page,
-      size: query.size,
-      keyword: query.keyword || undefined,
-      building: query.building || undefined,
-      type: query.type === null || query.type === '' ? undefined : query.type,
-      date: query.date || undefined
-    }
     const res = await listClassrooms(params)
+    if (seq !== listSeq) return
     records.value = res.data.records
     total.value = res.data.total
     hasLoaded.value = true
     loadError.value = false
-    collectBuildings()
+    mergeLoadedBuildings()
   } catch {
+    if (seq !== listSeq) return
     // 保留旧列表；无数据时展示局部错误态，有数据时仅提示可能未更新
     loadError.value = true
     // 统一错误提示已由 request.js 处理
   } finally {
-    loading.value = false
+    if (seq === listSeq) loading.value = false
   }
 }
 
-/** 收集当前页楼栋（供筛选下拉），跨页合并去重 */
-function collectBuildings() {
-  records.value.forEach((r) => {
-    if (r.building && !buildingOptions.value.includes(r.building)) {
-      buildingOptions.value.push(r.building)
-    }
-  })
+/** 在全量字典上合并当前页楼栋；字典失败时也能回退，且能反映其他端新增的数据。 */
+function mergeLoadedBuildings() {
+  const values = [...buildingOptions.value, ...records.value.map((room) => room.building)]
+  buildingOptions.value = [...new Set(values.filter(Boolean))].sort((left, right) =>
+    String(left).localeCompare(String(right), 'zh-CN')
+  )
 }
 
-/** 切换每页条数时先回第 1 页，避免旧页码请求覆盖新页长结果 */
+/** 独立读取全量教室，按 total 取完所有页后生成楼栋字典。 */
+async function loadBuildingOptions() {
+  const seq = ++buildingSeq
+  try {
+    const first = await listClassrooms({ page: 1, size: BUILDING_PAGE_SIZE })
+    if (seq !== buildingSeq) return
+    const rows = [...(first.data.records || [])]
+    const reportedTotal = Number(first.data.total)
+    const pageCount = Math.ceil((Number.isFinite(reportedTotal) ? reportedTotal : rows.length) / BUILDING_PAGE_SIZE)
+    for (let page = 2; page <= pageCount; page += 1) {
+      const res = await listClassrooms({ page, size: BUILDING_PAGE_SIZE })
+      if (seq !== buildingSeq) return
+      rows.push(...(res.data.records || []))
+    }
+    buildingOptions.value = [...new Set(rows.map((room) => room.building).filter(Boolean))].sort((left, right) =>
+      String(left).localeCompare(String(right), 'zh-CN')
+    )
+  } catch {
+    if (seq !== buildingSeq) return
+    mergeLoadedBuildings()
+    // 字典失败不阻断列表；统一错误提示已由 request.js 处理。
+  }
+}
+
+/** 翻页与页长变化只负责导航，数据加载统一由 route.query 监听器触发。 */
+function handlePageChange() {
+  pushRoute()
+}
+
 function handleSizeChange() {
   query.page = 1
-  loadData()
+  pushRoute()
 }
 
 /** 查询（重置页码后加载） */
 function handleSearch() {
+  query.keyword = query.keyword.trim()
   query.page = 1
   saveFilter()
-  loadData()
+  if (!pushRoute()) loadData()
 }
 
-/** 重置筛选条件 */
+/** 重置筛选条件，同时清除旧筛选记忆。 */
 function handleReset() {
+  skipFilterSave = Boolean(
+    query.keyword || query.building || query.date || (query.type !== null && query.type !== '')
+  )
   query.keyword = ''
   query.building = null
   query.type = null
   query.date = null
   query.page = 1
-  saveFilter()
-  loadData()
+  try {
+    localStorage.removeItem(FILTER_KEY())
+  } catch {
+    // 存储不可用时仍允许重置并查询
+  }
+  if (!pushRoute()) loadData()
 }
 
 /** 清除摘要中的单项高级条件并重新查询 */
@@ -372,12 +501,17 @@ function statusPill(label) {
 /** 筛选条件变化时自动记忆（还原后不再触发保存的抖动已由条件一致规避） */
 watch(
   () => [query.keyword, query.building, query.type, query.date],
-  () => saveFilter()
+  () => {
+    if (skipFilterSave) {
+      skipFilterSave = false
+      return
+    }
+    saveFilter()
+  }
 )
 
 onMounted(() => {
-  restoreFilter()
-  loadData()
+  loadBuildingOptions()
   loadRecommend()
 })
 </script>

@@ -37,24 +37,50 @@
       <div class="surface chart-card">
         <h2 class="chart-title">教室使用率排行</h2>
         <p class="chart-sub">已通过预约占用小时 / 区间可预约小时</p>
-        <div ref="usageRateEl" class="chart-box" />
+        <div
+          ref="usageRateEl"
+          class="chart-box"
+          role="img"
+          aria-label="教室使用率排行柱状图"
+        />
+        <DashboardChartTable
+          caption="教室使用率排行数据"
+          :columns="usageColumns"
+          :rows="usageRows"
+        />
       </div>
       <div class="surface chart-card">
         <h2 class="chart-title">热门时段分布</h2>
         <p class="chart-sub">已通过预约按开始时段</p>
-        <div ref="timeDistEl" class="chart-box" />
+        <div ref="timeDistEl" class="chart-box" role="img" aria-label="热门时段分布饼图" />
+        <DashboardChartTable
+          caption="热门时段分布数据"
+          :columns="timeDistributionColumns"
+          :rows="timeDistributionRows"
+        />
       </div>
     </div>
     <div class="surface chart-card">
       <h2 class="chart-title">月度预约趋势</h2>
       <p class="chart-sub">全部状态预约条数</p>
-      <div ref="trendEl" class="chart-box chart-box-tall" />
+      <div
+        ref="trendEl"
+        class="chart-box chart-box-tall"
+        role="img"
+        aria-label="月度预约趋势折线图"
+      />
+      <DashboardChartTable
+        caption="月度预约趋势数据"
+        :columns="trendColumns"
+        :rows="trendRows"
+      />
     </div>
   </div>
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Refresh } from '@element-plus/icons-vue'
 // ECharts 按需引入（R6 联调优化：避免全量包约 1MB 打入 Dashboard chunk，依赖版本不变）
 import * as echarts from 'echarts/core'
@@ -68,6 +94,8 @@ import {
 import { CanvasRenderer } from 'echarts/renderers'
 import dayjs from 'dayjs'
 import { getUsageRate, getTrend, getTimeDistribution } from '@/api/stats'
+import DashboardChartTable from '@/components/admin/DashboardChartTable.vue'
+import { compactQuery, queryDate, queryEnum, queryText, sameQuery } from '@/utils/routeQuery'
 
 // 为满足 multi-word 规则并便于 devtools 辨识
 defineOptions({ name: 'DashboardView' })
@@ -110,10 +138,14 @@ const PIE_PALETTE = [C.brand, C.aqua, C.sun, C.deep, C.soft]
 
 /** 图表入场：一次 320ms 生长，三图错开 80ms 依次到位（不做循环动画） */
 const CHART_ANIM = { animation: true, animationDuration: 320, animationEasing: 'cubicOut' }
+const DEFAULT_RANGE = '30'
+const RANGE_OPTIONS = ['7', '30', '90', 'year']
+const route = useRoute()
+const router = useRouter()
 const loading = ref(false)
 const loadError = ref(false)
 const hasLoaded = ref(false)
-const quickRange = ref('30')
+const quickRange = ref(DEFAULT_RANGE)
 const dateRange = ref([
   dayjs().subtract(29, 'day').format('YYYY-MM-DD'),
   dayjs().format('YYYY-MM-DD')
@@ -122,6 +154,25 @@ const dateRange = ref([
 const usageRateEl = ref(null)
 const trendEl = ref(null)
 const timeDistEl = ref(null)
+const usageRows = ref([])
+const trendRows = ref([])
+const timeDistributionRows = ref([])
+
+const usageColumns = [
+  { key: 'name', label: '教室' },
+  { key: 'roomNo', label: '编号' },
+  { key: 'approvedHours', label: '已通过小时' },
+  { key: 'usageRate', label: '使用率' }
+]
+const trendColumns = [
+  { key: 'month', label: '月份' },
+  { key: 'count', label: '预约数' }
+]
+const timeDistributionColumns = [
+  { key: 'slot', label: '时段' },
+  { key: 'count', label: '数量' },
+  { key: 'percentage', label: '占比' }
+]
 
 let usageChart = null
 let trendChart = null
@@ -149,28 +200,89 @@ function rangeParams() {
   return start && end ? { startDate: start, endDate: end } : {}
 }
 
-/** 快捷范围选择：近 7/30/90 天、本年 */
-function handleQuickRange(key) {
+/** 将快捷范围换算为实际查询区间，结束日期均为今天。 */
+function datesForRange(key) {
   const today = dayjs()
   if (key === 'year') {
-    dateRange.value = [today.startOf('year').format('YYYY-MM-DD'), today.format('YYYY-MM-DD')]
-  } else {
-    const days = Number(key)
-    dateRange.value = [
-      today.subtract(days - 1, 'day').format('YYYY-MM-DD'),
-      today.format('YYYY-MM-DD')
-    ]
+    return [today.startOf('year').format('YYYY-MM-DD'), today.format('YYYY-MM-DD')]
   }
+  const days = Number(key)
+  return [today.subtract(days - 1, 'day').format('YYYY-MM-DD'), today.format('YYYY-MM-DD')]
+}
+
+/** URL 规范化：默认 30 天不写 range；合法自定义区间只保留 start/end。 */
+function normalizeRouteQuery(query) {
+  const hasDateParams = query.start !== undefined || query.end !== undefined
+  if (hasDateParams) {
+    const start = queryDate(query.start)
+    const end = queryDate(query.end)
+    if (!start || !end || start > end) return {}
+    return { start, end }
+  }
+  const range = queryEnum(query.range, RANGE_OPTIONS, DEFAULT_RANGE)
+  return compactQuery({ range: range === DEFAULT_RANGE ? '' : range })
+}
+
+/** sameQuery 会忽略空值；这里额外识别空参数，确保残缺 URL 也会触发 replace。 */
+function hasBlankRangeParam(query) {
+  return ['range', 'start', 'end'].some(
+    (key) => query[key] !== undefined && queryText(query[key]) === ''
+  )
+}
+
+/** 将已规范化的 URL 状态回填到筛选控件。 */
+function applyQueryToControls(query) {
+  if (query.start && query.end) {
+    quickRange.value = ''
+    dateRange.value = [query.start, query.end]
+  } else {
+    const range = query.range || DEFAULT_RANGE
+    quickRange.value = range
+    dateRange.value = datesForRange(range)
+  }
+}
+
+/** UI 操作统一 push；规范化后相同的 query 不重复导航、不重复请求。 */
+function navigateQuery(query) {
+  const normalized = compactQuery(query)
+  if (sameQuery(route.query, normalized)) {
+    // 清空默认区间等操作不会改变 URL，也需把控件恢复为 URL 表达的状态。
+    applyQueryToControls(normalized)
+    return
+  }
+  router.push({ query: normalized })
+}
+
+/** 快捷范围选择：近 7/30/90 天、本年 */
+function handleQuickRange(key) {
+  navigateQuery({ range: key === DEFAULT_RANGE ? '' : key })
+}
+
+/** 自定义日期范围变化；清空或不完整时回到默认 30 天。 */
+function handleDateRangeChange() {
+  const [start, end] = dateRange.value || []
+  const validStart = queryDate(start)
+  const validEnd = queryDate(end)
+  navigateQuery(
+    validStart && validEnd && validStart <= validEnd
+      ? { start: validStart, end: validEnd }
+      : {}
+  )
+}
+
+/** route.query 是唯一状态源：先修正非法 URL，再回填控件并统一加载三图。 */
+function syncRouteQuery() {
+  const query = normalizeRouteQuery(route.query)
+  if (!sameQuery(route.query, query) || hasBlankRangeParam(route.query)) {
+    router.replace({ query })
+    return
+  }
+
+  applyQueryToControls(query)
   loadAll()
 }
 
-/** 自定义日期范围变化 */
-function handleDateRangeChange() {
-  if (dateRange.value && dateRange.value.length === 2) {
-    quickRange.value = ''
-    loadAll()
-  }
-}
+watch(() => route.query, syncRouteQuery, { immediate: true })
 
 /** 三图数据均来自后端只读统计接口（禁止前端伪造），时间筛选统一作用三图 */
 async function loadAll() {
@@ -185,9 +297,25 @@ async function loadAll() {
       getTimeDistribution(params)
     ])
     if (seq !== loadSeq) return
-    renderUsageRate(usageRes.data || [])
-    renderTrend(trendRes.data || [])
-    renderTimeDistribution(distRes.data || [])
+    const usageList = usageRes.data || []
+    const trendList = trendRes.data || []
+    const distList = distRes.data || []
+    renderUsageRate(usageList)
+    renderTrend(trendList)
+    renderTimeDistribution(distList)
+    // 文本替代与图表共用同一次成功结果；任一请求失败时均保留上一份数据。
+    usageRows.value = usageList.map((item) => ({
+      name: item.name,
+      roomNo: item.roomNo,
+      approvedHours: item.approvedHours,
+      usageRate: `${item.usageRate}%`
+    }))
+    trendRows.value = trendList.map((item) => ({ month: item.month, count: item.count }))
+    timeDistributionRows.value = distList.map((item) => ({
+      slot: item.slot,
+      count: item.count,
+      percentage: `${item.percentage}%`
+    }))
     hasLoaded.value = true
     loadError.value = false
   } catch {
@@ -389,7 +517,6 @@ function handleResize() {
 
 onMounted(() => {
   initCharts()
-  loadAll()
 })
 
 onBeforeUnmount(() => {

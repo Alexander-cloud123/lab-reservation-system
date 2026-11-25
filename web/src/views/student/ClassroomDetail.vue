@@ -11,7 +11,7 @@
       <div class="info-head">
         <span class="code-block">{{ classroom.roomNo }}</span>
         <div class="room-name-wrap">
-          <h2>{{ classroom.name }}</h2>
+          <h1>{{ classroom.name }}</h1>
           <span class="room-no">{{ classroom.building }} {{ classroom.roomNo }}</span>
         </div>
         <span class="status-cell" :class="statusPillClass(classroom.statusLabel)">
@@ -614,7 +614,7 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
-.room-name-wrap h2 {
+.room-name-wrap h1 {
   margin: 0;
   color: var(--ink);
   font-size: var(--text-lg);

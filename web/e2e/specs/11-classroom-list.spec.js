@@ -19,15 +19,22 @@ import { openMoreFilters } from '../helpers/ui'
 import { e2ePurpose, futureDate, SLOTS } from '../helpers/data'
 
 const PAGE = '/student/home'
-/** 楼栋下拉选项来自当前页教室（真实种子：信息楼 / 实验楼 / 综合楼） */
+/** 楼栋下拉选项来自独立全量字典（真实种子：信息楼 / 实验楼 / 综合楼） */
 const BUILDING = '信息楼'
 
 /** 列表接口 URL 匹配 */
 const LIST_URL = '/api/classroom/list'
 
+/** 只匹配列表数据请求，排除独立的 size=500 全量楼栋字典请求。 */
+function isListResponse(response) {
+  return response.url().includes(LIST_URL) && new URL(response.url()).searchParams.get('size') !== '500'
+}
+
 /** 打开教室列表页，返回首屏列表接口的 records（期望来源） */
 async function openList(page) {
-  const respP = page.waitForResponse((r) => r.url().includes(LIST_URL))
+  const respP = page.waitForResponse(
+    isListResponse
+  )
   await mockAiOff(page)
   await loginAs(page, { who: 'student', path: PAGE, aiEnabled: false })
   const resp = await respP
@@ -36,7 +43,7 @@ async function openList(page) {
 
 /** 点击「查询」并等待列表接口返回，返回本次 records */
 async function clickSearch(page) {
-  const respP = page.waitForResponse((r) => r.url().includes(LIST_URL))
+  const respP = page.waitForResponse((r) => isListResponse(r))
   await page.getByRole('button', { name: '查询' }).click()
   const resp = await respP
   return (await resp.json()).data.records
@@ -81,7 +88,7 @@ test.describe('教室列表页 - 筛选与展示', () => {
     await expect(page.getByRole('button', { name: '重置筛选' })).toBeVisible()
 
     // 重置：恢复全部教室
-    const respP = page.waitForResponse((r) => r.url().includes(LIST_URL))
+    const respP = page.waitForResponse((r) => isListResponse(r))
     await page.getByRole('button', { name: '重置筛选' }).click()
     const all = (await (await respP).json()).data.records
     await expect(keyword).toHaveValue('')
@@ -187,7 +194,7 @@ test.describe('教室列表页 - 筛选与展示', () => {
     const clearBuilding = summary.locator('.filter-summary-item').filter({ hasText: BUILDING })
     await expect(clearBuilding).toHaveCount(1)
 
-    const respP = page.waitForResponse((r) => r.url().includes(LIST_URL))
+    const respP = page.waitForResponse((r) => isListResponse(r))
     await clearBuilding.click()
     const all = (await (await respP).json()).data.records
     await expect(summary).toHaveCount(0)
@@ -198,7 +205,7 @@ test.describe('教室列表页 - 筛选与展示', () => {
     await openList(page)
 
     // 页长改为 6 → 请求第 1 页（size=6），再翻到第 2 页
-    const sizeRespP = page.waitForResponse((r) => r.url().includes(LIST_URL))
+    const sizeRespP = page.waitForResponse((r) => isListResponse(r))
     await page.locator('.el-pagination__sizes .el-select').click()
     await page.locator('.el-select-dropdown__item:visible', { hasText: '6条/页' }).first().click()
     const p1 = (await (await sizeRespP).json()).data.records
@@ -210,7 +217,7 @@ test.describe('教室列表页 - 筛选与展示', () => {
       await expect(page.locator('.el-pager li.is-active')).toHaveText('1')
       return
     }
-    const nextRespP = page.waitForResponse((r) => r.url().includes(LIST_URL))
+    const nextRespP = page.waitForResponse((r) => isListResponse(r))
     await nextBtn.click()
     const p2 = (await (await nextRespP).json()).data.records
     await expect(page.locator('.el-pager li.is-active')).toHaveText('2')
@@ -218,7 +225,7 @@ test.describe('教室列表页 - 筛选与展示', () => {
 
     // 高页码直接改页长：首次请求必须带 page=1，不能先请求旧页码再由组件夹紧。
     const resetPageRespP = page.waitForResponse((r) => {
-      if (!r.url().includes(LIST_URL)) return false
+      if (!isListResponse(r)) return false
       const url = new URL(r.url())
       return url.searchParams.get('page') === '1' && url.searchParams.get('size') === '12'
     })
@@ -283,7 +290,7 @@ test.describe('教室列表页 - 筛选与展示', () => {
     await expect(page.getByText('没有找到符合条件的教室，换个条件试试吧')).toHaveCount(0)
 
     await page.unroute('**/api/classroom/list*')
-    const respP = page.waitForResponse((r) => r.url().includes(LIST_URL) && r.status() === 200)
+    const respP = page.waitForResponse((r) => isListResponse(r) && r.status() === 200)
     await page.locator('.list-error').getByRole('button', { name: '重试' }).click()
     await respP
     await expect(page.locator('.list-error')).toHaveCount(0)

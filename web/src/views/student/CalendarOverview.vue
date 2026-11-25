@@ -2,7 +2,7 @@
   <div class="calendar-page page-container">
     <div class="page-head">
       <div class="toolbar-left">
-        <span class="page-title">预约日历总览</span>
+        <h1 class="page-title">预约日历总览</h1>
         <el-select
           v-model="selectedClassroomId"
           placeholder="全部教室"
@@ -147,6 +147,7 @@
 
 <script setup>
 import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Calendar } from 'fullcalendar'
 import dayGridPlugin from '@fullcalendar/daygrid'
@@ -157,14 +158,63 @@ import { listClassrooms } from '@/api/classroom'
 import { checkConflict, submitReservation, getCalendarReservations } from '@/api/reservation'
 import { validateBooking } from '@/utils/booking'
 import { statusText, statusCellClass } from '@/utils/dict'
+import { compactQuery, queryDate, queryEnum, queryInteger, sameQuery } from '@/utils/routeQuery'
 
+const route = useRoute()
+const router = useRouter()
+const CALENDAR_VIEWS = { month: 'dayGridMonth', week: 'dayGridWeek' }
+const URL_VIEWS = { dayGridMonth: 'month', dayGridWeek: 'week' }
+const MANAGED_QUERY_KEYS = ['view', 'date', 'classroomId']
+
+function todayText() {
+  return dayjs().format('YYYY-MM-DD')
+}
+
+/** route.query 是日历状态入口；非法值先回退，再由 replace 规范化 URL。 */
+function readRouteState() {
+  return {
+    view: queryEnum(route.query.view, ['month', 'week'], 'month'),
+    date: queryDate(route.query.date) || todayText(),
+    classroomId: queryInteger(route.query.classroomId, { fallback: null })
+  }
+}
+
+function routeQueryFor(state) {
+  return compactQuery({
+    view: state.view === 'month' ? '' : state.view,
+    date: state.date === todayText() ? '' : state.date,
+    classroomId: state.classroomId || ''
+  })
+}
+
+function normalizeRouteQuery(state) {
+  const query = routeQueryFor(state)
+  const hasExtraOrEmptyParam = Object.entries(route.query).some(
+    ([key, value]) => !MANAGED_QUERY_KEYS.includes(key) || value === '' || value === null || value === undefined
+  )
+  const hasManagedArrayParam = MANAGED_QUERY_KEYS.some((key) => Array.isArray(route.query[key]))
+  if (!sameQuery(route.query, query) || hasExtraOrEmptyParam || hasManagedArrayParam) {
+    router.replace({ path: route.path, query })
+  }
+}
+
+function pushRouteState(state) {
+  const query = routeQueryFor(state)
+  if (!sameQuery(route.query, query)) {
+    router.push({ path: route.path, query })
+  }
+}
+
+const initialRouteState = readRouteState()
 const loading = ref(false)
 const classrooms = ref([])
-const selectedClassroomId = ref(null)
-const viewType = ref('dayGridMonth')
+const selectedClassroomId = ref(initialRouteState.classroomId)
+const viewType = ref(CALENDAR_VIEWS[initialRouteState.view])
 
 const calendarEl = ref(null)
 let calendar = null
+let appliedRouteState = initialRouteState
+let applyingRoute = false
 
 /** 当前日历可视区间（ISO 日期，由 datesSet 维护，用于拉取区间预约） */
 let rangeStart = ''
@@ -226,6 +276,37 @@ async function loadEvents() {
   }
 }
 
+/** 前进/后退或直接改 URL：同步视图与 anchor date，仅教室变化时复用当前区间刷新。 */
+function applyRouteQuery() {
+  const state = readRouteState()
+  const classroomChanged = appliedRouteState.classroomId !== state.classroomId
+  appliedRouteState = state
+  viewType.value = CALENDAR_VIEWS[state.view]
+  selectedClassroomId.value = state.classroomId
+  normalizeRouteQuery(state)
+
+  if (!calendar) return
+  const calendarView = CALENDAR_VIEWS[state.view]
+  const viewChanged = calendar.view.type !== calendarView
+  const dateChanged = dayjs(calendar.getDate()).format('YYYY-MM-DD') !== state.date
+  if (viewChanged || dateChanged) {
+    applyingRoute = true
+    try {
+      if (viewChanged) {
+        calendar.changeView(calendarView, state.date)
+      } else {
+        calendar.gotoDate(state.date)
+      }
+    } finally {
+      applyingRoute = false
+    }
+  } else if (classroomChanged) {
+    loadEvents()
+  }
+}
+
+watch(() => route.query, applyRouteQuery)
+
 /** 预约项 → FullCalendar 事件（色块按状态着色，扩展属性承载详情） */
 function toEvent(r) {
   return {
@@ -262,14 +343,18 @@ function renderEventContent(info) {
   return { domNodes: [root] }
 }
 
-/** 教室筛选变化：重新拉取当前区间 */
+/** 教室筛选先写入 URL，由路由监听复用当前区间刷新。 */
 function handleClassroomChange() {
-  loadEvents()
+  pushRouteState({
+    view: URL_VIEWS[viewType.value] || 'month',
+    date: calendar ? dayjs(calendar.getDate()).format('YYYY-MM-DD') : appliedRouteState.date,
+    classroomId: selectedClassroomId.value
+  })
 }
 
-/** 视图切换：月/周 */
+/** 视图切换：datesSet 拉取新区间，并把实际日历状态写入 URL。 */
 function handleViewChange(view) {
-  if (calendar) {
+  if (calendar && calendar.view.type !== view) {
     calendar.changeView(view)
   }
 }
@@ -448,35 +533,48 @@ async function handleSubmitReserve() {
 
 onMounted(() => {
   loadClassrooms()
-  calendar = new Calendar(calendarEl.value, {
-    plugins: [dayGridPlugin, interactionPlugin],
-    initialView: 'dayGridMonth',
-    locale: zhCnLocale,
-    height: 'auto',
-    firstDay: 1,
-    selectable: false,
-    displayEventTime: false,
-    eventContent: renderEventContent,
-    headerToolbar: {
-      left: 'prev,next today',
-      center: 'title',
-      right: ''
-    },
-    buttonText: { today: '今天' },
-    datesSet(info) {
-      rangeStart = dayjs(info.start).format('YYYY-MM-DD')
-      rangeEnd = dayjs(info.end).format('YYYY-MM-DD')
-      loadEvents()
-    },
-    dateClick: handleDateClick,
-    eventClick: handleEventClick,
-    eventDidMount(info) {
-      // 悬浮显示摘要（浏览器原生 tooltip）
-      const ev = info.event
-      info.el.title = `${ev.title}${ev.extendedProps && ev.extendedProps.purpose ? '｜' + ev.extendedProps.purpose : ''}`
-    }
-  })
-  calendar.render()
+  applyRouteQuery()
+  applyingRoute = true
+  try {
+    calendar = new Calendar(calendarEl.value, {
+      plugins: [dayGridPlugin, interactionPlugin],
+      initialView: CALENDAR_VIEWS[appliedRouteState.view],
+      initialDate: appliedRouteState.date,
+      locale: zhCnLocale,
+      height: 'auto',
+      firstDay: 1,
+      selectable: false,
+      displayEventTime: false,
+      eventContent: renderEventContent,
+      headerToolbar: {
+        left: 'prev,next today',
+        center: 'title',
+        right: ''
+      },
+      buttonText: { today: '今天' },
+      datesSet(info) {
+        rangeStart = dayjs(info.start).format('YYYY-MM-DD')
+        rangeEnd = dayjs(info.end).format('YYYY-MM-DD')
+        loadEvents()
+        if (applyingRoute) return
+        pushRouteState({
+          view: URL_VIEWS[info.view.type] || 'month',
+          date: dayjs(calendar.getDate()).format('YYYY-MM-DD'),
+          classroomId: selectedClassroomId.value
+        })
+      },
+      dateClick: handleDateClick,
+      eventClick: handleEventClick,
+      eventDidMount(info) {
+        // 悬浮显示摘要（浏览器原生 tooltip）
+        const ev = info.event
+        info.el.title = `${ev.title}${ev.extendedProps && ev.extendedProps.purpose ? '｜' + ev.extendedProps.purpose : ''}`
+      }
+    })
+    calendar.render()
+  } finally {
+    applyingRoute = false
+  }
 })
 
 onBeforeUnmount(() => {

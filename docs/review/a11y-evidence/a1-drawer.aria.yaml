@@ -7,21 +7,21 @@
   - navigation "历史会话":
     - paragraph: 还没有历史会话，先提一个问题吧
   - paragraph: 只读不写，预约操作需你手动提交
-- main:
-  - button "返回教室列表"
-  - text: 新对话 就绪
-  - heading "你好，我是 AI 预约助手" [level=1]
-  - paragraph: 可以帮你查空教室、解释预约与审核规则，也会把思考过程摊开给你看。
-  - list:
-    - listitem:
-      - button "明天下午有哪些空教室？"
-    - listitem:
-      - button "怎么取消一条已通过的预约？"
-    - listitem:
-      - button "预约冲突是怎么判定的？"
-  - button "更多建议"
-  - paragraph: AI 生成，仅供参考；仅解答预约相关问题
-  - textbox "向 AI 预约助手提问":
-    - /placeholder: 问我：怎么预约 / 怎么取消 / 审核要多久…
-  - text: Enter 发送，Shift+Enter 换行
-  - button "发送" [disabled]
+- button "返回教室列表"
+- heading "新对话" [level=1]
+- text: 就绪
+- heading "你好，我是 AI 预约助手" [level=2]
+- paragraph: 可以帮你查空教室、解释预约与审核规则，也会把思考过程摊开给你看。
+- list:
+  - listitem:
+    - button "明天下午有哪些空教室？"
+  - listitem:
+    - button "怎么取消一条已通过的预约？"
+  - listitem:
+    - button "预约冲突是怎么判定的？"
+- button "更多建议"
+- paragraph: AI 生成，仅供参考；仅解答预约相关问题
+- textbox "向 AI 预约助手提问":
+  - /placeholder: 问我：怎么预约 / 怎么取消 / 审核要多久…
+- text: Enter 发送，Shift+Enter 换行
+- button "发送" [disabled]

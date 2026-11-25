@@ -1,5 +1,6 @@
 <template>
   <el-container class="student-layout">
+    <a href="#student-main" class="skip-link" @click.prevent="focusMain">跳至主内容</a>
     <!-- 顶部栏 -->
     <el-header class="student-header">
       <div class="header-left">
@@ -50,9 +51,9 @@
     </el-header>
 
     <!-- 主内容区 -->
-    <el-main class="student-main">
+    <el-main id="student-main" ref="mainRef" class="student-main" tabindex="-1">
       <router-view v-slot="{ Component, route: currentRoute }">
-        <transition name="page-swap" mode="out-in">
+        <transition name="page-swap" mode="out-in" @after-enter="handleMainAfterEnter">
           <component :is="Component" :key="currentRoute.path" />
         </transition>
       </router-view>
@@ -64,7 +65,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { CaretBottom, SwitchButton, User } from '@element-plus/icons-vue'
@@ -76,6 +77,31 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const userInfo = computed(() => userStore.userInfo)
+
+const mainRef = ref(null)
+
+function getMainElement() {
+  const main = mainRef.value
+  return main ? (main.$el || main) : null
+}
+
+/** 跳转链接保留锚点语义，但由脚本显式聚焦可编程主区 */
+function focusMain() {
+  const main = getMainElement()
+  if (main) main.focus()
+}
+
+/** 组件以 path 为 key，故仅在路径切换完成时复位滚动并聚焦；首载与 query 变化不触发 */
+function handleMainAfterEnter() {
+  const main = getMainElement()
+  if (!main) return
+  main.scrollTop = 0
+  // 过渡期间用户可能已打开 AI 抽屉或聚焦新页控件，不把焦点抢回主区。
+  const active = document.activeElement
+  if (active && active !== main && main.contains(active)) return
+  main.focus({ preventScroll: true })
+}
+
 /** AI 双层开关都开启时才露出对话入口（与悬浮球同一份探测缓存） */
 const aiReady = computed(() => userStore.aiEnabled === true)
 

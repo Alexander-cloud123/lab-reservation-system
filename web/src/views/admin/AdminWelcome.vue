@@ -14,25 +14,30 @@
     <!-- 精简时刻带：管理端也看得到现在处在一天的什么位置 -->
     <TimeBand class="welcome-band reveal" compact :summary="bandSummary" />
 
+    <div v-if="loadError" class="overview-error" role="status">
+      <span>概览加载失败，指标暂不可用。</span>
+      <el-button link type="primary" @click="loadOverview">重试</el-button>
+    </div>
+
     <!-- 今日概览：一张白面，四列数据 -->
     <div class="surface stat-band reveal stagger" style="--i: 1">
       <div class="stat-item">
         <div class="stat-label">今日预约</div>
-        <div class="stat-value">{{ todayCount }}</div>
+        <div class="stat-value">{{ todayDisplay }}</div>
       </div>
       <div class="stat-item">
         <div class="stat-label">待审核</div>
-        <div class="stat-value" :class="{ 'is-attention': overview.pendingAuditCount > 0 }">
-          {{ pendingCount }}
+        <div class="stat-value" :class="{ 'is-attention': !loadError && pendingMetric > 0 }">
+          {{ pendingDisplay }}
         </div>
       </div>
       <div class="stat-item">
         <div class="stat-label">教室总数</div>
-        <div class="stat-value">{{ classroomCount }}</div>
+        <div class="stat-value">{{ classroomDisplay }}</div>
       </div>
       <div class="stat-item">
         <div class="stat-label">用户总数</div>
-        <div class="stat-value">{{ userCount }}</div>
+        <div class="stat-value">{{ userDisplay }}</div>
       </div>
     </div>
 
@@ -104,37 +109,53 @@ const userStore = useUserStore()
 const router = useRouter()
 const userInfo = computed(() => userStore.userInfo)
 
-/** 首页数据概览（今日预约/待审核/教室总数/用户总数），初始为空由模板兜底显示 0 */
+/** 首页数据概览；尚未返回或字段未知时显示 —，接口明确返回 0 时才显示真实 0。 */
 const overview = ref({})
+const loadError = ref(false)
 
-/**
- * 加载数据概览；失败静默——概览属展示性数据，加载失败不应影响管理端首页的快捷入口使用
- */
+/** 概览失败不阻断快捷入口，只标记指标未知并保留重试入口。 */
 async function loadOverview() {
+  loadError.value = false
   try {
     const res = await getOverview()
     overview.value = res.data || {}
+    loadError.value = false
   } catch {
-    // 静默降级：数字保持 0，快捷入口照常可用
+    loadError.value = true
   }
 }
 
 onMounted(loadOverview)
 
 /** 快捷入口跳转 */
-/** 概览数字：入场时从 0 数到目标值，只在首次拿到数据时播放 */
-const todayCount = useCountUp(computed(() => overview.value.todayReservationCount ?? 0))
-const pendingCount = useCountUp(computed(() => overview.value.pendingAuditCount ?? 0))
-const classroomCount = useCountUp(computed(() => overview.value.classroomCount ?? 0))
-const userCount = useCountUp(computed(() => overview.value.userCount ?? 0))
+function readMetric(key) {
+  const value = overview.value[key]
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+const todayMetric = computed(() => readMetric('todayReservationCount'))
+const pendingMetric = computed(() => readMetric('pendingAuditCount'))
+const classroomMetric = computed(() => readMetric('classroomCount'))
+const userMetric = computed(() => readMetric('userCount'))
+
+/** 概览数字：已知指标保留入场动画，加载失败或字段未知时统一显示 —。 */
+const todayCount = useCountUp(computed(() => todayMetric.value ?? 0))
+const pendingCount = useCountUp(computed(() => pendingMetric.value ?? 0))
+const classroomCount = useCountUp(computed(() => classroomMetric.value ?? 0))
+const userCount = useCountUp(computed(() => userMetric.value ?? 0))
+const todayDisplay = computed(() => (loadError.value || todayMetric.value === null ? '—' : todayCount.value))
+const pendingDisplay = computed(() => (loadError.value || pendingMetric.value === null ? '—' : pendingCount.value))
+const classroomDisplay = computed(() => (loadError.value || classroomMetric.value === null ? '—' : classroomCount.value))
+const userDisplay = computed(() => (loadError.value || userMetric.value === null ? '—' : userCount.value))
 
 /** 时刻带摘要：今天的预约与待审核量 */
 const bandSummary = computed(() => {
-  const today = overview.value.todayReservationCount ?? 0
-  const pending = overview.value.pendingAuditCount ?? 0
-  const parts = [`今天有 ${today} 个预约`]
-  if (pending > 0) {
-    parts.push(`${pending} 个在等审核`)
+  if (loadError.value || todayMetric.value === null) {
+    return '今日预约数据暂不可用'
+  }
+  const parts = [`今天有 ${todayMetric.value} 个预约`]
+  if (pendingMetric.value > 0) {
+    parts.push(`${pendingMetric.value} 个在等审核`)
   }
   return parts.join('，')
 })
@@ -151,6 +172,16 @@ function go(path) {
 /* 今日概览：四列数据，列间靠留白分隔 */
 .welcome-band {
   margin-bottom: var(--space-xl);
+}
+.overview-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  color: var(--warning);
+  font-size: var(--text-sm);
 }
 .stat-band {
   display: grid;

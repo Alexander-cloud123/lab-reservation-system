@@ -288,4 +288,60 @@ test.describe('我的预约', () => {
     await page.getByRole('button', { name: '去教室列表' }).click()
     await expect(page).toHaveURL(/\/student\/home/)
   })
+
+  test('分页：高页码切换每页条数时先回第 1 页再请求', async ({ page }) => {
+    await page.route('**/api/reservation/mine**', (route) => {
+      const url = new URL(route.request().url())
+      const current = Number(url.searchParams.get('page') || '1')
+      const size = Number(url.searchParams.get('size') || '10')
+      const start = (current - 1) * size
+      const records = Array.from({ length: Math.max(0, Math.min(size, 30 - start)) }, (_, index) => ({
+        id: start + index + 1,
+        classroomName: 'A101多媒体教室',
+        roomNo: 'A101',
+        reserveDate: '2099-01-01',
+        startTime: '08:00',
+        endTime: '10:00',
+        purpose: `分页测试-${start + index + 1}`,
+        status: 0,
+        auditRemark: null
+      }))
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 200, message: '操作成功', data: { total: 30, records } })
+      })
+    })
+    await openMine(page)
+    await page.locator('.el-pagination .btn-next').click()
+    await expect(page.locator('.el-pager li.is-active')).toHaveText('2')
+
+    const resetPageRespP = page.waitForResponse((r) => {
+      if (!r.url().includes('/api/reservation/mine')) return false
+      const url = new URL(r.url())
+      return url.searchParams.get('page') === '1' && url.searchParams.get('size') === '20'
+    })
+    await page.locator('.el-pagination__sizes .el-select').click()
+    await page.locator('.el-select-dropdown__item:visible', { hasText: '20条/页' }).first().click()
+    await resetPageRespP
+    await expect(page.locator('.el-pager li.is-active')).toHaveText('1')
+    await expect(page.locator('.el-table__body-wrapper tbody tr')).toHaveCount(20)
+  })
+
+  test('列表请求失败：显示局部错误与重试，不伪装成无预约', async ({ page }) => {
+    await mockAiOff(page)
+    await page.route('**/api/reservation/mine**', (route) => route.abort('failed'))
+    await loginAs(page, { who: 'student', path: PATH, aiEnabled: false })
+
+    await expect(page.locator('.list-error')).toBeVisible()
+    await expect(page.locator('.list-error')).toContainText('加载失败')
+    await expect(page.getByText('暂无预约记录，去挑一间教室吧')).toHaveCount(0)
+
+    await page.unroute('**/api/reservation/mine**')
+    const respP = page.waitForResponse((r) => r.url().includes('/api/reservation/mine') && r.status() === 200)
+    await page.locator('.list-error').getByRole('button', { name: '重试' }).click()
+    await respP
+    await expect(page.locator('.list-error')).toHaveCount(0)
+    await expect(page.locator('.el-table')).toBeVisible()
+  })
 })

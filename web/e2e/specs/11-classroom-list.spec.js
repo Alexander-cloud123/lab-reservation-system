@@ -173,7 +173,28 @@ test.describe('教室列表页 - 筛选与展示', () => {
     await expect(card.locator('.room-type')).toHaveText('普通教室')
   })
 
-  test('分页切换：改页长后翻页生效', async ({ page }) => {
+  test('收起高级筛选：已生效楼栋条件仍可见且可单项清除', async ({ page }) => {
+    await openList(page)
+    await openMoreFilters(page)
+    const buildingSelect = page.locator('.el-form-item').filter({ hasText: '楼栋' }).locator('.el-select')
+    await pickSelect(page, buildingSelect, BUILDING)
+    await clickSearch(page)
+
+    await page.getByRole('button', { name: '收起筛选' }).click()
+    const summary = page.locator('.filter-summary')
+    await expect(summary).toBeVisible()
+    await expect(summary).toContainText(BUILDING)
+    const clearBuilding = summary.locator('.filter-summary-item').filter({ hasText: BUILDING })
+    await expect(clearBuilding).toHaveCount(1)
+
+    const respP = page.waitForResponse((r) => r.url().includes(LIST_URL))
+    await clearBuilding.click()
+    const all = (await (await respP).json()).data.records
+    await expect(summary).toHaveCount(0)
+    await expect(page.locator('.room-card')).toHaveCount(all.length)
+  })
+
+  test('分页切换：改页长后翻页生效，高页码改页长先回第 1 页', async ({ page }) => {
     await openList(page)
 
     // 页长改为 6 → 请求第 1 页（size=6），再翻到第 2 页
@@ -195,10 +216,15 @@ test.describe('教室列表页 - 筛选与展示', () => {
     await expect(page.locator('.el-pager li.is-active')).toHaveText('2')
     await expect(page.locator('.room-card')).toHaveCount(p2.length)
 
-    // 回到第 1 页
-    const prevRespP = page.waitForResponse((r) => r.url().includes(LIST_URL))
-    await page.locator('.el-pagination .btn-prev').click()
-    await prevRespP
+    // 高页码直接改页长：首次请求必须带 page=1，不能先请求旧页码再由组件夹紧。
+    const resetPageRespP = page.waitForResponse((r) => {
+      if (!r.url().includes(LIST_URL)) return false
+      const url = new URL(r.url())
+      return url.searchParams.get('page') === '1' && url.searchParams.get('size') === '12'
+    })
+    await page.locator('.el-pagination__sizes .el-select').click()
+    await page.locator('.el-select-dropdown__item:visible', { hasText: '12条/页' }).first().click()
+    await resetPageRespP
     await expect(page.locator('.el-pager li.is-active')).toHaveText('1')
   })
 
@@ -245,5 +271,22 @@ test.describe('教室列表页 - 筛选与展示', () => {
     await expect(page.locator('.el-form-item').filter({ hasText: '楼栋' }).locator('.el-select')).toContainText(
       BUILDING
     )
+  })
+
+  test('列表请求失败：显示局部错误与重试，不伪装成空教室', async ({ page }) => {
+    await mockAiOff(page)
+    await page.route('**/api/classroom/list*', (route) => route.abort('failed'))
+    await loginAs(page, { who: 'student', path: PAGE, aiEnabled: false })
+
+    await expect(page.locator('.list-error')).toBeVisible()
+    await expect(page.locator('.list-error')).toContainText('加载失败')
+    await expect(page.getByText('没有找到符合条件的教室，换个条件试试吧')).toHaveCount(0)
+
+    await page.unroute('**/api/classroom/list*')
+    const respP = page.waitForResponse((r) => r.url().includes(LIST_URL) && r.status() === 200)
+    await page.locator('.list-error').getByRole('button', { name: '重试' }).click()
+    await respP
+    await expect(page.locator('.list-error')).toHaveCount(0)
+    await expect(page.locator('.room-card').first()).toBeVisible()
   })
 })

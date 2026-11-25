@@ -318,6 +318,41 @@ test.describe('个人中心', () => {
     await expect(settingsRow(page, '邮箱').locator('.settings-value')).toHaveText(info.email)
   })
 
+  test('取消编辑：资料恢复原值，密码字段重新打开为空', async ({ page }) => {
+    await openProfile(page)
+
+    await page.locator('.identity-edit').click()
+    let dlg = infoDialog(page)
+    const nameInput = dlg.getByPlaceholder('请输入真实姓名')
+    const emailInput = dlg.getByPlaceholder('请输入邮箱（选填）')
+    const originalName = await nameInput.inputValue()
+    const originalEmail = await emailInput.inputValue()
+    await nameInput.fill('取消不应保存')
+    await emailInput.fill('cancel-not-save@example.com')
+    await dlg.getByRole('button', { name: '取消' }).click()
+    await expect(dlg).toBeHidden()
+
+    await page.locator('.identity-edit').click()
+    dlg = infoDialog(page)
+    await expect(dlg.getByPlaceholder('请输入真实姓名')).toHaveValue(originalName)
+    await expect(dlg.getByPlaceholder('请输入邮箱（选填）')).toHaveValue(originalEmail)
+    await dlg.getByRole('button', { name: '取消' }).click()
+
+    await settingsRow(page, '修改密码').click()
+    let pwd = pwdDialog(page)
+    await pwd.getByPlaceholder('请输入原密码').fill('cancel-old-password')
+    await pwd.getByPlaceholder('不少于 6 位').fill('cancel-new-password')
+    await pwd.getByPlaceholder('再次输入新密码').fill('cancel-new-password')
+    await pwd.getByRole('button', { name: '取消' }).click()
+    await expect(pwd).toBeHidden()
+
+    await settingsRow(page, '修改密码').click()
+    pwd = pwdDialog(page)
+    await expect(pwd.getByPlaceholder('请输入原密码')).toHaveValue('')
+    await expect(pwd.getByPlaceholder('不少于 6 位')).toHaveValue('')
+    await expect(pwd.getByPlaceholder('再次输入新密码')).toHaveValue('')
+  })
+
   test('修改密码：前端校验与原密码错误拦截', async ({ page }) => {
     await openProfile(page)
 

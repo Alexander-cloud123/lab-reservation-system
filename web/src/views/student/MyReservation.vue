@@ -26,6 +26,11 @@
         <el-tab-pane label="已取消" name="3" />
       </el-tabs>
 
+      <!-- 刷新失败时保留旧数据，仅提示数据可能未更新 -->
+      <div v-if="!loading && loadError && records.length" class="list-error list-error-stale" role="status">
+        刷新失败，当前列表可能不是最新数据。
+      </div>
+
       <el-table
         v-loading="loading"
         :data="records"
@@ -75,13 +80,19 @@
         </el-table-column>
       </el-table>
 
-      <!-- 空状态 -->
-      <el-empty v-if="!loading && !records.length" description="暂无预约记录，去挑一间教室吧">
+      <div v-if="!loading && loadError && !records.length" class="list-error" role="alert">
+        <strong class="list-error-title">加载失败</strong>
+        <span class="list-error-description">预约记录暂时无法获取，请检查网络后重试。</span>
+        <el-button type="primary" @click="loadData">重试</el-button>
+      </div>
+
+      <!-- 空状态：仅在请求成功且返回空列表时展示 -->
+      <el-empty v-if="!loading && hasLoaded && !loadError && !records.length" description="暂无预约记录，去挑一间教室吧">
         <el-button type="primary" @click="goList">去教室列表</el-button>
       </el-empty>
 
       <!-- 分页 -->
-      <div class="pagination-wrap">
+      <div v-if="!loadError || records.length" class="pagination-wrap">
         <el-pagination
           v-model:current-page="query.page"
           v-model:page-size="query.size"
@@ -89,7 +100,7 @@
           :page-sizes="[10, 20, 50]"
           layout="total, sizes, prev, pager, next, jumper"
           background
-          @size-change="loadData"
+          @size-change="handleSizeChange"
           @current-change="loadData"
         />
       </div>
@@ -108,6 +119,8 @@ import { statusText } from '@/utils/dict'
 
 const router = useRouter()
 const loading = ref(false)
+const loadError = ref(false)
+const hasLoaded = ref(false)
 const records = ref([])
 const total = ref(0)
 const activeStatus = ref('all')
@@ -143,7 +156,11 @@ async function loadData() {
     const res = await getMyReservations(params)
     records.value = res.data.records
     total.value = res.data.total
+    hasLoaded.value = true
+    loadError.value = false
   } catch {
+    // 保留旧列表；无数据时展示局部错误态，有数据时仅提示可能未更新
+    loadError.value = true
     // 统一错误提示已由 request.js 处理
   } finally {
     loading.value = false
@@ -177,6 +194,12 @@ function isToday(date) {
 /** 状态圆点色（0 待审核 / 1 已通过 / 2 已驳回 / 3 已取消） */
 function statusDotClass(status) {
   return { 0: 'is-pending', 1: 'is-approved', 2: 'is-rejected', 3: 'is-canceled' }[status] || 'is-canceled'
+}
+
+/** 切换每页条数时先回第 1 页，避免高页码被新页长夹紧后产生竞态 */
+function handleSizeChange() {
+  query.page = 1
+  loadData()
 }
 
 /** 切换状态标签页 */
@@ -279,6 +302,35 @@ onMounted(loadData)
 
 .reserve-card :deep(.el-table) {
   padding: 0 var(--space-md);
+}
+
+.list-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  min-height: 200px;
+  padding: var(--space-xl);
+  color: var(--ink-soft);
+  text-align: center;
+}
+.list-error-title {
+  color: var(--ink);
+  font-size: var(--text-md);
+}
+.list-error-description {
+  line-height: 1.6;
+}
+.list-error-stale {
+  min-height: 0;
+  margin: var(--space-md) var(--space-md) 0;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-control);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: var(--text-sm);
 }
 
 .room-cell {

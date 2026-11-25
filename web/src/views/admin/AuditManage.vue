@@ -48,6 +48,19 @@
           </el-button>
         </el-form-item>
       </el-form>
+      <div v-if="!filtersExpanded && activeAdvancedFilters.length" class="filter-summary">
+        <span>已生效 {{ activeAdvancedFilters.length }} 项高级筛选：</span>
+        <button
+          v-for="item in activeAdvancedFilters"
+          :key="item.key"
+          type="button"
+          class="filter-summary-item"
+          :aria-label="`清除${item.label}筛选`"
+          @click="clearAdvancedFilter(item.key)"
+        >
+          {{ item.label }}：{{ item.value }}<span aria-hidden="true">×</span>
+        </button>
+      </div>
     </div>
 
     <!-- 审核表格：白面表格容器 -->
@@ -55,7 +68,7 @@
       <div class="section-title">
         <span class="title-left">
           预约记录
-          <span class="section-note">共 {{ total }} 条，已选 {{ selectedIds.length }} 条</span>
+          <span class="section-note">共 {{ hasLoaded ? total : '—' }} 条，已选 {{ selectedIds.length }} 条</span>
         </span>
         <span class="band-actions">
           <el-button
@@ -77,8 +90,13 @@
         </span>
       </div>
 
+      <div v-if="loadError && records.length" class="list-refresh-error" role="status">
+        <span>刷新失败，已保留当前预约列表。</span>
+        <el-button link type="primary" @click="loadData">重试</el-button>
+      </div>
+
       <el-table v-loading="loading" :data="records" @selection-change="handleSelectionChange">
-        <el-table-column type="selection" width="48" />
+        <el-table-column type="selection" width="48" :selectable="row => row.status === 0" />
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column label="预约人" width="120">
           <template #default="{ row }">
@@ -148,14 +166,18 @@
         </el-table-column>
 
         <template #empty>
-          <div class="empty-slate">
-            暂无符合条件的预约记录<span class="empty-action" @click="handleReset">重置筛选</span>
+          <div v-if="loadError" class="list-error" role="alert">
+            <span>预约列表加载失败，请重试。</span>
+            <el-button link type="primary" @click="loadData">重试</el-button>
+          </div>
+          <div v-else-if="hasLoaded" class="empty-slate">
+            暂无符合条件的预约记录<el-button link type="primary" class="empty-action" @click="handleReset">重置筛选</el-button>
           </div>
         </template>
       </el-table>
 
       <!-- 分页 -->
-      <div class="pagination-wrap">
+      <div v-if="hasLoaded" class="pagination-wrap">
         <el-pagination
           v-model:current-page="query.page"
           v-model:page-size="query.size"
@@ -163,7 +185,7 @@
           :page-sizes="[10, 20, 50]"
           layout="total, sizes, prev, pager, next, jumper"
           background
-          @size-change="loadData"
+          @size-change="handleSizeChange"
           @current-change="loadData"
         />
       </div>
@@ -217,7 +239,7 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, CircleCheck, CircleClose, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import { pageManageReservations, auditReservation, batchAuditReservations } from '@/api/reservation'
@@ -226,6 +248,8 @@ import { useUserStore } from '@/stores/user'
 import { statusText, statusCellClass } from '@/utils/dict'
 
 const loading = ref(false)
+const loadError = ref(false)
+const hasLoaded = ref(false)
 const records = ref([])
 const total = ref(0)
 const selectedIds = ref([])
@@ -385,6 +409,29 @@ const query = reactive({
 /** 渐进式披露：次级筛选折叠在「更多筛选」后面 */
 const filtersExpanded = ref(false)
 
+/** 折叠后仅摘要展示高级条件；一直可见的关键词不在此重复。 */
+const activeAdvancedFilters = computed(() => {
+  const filters = []
+  if (query.status !== undefined && query.status !== null && query.status !== '') {
+    filters.push({ key: 'status', label: '状态', value: statusText(query.status) })
+  }
+  if (dateRange.value && dateRange.value.length === 2) {
+    filters.push({ key: 'dateRange', label: '日期范围', value: dateRange.value.join(' 至 ') })
+  }
+  return filters
+})
+
+/** 清除单个高级条件并回到第一页重新查询。 */
+function clearAdvancedFilter(key) {
+  if (key === 'dateRange') {
+    dateRange.value = null
+  } else {
+    query[key] = undefined
+  }
+  query.page = 1
+  loadData()
+}
+
 /** 驳回弹窗状态（单条/批量共用） */
 const rejectVisible = ref(false)
 const rejectMode = ref('single')
@@ -400,6 +447,7 @@ async function loadData() {
   const seq = ++listSeq
   cancelComplianceChecks()
   loading.value = true
+  loadError.value = false
   try {
     const params = {
       page: query.page,
@@ -418,13 +466,16 @@ async function loadData() {
     if (seq !== listSeq) return
     records.value = res.data.records
     total.value = res.data.total
+    hasLoaded.value = true
+    loadError.value = false
     // M9：翻页/刷新时清空校验缓存与进行中标记（防 complianceMap 只增不减的持续累积）
     complianceMap.value.clear()
     checkingIds.value.clear()
     // 当前页前 N 条待审核记录限量自动 AI 合规校验（只读，不阻断）
     autoComplianceCheck(records.value)
   } catch {
-    // 统一错误提示已由 request.js 处理
+    if (seq === listSeq) loadError.value = true
+    // 统一错误提示已由 request.js 处理；旧数据保持不动。
   } finally {
     if (seq === listSeq) loading.value = false
   }
@@ -432,6 +483,12 @@ async function loadData() {
 
 /** 查询 / 重置 */
 function handleSearch() {
+  query.page = 1
+  loadData()
+}
+
+/** 修改每页条数时先回到第一页，避免原高页码越过新分页边界。 */
+function handleSizeChange() {
   query.page = 1
   loadData()
 }
@@ -446,7 +503,7 @@ function handleReset() {
 
 /** 表格多选 */
 function handleSelectionChange(rows) {
-  selectedIds.value = rows.map((r) => r.id)
+  selectedIds.value = rows.filter((r) => r.status === 0).map((r) => r.id)
 }
 
 /** 单条审核（通过）——二次确认 */
@@ -561,6 +618,34 @@ onBeforeUnmount(() => {
   color: var(--ink-soft);
   padding-right: var(--space-sm);
 }
+.filter-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+}
+.filter-summary-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.filter-summary-item span {
+  color: var(--ink-soft);
+}
+.filter-summary-item:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}
 
 /* 表格容器：白面 + 24px 内边距，标题行右侧放批量操作 */
 .table-band {
@@ -632,8 +717,24 @@ onBeforeUnmount(() => {
   width: 100%;
   line-height: 1.6;
 }
-.empty-slate {
+.empty-slate,
+.list-error {
   line-height: 1.6;
+}
+.list-refresh-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  color: var(--warning);
+  font-size: var(--text-sm);
+}
+.empty-action {
+  margin-left: var(--space-xs);
+  padding: 0;
+  vertical-align: baseline;
 }
 
 .pagination-wrap {

@@ -28,7 +28,7 @@
           {{ favorited ? '已收藏' : '收藏' }}
         </el-button>
       </div>
-      <el-descriptions :column="3" class="info-table">
+      <el-descriptions :column="descriptionColumns" class="info-table">
         <el-descriptions-item label="教室编号">{{ classroom.roomNo }}</el-descriptions-item>
         <el-descriptions-item label="所属楼栋">{{ classroom.building }}</el-descriptions-item>
         <el-descriptions-item label="教室类型">{{ typeText(classroom.type) }}</el-descriptions-item>
@@ -222,6 +222,13 @@ const userStore = useUserStore()
 const loading = ref(false)
 const classroom = ref({})
 const queryDate = ref(null)
+/** ≤640px 改为单列描述，桌面继续保持三列 */
+const descriptionColumns = ref(3)
+let descriptionMedia = null
+
+function syncDescriptionColumns(event) {
+  descriptionColumns.value = event.matches ? 1 : 3
+}
 
 /** 收藏状态（R4：详情页收藏/取消收藏按钮） */
 const favorited = ref(false)
@@ -555,11 +562,19 @@ function statusPillClass(label) {
 }
 
 onMounted(() => {
+  descriptionMedia = window.matchMedia('(max-width: 640px)')
+  syncDescriptionColumns(descriptionMedia)
+  descriptionMedia.addEventListener('change', syncDescriptionColumns)
   loadDetail()
   loadFavoriteState()
 })
 
-onBeforeUnmount(invalidateConflict)
+onBeforeUnmount(() => {
+  invalidateConflict()
+  if (descriptionMedia) {
+    descriptionMedia.removeEventListener('change', syncDescriptionColumns)
+  }
+})
 </script>
 
 <style scoped>

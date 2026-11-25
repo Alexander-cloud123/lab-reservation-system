@@ -41,13 +41,31 @@
           </el-button>
         </el-form-item>
       </el-form>
+      <div v-if="!filtersExpanded && activeAdvancedFilters.length" class="filter-summary">
+        <span>已生效 {{ activeAdvancedFilters.length }} 项高级筛选：</span>
+        <button
+          v-for="item in activeAdvancedFilters"
+          :key="item.key"
+          type="button"
+          class="filter-summary-item"
+          :aria-label="`清除${item.label}筛选`"
+          @click="clearAdvancedFilter(item.key)"
+        >
+          {{ item.label }}：{{ item.value }}<span aria-hidden="true">×</span>
+        </button>
+      </div>
     </div>
 
     <!-- 用户表格：白面表格容器 -->
     <div class="table-band">
       <div class="section-title">
         <span>账号列表</span>
-        <span class="section-note">共 {{ total }} 个账号</span>
+        <span class="section-note">共 {{ hasLoaded ? total : '—' }} 个账号</span>
+      </div>
+
+      <div v-if="loadError && records.length" class="list-refresh-error" role="status">
+        <span>刷新失败，已保留当前账号列表。</span>
+        <el-button link type="primary" @click="loadData">重试</el-button>
       </div>
 
       <el-table v-loading="loading" :data="records">
@@ -99,14 +117,18 @@
         </el-table-column>
 
         <template #empty>
-          <div class="empty-slate">
-            没有找到符合条件的用户<span class="empty-action" @click="handleReset">重置筛选</span>
+          <div v-if="loadError" class="list-error" role="alert">
+            <span>账号列表加载失败，请重试。</span>
+            <el-button link type="primary" @click="loadData">重试</el-button>
+          </div>
+          <div v-else-if="hasLoaded" class="empty-slate">
+            没有找到符合条件的用户<el-button link type="primary" class="empty-action" @click="handleReset">重置筛选</el-button>
           </div>
         </template>
       </el-table>
 
       <!-- 分页 -->
-      <div class="pagination-wrap">
+      <div v-if="hasLoaded" class="pagination-wrap">
         <el-pagination
           v-model:current-page="query.page"
           v-model:page-size="query.size"
@@ -114,7 +136,7 @@
           :page-sizes="[10, 20, 50]"
           layout="total, sizes, prev, pager, next, jumper"
           background
-          @size-change="loadData"
+          @size-change="handleSizeChange"
           @current-change="loadData"
         />
       </div>
@@ -123,7 +145,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
@@ -134,6 +156,8 @@ const userStore = useUserStore()
 const currentUserId = userStore.userInfo ? userStore.userInfo.id : null
 
 const loading = ref(false)
+const loadError = ref(false)
+const hasLoaded = ref(false)
 const records = ref([])
 const total = ref(0)
 
@@ -149,9 +173,29 @@ const query = reactive({
 /** 渐进式披露：次级筛选折叠在「更多筛选」后面 */
 const filtersExpanded = ref(false)
 
+/** 折叠后仅摘要展示高级条件；一直可见的关键词不在此重复。 */
+const activeAdvancedFilters = computed(() => {
+  const filters = []
+  if (query.role !== null && query.role !== '') {
+    filters.push({ key: 'role', label: '角色', value: query.role === 1 ? '管理员' : '学生' })
+  }
+  if (query.status !== null && query.status !== '') {
+    filters.push({ key: 'status', label: '状态', value: query.status === 1 ? '正常' : '禁用' })
+  }
+  return filters
+})
+
+/** 清除单个高级条件并回到第一页重新查询。 */
+function clearAdvancedFilter(key) {
+  query[key] = null
+  query.page = 1
+  loadData()
+}
+
 /** 加载用户列表 */
 async function loadData() {
   loading.value = true
+  loadError.value = false
   try {
     const params = {
       page: query.page,
@@ -163,8 +207,11 @@ async function loadData() {
     const res = await pageUsers(params)
     records.value = res.data.records
     total.value = res.data.total
+    hasLoaded.value = true
+    loadError.value = false
   } catch {
-    // 统一错误提示已由 request.js 处理
+    loadError.value = true
+    // 统一错误提示已由 request.js 处理；旧数据保持不动。
   } finally {
     loading.value = false
   }
@@ -172,6 +219,12 @@ async function loadData() {
 
 /** 查询（重置页码后加载） */
 function handleSearch() {
+  query.page = 1
+  loadData()
+}
+
+/** 修改每页条数时先回到第一页，避免原高页码越过新分页边界。 */
+function handleSizeChange() {
   query.page = 1
   loadData()
 }
@@ -240,6 +293,34 @@ onMounted(loadData)
   color: var(--ink-soft);
   padding-right: var(--space-sm);
 }
+.filter-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+}
+.filter-summary-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.filter-summary-item span {
+  color: var(--ink-soft);
+}
+.filter-summary-item:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}
 
 /* 表格容器：白面 + 24px 内边距 */
 .table-band {
@@ -251,8 +332,24 @@ onMounted(loadData)
   width: 100%;
   line-height: 1.6;
 }
-.empty-slate {
+.empty-slate,
+.list-error {
   line-height: 1.6;
+}
+.list-refresh-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  color: var(--warning);
+  font-size: var(--text-sm);
+}
+.empty-action {
+  margin-left: var(--space-xs);
+  padding: 0;
+  vertical-align: baseline;
 }
 
 .pagination-wrap {

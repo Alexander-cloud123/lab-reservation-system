@@ -7,7 +7,9 @@
     <!-- 页面标题 -->
     <div class="page-head reveal">
       <span class="page-title">教室列表</span>
-      <span class="page-tip">共 {{ total }} 间教室，可按关键词、楼栋、类型与日期筛选</span>
+      <span class="page-tip">
+        {{ loadError && !records.length ? '可按关键词、楼栋、类型与日期筛选' : `共 ${total} 间教室，可按关键词、楼栋、类型与日期筛选` }}
+      </span>
     </div>
 
     <!-- AI 智能推荐卡片（R7，需求文档 2.4：教室列表页顶部「AI 为你推荐」；enabled=false 时整卡隐藏） -->
@@ -62,10 +64,36 @@
           <AiQuickReserve :ai-enabled="aiEnabled" />
         </el-form-item>
       </el-form>
+      <!-- 收起高级筛选后保留生效条件；关键词始终可见，不在此重复 -->
+      <div v-if="!filtersExpanded && advancedFilters.length" class="filter-summary">
+        <span class="filter-summary-count">已生效 {{ advancedFilters.length }} 项</span>
+        <button
+          v-for="filter in advancedFilters"
+          :key="filter.key"
+          type="button"
+          class="filter-summary-item"
+          :aria-label="`清除${filter.label}筛选：${filter.value}`"
+          @click="clearAdvancedFilter(filter.key)"
+        >
+          <span class="filter-summary-label">{{ filter.label }}：</span>
+          <span class="filter-summary-value">{{ filter.value }}</span>
+          <span class="filter-summary-remove" aria-hidden="true">×</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 刷新失败时保留旧数据，仅提示数据可能未更新 -->
+    <div v-if="!loading && loadError && records.length" class="list-error list-error-stale" role="status">
+      刷新失败，当前列表可能不是最新数据。
     </div>
 
     <!-- 教室卡片列表（Bento 卡片网格） -->
     <div v-loading="loading" class="card-grid">
+      <div v-if="!loading && loadError && !records.length" class="list-error" role="alert">
+        <strong class="list-error-title">加载失败</strong>
+        <span class="list-error-description">教室列表暂时无法获取，请检查网络后重试。</span>
+        <el-button type="primary" @click="loadData">重试</el-button>
+      </div>
       <div
         v-for="(room, index) in records"
         :key="room.id"
@@ -105,13 +133,13 @@
       </div>
 
       <!-- 空状态 -->
-      <el-empty v-if="!loading && !records.length" description="没有找到符合条件的教室，换个条件试试吧">
+      <el-empty v-if="!loading && hasLoaded && !loadError && !records.length" description="没有找到符合条件的教室，换个条件试试吧">
         <el-button type="primary" @click="handleReset">重置筛选</el-button>
       </el-empty>
     </div>
 
     <!-- 分页 -->
-    <div class="pagination-wrap">
+    <div v-if="!loadError || records.length" class="pagination-wrap">
       <el-pagination
         v-model:current-page="query.page"
         v-model:page-size="query.size"
@@ -119,7 +147,7 @@
         :page-sizes="[6, 12, 24]"
         layout="total, sizes, prev, pager, next, jumper"
         background
-        @size-change="loadData"
+        @size-change="handleSizeChange"
         @current-change="loadData"
       />
     </div>
@@ -151,6 +179,9 @@ function displayName(room) {
 }
 const bandSummary = computed(() => {
   const rooms = records.value || []
+  if (loadError.value && !rooms.length) {
+    return '教室数据暂未加载，重试成功后再查看今日空档'
+  }
   const freeRooms = rooms.filter((room) => Number(room.todayRemainingSlots || 0) > 0)
   if (!freeRooms.length) {
     return `今天已开放 ${rooms.length} 间教室查询，先挑楼栋和时段看看`
@@ -160,6 +191,8 @@ const bandSummary = computed(() => {
 const router = useRouter()
 const userStore = useUserStore()
 const loading = ref(false)
+const loadError = ref(false)
+const hasLoaded = ref(false)
 const records = ref([])
 const total = ref(0)
 const buildingOptions = ref([])
@@ -213,6 +246,21 @@ const query = reactive({
 /** 渐进式披露：次级筛选折叠在「更多筛选」后面 */
 const filtersExpanded = ref(false)
 
+/** 收起时需要回显的高级条件；关键词常驻搜索栏，不计入摘要 */
+const advancedFilters = computed(() => {
+  const filters = []
+  if (query.building) {
+    filters.push({ key: 'building', label: '楼栋', value: query.building })
+  }
+  if (query.type !== null && query.type !== '') {
+    filters.push({ key: 'type', label: '类型', value: typeText(query.type) })
+  }
+  if (query.date) {
+    filters.push({ key: 'date', label: '占用日期', value: query.date })
+  }
+  return filters
+})
+
 /** 保存筛选条件到 localStorage */
 function saveFilter() {
   localStorage.setItem(
@@ -256,8 +304,12 @@ async function loadData() {
     const res = await listClassrooms(params)
     records.value = res.data.records
     total.value = res.data.total
+    hasLoaded.value = true
+    loadError.value = false
     collectBuildings()
   } catch {
+    // 保留旧列表；无数据时展示局部错误态，有数据时仅提示可能未更新
+    loadError.value = true
     // 统一错误提示已由 request.js 处理
   } finally {
     loading.value = false
@@ -271,6 +323,12 @@ function collectBuildings() {
       buildingOptions.value.push(r.building)
     }
   })
+}
+
+/** 切换每页条数时先回第 1 页，避免旧页码请求覆盖新页长结果 */
+function handleSizeChange() {
+  query.page = 1
+  loadData()
 }
 
 /** 查询（重置页码后加载） */
@@ -289,6 +347,13 @@ function handleReset() {
   query.page = 1
   saveFilter()
   loadData()
+}
+
+/** 清除摘要中的单项高级条件并重新查询 */
+function clearAdvancedFilter(key) {
+  if (!['building', 'type', 'date'].includes(key)) return
+  query[key] = null
+  handleSearch()
 }
 
 /** 跳转教室详情 */
@@ -364,6 +429,84 @@ onMounted(() => {
   font-size: var(--text-sm);
   color: var(--ink-soft);
   padding-right: 10px;
+}
+
+.filter-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+}
+.filter-summary-count {
+  margin-right: var(--space-xs);
+  font-weight: 600;
+}
+.filter-summary-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--brand-deep);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+.filter-summary-item:hover {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+.filter-summary-item:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.filter-summary-label {
+  color: var(--ink-soft);
+}
+.filter-summary-remove {
+  margin-left: 4px;
+  font-size: var(--text-md);
+  line-height: 1;
+}
+
+.list-error {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  min-height: 200px;
+  padding: var(--space-xl);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  color: var(--ink-soft);
+  text-align: center;
+}
+.list-error-title {
+  color: var(--ink);
+  font-size: var(--text-md);
+}
+.list-error-description {
+  line-height: 1.6;
+}
+.list-error-stale {
+  min-height: 0;
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border-color: var(--warning);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: var(--text-sm);
 }
 
 .card-grid {

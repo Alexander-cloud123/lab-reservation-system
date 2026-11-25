@@ -70,9 +70,14 @@ async function selectRow(page, purpose) {
   await expect(row).toBeVisible()
   // Element Plus 多选列偶发吞掉首次 label 点击（尤其接口刚返回、行刚渲染时），做有界重试后终态断言兜底
   for (let i = 0; i < 3; i++) {
-    await row.locator('.el-checkbox').first().click()
+    // 表格行复用时，文本可能先更新、checkbox 的 disabled 状态随后才移除；等待可操作再点击。
+    const checkbox = row.locator('.el-checkbox').first()
+    await expect(checkbox).not.toHaveClass(/is-disabled/)
+    await expect(checkbox.locator('input')).toBeEnabled()
+    // 已断言可选；force 只跳过 EP 行复用期间不稳定的 actionability 复查，最终仍以勾选状态为准。
+    await checkbox.click({ force: true })
     try {
-      await expect(row.locator('.el-checkbox').first()).toHaveClass(/is-checked/, { timeout: 500 })
+      await expect(checkbox).toHaveClass(/is-checked/, { timeout: 500 })
       return
     } catch {
       await page.waitForTimeout(150)
@@ -109,7 +114,7 @@ test.describe('管理端-预约审核（AuditManage）', () => {
     await expect(page.getByText('暂无符合条件的预约记录')).toBeVisible()
 
     // 重置后恢复全量
-    await page.getByRole('button', { name: '重置' }).click()
+    await page.getByRole('button', { name: '重置', exact: true }).click()
     await expect(page.locator('tr.el-table__row').first()).toBeVisible()
   })
 
@@ -212,7 +217,10 @@ test.describe('管理端-预约审核（AuditManage）', () => {
     await openFiltered(page)
 
     await selectRow(page, pending.purpose)
-    await selectRow(page, approved.purpose)
+    // 非待审核记录的选择框直接禁用，不能计入批量操作数量。
+    const approvedCheckbox = rowOf(page, approved.purpose).locator('.el-checkbox').first()
+    await expect(approvedCheckbox).toHaveClass(/is-disabled/)
+    await expect(approvedCheckbox.locator('input')).toBeDisabled()
 
     await page.getByRole('button', { name: /批量驳回/ }).click()
     const dialog = page.locator('.el-dialog')

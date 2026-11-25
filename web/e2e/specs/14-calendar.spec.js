@@ -162,6 +162,20 @@ test.describe('预约日历总览', () => {
     await expect(dialog).toBeHidden()
   })
 
+  test('工具栏快速预约：键盘 Enter 打开弹窗并预填当前查看日期', async ({ page }) => {
+    await openCalendar(page)
+    const quickButton = page.getByRole('button', { name: '快速预约', exact: true })
+    await quickButton.focus()
+    await quickButton.press('Enter')
+
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.locator('.el-dialog__title')).toHaveText('快速预约')
+    await expect(dialog.getByPlaceholder('选择日期')).toHaveValue(futureDate(0))
+    await expect(timeSelect(dialog, '开始时间')).toContainText('08:00')
+    await expect(timeSelect(dialog, '结束时间')).toContainText('10:00')
+    await dialog.getByRole('button', { name: '取消' }).click()
+  })
+
   test('教室筛选：仅保留所选教室的色块', async ({ page, request }) => {
     await openCalendar(page)
     const token = await pageToken(page)

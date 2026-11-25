@@ -20,6 +20,9 @@
           <span class="legend-item"><span class="status-dot is-rejected" />已驳回</span>
           <span class="legend-item"><span class="status-dot is-canceled" />已取消</span>
         </div>
+        <el-button type="primary" class="quick-reserve-trigger" @click="handleQuickReserve">
+          快速预约
+        </el-button>
         <el-radio-group v-model="viewType" @change="handleViewChange">
           <el-radio-button value="dayGridMonth">月视图</el-radio-button>
           <el-radio-button value="dayGridWeek">周视图</el-radio-button>
@@ -269,6 +272,12 @@ function handleViewChange(view) {
   if (calendar) {
     calendar.changeView(view)
   }
+}
+
+/** 工具栏快速预约：以日历当前查看日期复用日期点击的预填与弹窗逻辑 */
+function handleQuickReserve() {
+  const currentDate = calendar ? calendar.getDate() : new Date()
+  handleDateClick({ dateStr: dayjs(currentDate).format('YYYY-MM-DD') })
 }
 
 /** 点击空白日期 → 快速预约弹窗（预填日期与教室） */

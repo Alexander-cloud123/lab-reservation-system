@@ -21,6 +21,12 @@ chat.init(getStoredUser() ? getStoredUser().id : 'anon')
 
 const scrollRef = ref(null)
 const composerRef = ref(null)
+/** 窄屏会话抽屉：复用同一份新对话、搜索与历史列表 */
+const mobileSidebarOpen = ref(false)
+const sidebarTriggerRef = ref(null)
+const sidebarRef = ref(null)
+const sidebarCloseRef = ref(null)
+let sidebarMedia = null
 /** 侧栏搜索：只过滤标题，不查消息正文（会话多时也要保持瞬时响应） */
 const searchQuery = ref('')
 /** 上翻到历史深处时出现「回到底部」，避免用户找不到正在生成的回答 */
@@ -164,6 +170,8 @@ function toggleSuggestions() {
 }
 
 async function onDeleteConversation(conversation) {
+  // 删除确认框与窄屏抽屉不同时抢占焦点；取消删除也保持会话内容不变
+  closeMobileSidebar()
   try {
     await ElMessageBox.confirm(`删除后无法恢复，确定删除「${conversation.title}」？`, '删除会话', {
       confirmButtonText: '删除',
@@ -276,12 +284,75 @@ function onRegenerate() {
   nextTick(() => composerRef.value && composerRef.value.focus())
 }
 
+function openMobileSidebar() {
+  mobileSidebarOpen.value = true
+  // 等抽屉进入可见状态后再移入焦点，避免下一帧样式重算把焦点退回触发按钮或 body。
+  nextTick(() => {
+    window.setTimeout(() => sidebarCloseRef.value && sidebarCloseRef.value.focus(), 240)
+  })
+}
+
+function closeMobileSidebar() {
+  if (!mobileSidebarOpen.value) return
+  mobileSidebarOpen.value = false
+  nextTick(() => sidebarTriggerRef.value && sidebarTriggerRef.value.focus())
+}
+
 function onNewConversation() {
   chat.newConversation()
   scrollToBottom()
+  closeMobileSidebar()
+}
+
+function onSwitchConversation(id) {
+  chat.switchConversation(id)
+  closeMobileSidebar()
+}
+
+function handleSidebarMediaChange(event) {
+  if (!event.matches && mobileSidebarOpen.value) {
+    mobileSidebarOpen.value = false
+    // 桌面端会话触发按钮会隐藏，焦点移到始终可见的「新对话」。
+    nextTick(() => {
+      // 等断点样式与关闭过渡完成后再聚焦；否则原关闭按钮隐藏时，浏览器会把焦点重新送回 body。
+      window.setTimeout(() => {
+        const newButton = sidebarRef.value && sidebarRef.value.querySelector('.ai-chat-new')
+        if (newButton) newButton.focus({ preventScroll: true })
+      }, 240)
+    })
+  }
 }
 
 function onKeydown(event) {
+  if (mobileSidebarOpen.value) {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      closeMobileSidebar()
+      return
+    }
+    if (event.key === 'Tab' && sidebarRef.value) {
+      const focusable = Array.from(
+        sidebarRef.value.querySelectorAll(
+          'button:not([disabled]), input:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((element) => element.offsetParent !== null)
+      if (!focusable.length) {
+        event.preventDefault()
+        return
+      }
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      const active = document.activeElement
+      if (event.shiftKey && (active === first || !sidebarRef.value.contains(active))) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && (active === last || !sidebarRef.value.contains(active))) {
+        event.preventDefault()
+        first.focus()
+      }
+      return
+    }
+  }
   // Esc 与主流对话产品一致：流式中按 Esc 立即停止，不误清输入
   if (event.key === 'Escape' && sending.value) {
     event.preventDefault()
@@ -291,11 +362,16 @@ function onKeydown(event) {
 
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
+  sidebarMedia = window.matchMedia('(max-width: 768px)')
+  sidebarMedia.addEventListener('change', handleSidebarMediaChange)
   nextTick(() => composerRef.value && composerRef.value.focus())
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
+  if (sidebarMedia) {
+    sidebarMedia.removeEventListener('change', handleSidebarMediaChange)
+  }
   cancelAnimationFrame(followFrame)
   chat.dispose()
 })
@@ -307,7 +383,23 @@ probeAiRecommend().catch(() => {})
 <template>
   <section class="ai-chat-page ai-assistant">
     <p class="sr-only chat-live" role="status" aria-live="polite">{{ liveStatus }}</p>
-    <aside class="ai-chat-sidebar" aria-label="会话列表">
+    <button
+      v-if="mobileSidebarOpen"
+      type="button"
+      class="ai-chat-sidebar-backdrop"
+      tabindex="-1"
+      aria-label="关闭会话列表遮罩"
+      @click="closeMobileSidebar"
+    />
+    <aside
+      id="ai-chat-sidebar"
+      ref="sidebarRef"
+      class="ai-chat-sidebar"
+      :class="{ 'mobile-open': mobileSidebarOpen }"
+      aria-label="会话列表"
+      :role="mobileSidebarOpen ? 'dialog' : undefined"
+      :aria-modal="mobileSidebarOpen ? 'true' : undefined"
+    >
       <div class="sidebar-head">
         <span class="sidebar-mark" aria-hidden="true">AI</span>
 
@@ -315,6 +407,15 @@ probeAiRecommend().catch(() => {})
           <strong>AI 预约助手</strong>
           <span>实验室预约系统</span>
         </div>
+        <button
+          ref="sidebarCloseRef"
+          type="button"
+          class="ai-chat-sidebar-close"
+          aria-label="关闭会话列表"
+          @click="closeMobileSidebar"
+        >
+          ×
+        </button>
       </div>
 
       <button type="button" class="ai-chat-new" @click="onNewConversation">
@@ -351,7 +452,7 @@ probeAiRecommend().catch(() => {})
               <button
                 type="button"
                 class="conv-main"
-                @click="chat.switchConversation(item.conversation.id)"
+                @click="onSwitchConversation(item.conversation.id)"
               >
                 <span class="conv-title">{{ item.conversation.title }}</span>
               </button>
@@ -386,6 +487,17 @@ probeAiRecommend().catch(() => {})
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
             <path d="M14.5 5.5 8 12l6.5 6.5" stroke="currentColor" stroke-width="1.6" fill="none" />
           </svg>
+        </button>
+        <button
+          ref="sidebarTriggerRef"
+          type="button"
+          class="ai-chat-sessions"
+          aria-label="打开会话列表"
+          aria-controls="ai-chat-sidebar"
+          :aria-expanded="mobileSidebarOpen"
+          @click="openMobileSidebar"
+        >
+          会话
         </button>
         <span class="topbar-title">{{ title }}</span>
         <span class="topbar-state">{{ sending ? '回答中…' : '就绪' }}</span>
@@ -519,6 +631,12 @@ probeAiRecommend().catch(() => {})
   padding: var(--space-md) var(--space-sm) var(--space-sm);
   border-right: 1px solid var(--line);
   background: var(--surface);
+}
+
+.ai-chat-sessions,
+.ai-chat-sidebar-close,
+.ai-chat-sidebar-backdrop {
+  display: none;
 }
 
 .sidebar-head {
@@ -1104,10 +1222,95 @@ probeAiRecommend().catch(() => {})
 }
 
 @media (max-width: 768px) {
-  .ai-chat-sidebar {
-    display: none;
+  .ai-chat-sidebar-backdrop {
+    position: fixed;
+    z-index: 1100;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: var(--el-mask-color);
+    cursor: default;
   }
-
+  .ai-chat-sidebar {
+    position: fixed;
+    z-index: 1101;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    width: min(300px, calc(100vw - 48px));
+    height: 100vh;
+    height: 100dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateX(-102%);
+    transition: transform var(--dur-2) var(--ease-out), visibility var(--dur-2) var(--ease-out);
+  }
+  .ai-chat-sidebar.mobile-open {
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateX(0);
+  }
+  .sidebar-title {
+    flex: 1;
+    min-width: 0;
+  }
+  .ai-chat-sidebar-close {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-control);
+    background: var(--glass-strong);
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: var(--text-lg);
+    line-height: 1;
+    cursor: pointer;
+  }
+  .ai-chat-sidebar-close:hover {
+    border-color: var(--brand);
+    color: var(--brand);
+  }
+  .ai-chat-topbar {
+    gap: var(--space-sm);
+    padding: 0 12px;
+  }
+  .ai-chat-sessions {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+    background: var(--glass-strong);
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .ai-chat-sessions:hover {
+    border-color: var(--brand);
+    color: var(--brand);
+  }
+  .ai-chat-sessions:focus-visible,
+  .ai-chat-sidebar-close:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+  }
+  .ai-chat-main {
+    width: 100%;
+    min-width: 0;
+  }
   .ai-chat-suggestions {
     grid-template-columns: minmax(0, 1fr);
   }

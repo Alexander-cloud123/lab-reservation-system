@@ -261,24 +261,51 @@ async function handleLogout() {
   overflow-y: auto;
 }
 
-/* ---------- 窄屏适配（P3-8：<800px 顶栏压缩，菜单仅留图标；<560px 隐藏品牌文字） ---------- */
+/* ---------- 窄屏适配：菜单保留简短文字，菜单区自身横向滚动 ---------- */
 @media (max-width: 800px) {
   .student-header {
+    gap: var(--space-sm);
+    max-width: 100vw;
     padding: 0 12px;
+    overflow: hidden;
+  }
+  .header-left {
+    flex: 0 0 auto;
+  }
+  .header-right {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .header-right :deep(.el-dropdown) {
+    flex: 0 0 auto;
   }
   .role-chip {
     display: none;
   }
   .header-menu {
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    min-width: 0;
     margin-right: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+  }
+  .header-menu::-webkit-scrollbar {
+    height: 4px;
   }
   .header-menu .el-menu-item {
-    margin: 0 2px;
-    padding: 0 8px;
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 0 10px;
   }
-  /* 隐藏菜单文字仅留图标，避免 4 个菜单窄屏溢出 */
   .header-menu .el-menu-item span {
-    display: none;
+    display: inline;
+  }
+  .user-entry {
+    padding-right: 4px;
+    padding-left: 4px;
   }
   .user-name {
     display: none;

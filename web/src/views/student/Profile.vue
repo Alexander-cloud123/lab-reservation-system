@@ -204,6 +204,7 @@
       title="编辑资料"
       width="min(420px, calc(100vw - 32px))"
       @opened="clearInfoValidate"
+      @closed="handleInfoDialogClosed"
     >
       <el-form ref="infoFormRef" :model="infoForm" :rules="infoRules" label-width="76px">
         <el-form-item label="姓名" prop="name">
@@ -228,6 +229,7 @@
       title="修改密码"
       width="min(420px, calc(100vw - 32px))"
       @opened="clearPwdValidate"
+      @closed="handlePwdDialogClosed"
     >
       <el-form ref="pwdFormRef" :model="pwdForm" :rules="pwdRules" label-width="76px">
         <el-form-item label="原密码" prop="oldPassword">
@@ -393,12 +395,24 @@ const pwdRules = {
   ]
 }
 
-/** 打开编辑资料弹窗（打开时清除历史校验痕迹） */
+/** 以当前用户信息重建资料表单，避免取消后的编辑内容残留 */
+function resetInfoForm() {
+  infoForm.name = userInfo.value ? userInfo.value.name || '' : ''
+  infoForm.email = userInfo.value ? userInfo.value.email || '' : ''
+  infoForm.phone = userInfo.value ? userInfo.value.phone || '' : ''
+}
+
+/** 打开编辑资料弹窗（每次重新赋值，并清除历史校验痕迹） */
 function openEditDialog() {
+  resetInfoForm()
   editDialogVisible.value = true
 }
 function clearInfoValidate() {
   nextTick(() => infoFormRef.value && infoFormRef.value.clearValidate())
+}
+function handleInfoDialogClosed() {
+  resetInfoForm()
+  clearInfoValidate()
 }
 
 /** 打开修改密码弹窗（打开时清除历史校验痕迹） */
@@ -407,6 +421,12 @@ function openPwdDialog() {
 }
 function clearPwdValidate() {
   nextTick(() => pwdFormRef.value && pwdFormRef.value.clearValidate())
+}
+function handlePwdDialogClosed() {
+  pwdForm.oldPassword = ''
+  pwdForm.newPassword = ''
+  pwdForm.confirmPassword = ''
+  clearPwdValidate()
 }
 
 /** 消息已读状态（localStorage 持久化，key 带用户维度） */
@@ -654,9 +674,7 @@ function goClassroomList() {
 onMounted(async () => {
   await userStore.fetchInfo().catch(() => {})
   // 弹窗默认值来自最新用户信息
-  infoForm.name = userInfo.value ? userInfo.value.name || '' : ''
-  infoForm.email = userInfo.value ? userInfo.value.email || '' : ''
-  infoForm.phone = userInfo.value ? userInfo.value.phone || '' : ''
+  resetInfoForm()
   loadStats()
   loadFavorites()
   loadNotifications()

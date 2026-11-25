@@ -27,6 +27,11 @@
       </div>
     </div>
 
+    <div v-if="loadError" class="dashboard-error" role="alert">
+      <span>{{ hasLoaded ? '数据可能未更新，当前保留上次成功的图表。' : '图表数据加载失败，请重试。' }}</span>
+      <el-button link type="primary" @click="loadAll">重试</el-button>
+    </div>
+
     <!-- 三块图表白面：使用率排行 / 热门时段 / 月度趋势，32px 留白分隔 -->
     <div class="chart-grid">
       <div class="surface chart-card">
@@ -106,6 +111,8 @@ const PIE_PALETTE = [C.brand, C.aqua, C.sun, C.deep, C.soft]
 /** 图表入场：一次 320ms 生长，三图错开 80ms 依次到位（不做循环动画） */
 const CHART_ANIM = { animation: true, animationDuration: 320, animationEasing: 'cubicOut' }
 const loading = ref(false)
+const loadError = ref(false)
+const hasLoaded = ref(false)
 const quickRange = ref('30')
 const dateRange = ref([
   dayjs().subtract(29, 'day').format('YYYY-MM-DD'),
@@ -169,6 +176,7 @@ function handleDateRangeChange() {
 async function loadAll() {
   const seq = ++loadSeq
   loading.value = true
+  loadError.value = false
   try {
     const params = rangeParams()
     const [usageRes, trendRes, distRes] = await Promise.all([
@@ -180,8 +188,11 @@ async function loadAll() {
     renderUsageRate(usageRes.data || [])
     renderTrend(trendRes.data || [])
     renderTimeDistribution(distRes.data || [])
+    hasLoaded.value = true
+    loadError.value = false
   } catch {
-    // 统一错误提示已由 request.js 处理；旧请求失败不影响最新筛选
+    if (seq === loadSeq) loadError.value = true
+    // 统一错误提示已由 request.js 处理；不重新渲染，保留上次成功的图表。
   } finally {
     if (seq === loadSeq) loading.value = false
   }
@@ -399,6 +410,17 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
   gap: var(--space-md);
   flex-wrap: wrap;
+}
+
+.dashboard-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+  color: var(--warning);
+  font-size: var(--text-sm);
 }
 
 /* 图表区：两列白面 + 32px 留白，窄屏堆叠 */

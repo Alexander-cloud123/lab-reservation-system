@@ -18,7 +18,7 @@
       tabindex="-1"
     >
       <!-- 状态分类查看 -->
-      <el-tabs v-model="activeStatus" @tab-change="handleTabChange">
+      <el-tabs v-model="activeStatus" @tab-click="handleTabClick">
         <el-tab-pane label="全部" name="all" />
         <el-tab-pane label="待审核" name="0" />
         <el-tab-pane label="已通过" name="1" />
@@ -269,7 +269,12 @@ function handleSizeChange() {
   pushRoute()
 }
 
-/** 切换状态标签页 */
+/** tab-click 对当前标签也会触发：切换时写 URL，重复点击只刷新、不写历史。 */
+function handleTabClick(tab) {
+  const name = String(tab.paneName ?? tab.props?.name ?? 'all')
+  handleTabChange(name)
+}
+
 function handleTabChange(name) {
   query.status = name === 'all' ? undefined : Number(name)
   query.page = 1

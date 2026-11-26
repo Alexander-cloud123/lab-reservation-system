@@ -2,9 +2,11 @@
 
 本项目采用 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 风格记录变更，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-当前交付版本为 `1.0.0`，覆盖 R1–R13 共 13 轮迭代。逐轮的完整交付文档（任务说明 / 接口清单 / 测试报告 / 启动说明）见 `docs/iterations/`。
+当前交付版本为 `1.2.0`，覆盖 R1–R17 共 17 轮迭代。逐轮的完整交付文档（任务说明 / 接口清单 / 测试报告 / 启动说明）见 `docs/iterations/`。
 
-## [未发布] - 2026-11
+## [未发布]
+
+## [1.2.0] - 2026-11-26
 
 ### 新增
 - **URL 深链、语义结构与图表文本替代**：完成前端设计原则第二批建议。六个列表页把筛选、分页与高级筛选展开状态写入 URL，看板同步快捷/自定义时间区间，预约日历同步月/周视图、日期与教室；默认参数省略、非法参数规范化，用户操作写历史、初始化/纠错用 replace，仅展开变化不请求，快速前进/后退丢弃旧响应。学生教室列表继续兼容按用户保存的旧筛选记忆。学生与管理端楼栋筛选改用独立全量字典（每页 500，按 total 续取），不再只列当前页；学生页补齐稳定 h1，学生/管理布局增加「跳至主内容」及 path 切换后的主区焦点管理，AI 页移除嵌套 main，欢迎标识改为强制颜色模式可读的实色。看板三个 canvas 增加中文标签与默认折叠的原生数据表，和图表共享最近成功数据。新增 `44-url-state.spec.js`、`45-semantic-structure.spec.js`，并扩展看板数据表与楼栋字典回归。
@@ -34,6 +36,8 @@
 
 ### 修复 / 安全加固
 
+- **v1.2.0 发布收口与依赖安全维护**：使用 npm 官方 registry 完成前端依赖审计，并在 dry-run 确认后仅应用四个无大版本变更的补丁：`markdown-it 14.3.3`、`follow-redirects 1.16.3`、`source-map-js 1.2.4`、`postcss-selector-parser 6.1.6`，未新增依赖或升级 Vue / Vite / ECharts / Element Plus / Spring Boot。剩余 advisory 按 SSR、`el-link`、开发服务器与实际图表输入逐项记录适用性，详见 [`docs/依赖安全审计.md`](docs/依赖安全审计.md)，不宣称 npm audit 已清零。同步补齐 Web CI 的 PR 触发、数据库迁移目录的 CI 触发路径、E2E 当前规模与报告保留期。
+
 - **AI 默认口径调整为「容器演示默认开启」**：`docker-compose.yml` 的 api 环境默认值由 `AI_ENABLE=false` 改为 `true`，`.env.example` 同步为 `AI_ENABLE=true`，`database/init_db.sql` 种子 `ai_config.ai_enable` 改为 `true`——`docker compose up -d` 后登录即下发 `aiEnabled=true`，不再需要人工跑开关脚本。裸 `java -jar`、单元测试与 CI 仍由 `application.yml` 的 `${AI_ENABLE:false}` 与工作流显式 `AI_ENABLE=false` 保持关闭（零依赖、确定性不变）。未配置 `AGNES_API_KEY` 时两开关仍为开启，但所有 AI 回复自动降级为本地规则并在界面标注「AI 服务未配置密钥」，不阻断预约核心功能。存量数据卷（种子改动前创建、`ai_enable` 仍为 `false`）需跑一次 `pwsh server/scripts/ai-switch.ps1` 补齐；文档见 [docs/运行与配置.md](docs/运行与配置.md)。
 
 - **会话撤销改为数据库版本号权威**：`sys_user` 新增 `token_version`（幂等迁移脚本 [`database/migrations/20261107_add_sys_user_token_version.sql`](database/migrations/20261107_add_sys_user_token_version.sql)）。JWT 签发时携带版本号，登出 / 改密 / 管理员重置 / 启用禁用都会原子自增，正常路径下旧 Token 下一次请求即 401——Redis 关闭、后端重启、多实例部署下同样成立（删除鉴权快照失败的异常路径见下方「文档」修正条目）。
@@ -55,7 +59,7 @@
 ### 测试
 
 - 后端 **347 项**（+28，2026-11-17 复核：surefire 汇总 43 类 / 347 例 / 0 失败、0 跳过；原记录的 347 含已删测试类残留虚增）：新增 `AiBookingIntentTest`（8 条意图正例 / 10 条查询类反例）、`AiBookingPlanServiceImplTest` 8 例（Top3 与 moreAvailable、容量/冲突排除含首尾相接、解析失败不检索、空候选澄清、AI 关闭、日期早于今天、常用楼栋加权、无历史仍可用）与 `AiChatStreamServiceTest` 3 例（`plan` 帧顺序、规划分支不调上游与不读缓存、澄清/空候选不出方案帧）；另新增 `AiThinkingTraceTest`（步骤计时 / closed 后静默丢弃 / 写失败抛 UncheckedIOException）、`AiChatStreamServiceTest` 5 例（成功轨迹顺序、缓存命中、降级 failed+fallback、关闭态无轨迹、reasoning 透传且不并入正文）、`AiStreamFramesTest` 2 例（`reasoning_content` 与别名 `reasoning`）、`AgnesClientStreamOrchestrationTest` 2 例（推理端口隔离）。
-- 前端 E2E **141 例 / 20 spec**（本轮页面上下文新增 2 例：教室详情页带 `roomId` 进对话并随请求下发 `context.classroomId`、点 × 移除后请求不再带 context；AI 预约方案卡新增 4 例：方案卡与候选渲染、点「去预约」落到确认步骤并实时判冲突、空方案无按钮）（AI 助手思考过程新增 6 例、AI 入口自愈 2 例、对话交互补 3 例（重新生成 / 回到底部 / Esc 停止）、本轮历史持久化补 4 例（刷新恢复 / 会话排序 / 删除 / 登出清理）：思考中计时与步骤 → 自动折叠 → 展开推理、无推理说明、降级标记、缓存命中、关闭态不渲染面板；「思考中」瞬时态用 `patchStreamingChat` 逐帧推流，不调用真实模型）。
+- 前端 E2E **192 例 / 24 spec**：覆盖 AI 页面上下文与预约方案卡、思考过程、入口自愈、历史持久化、重新生成 / 回到底部 / Esc 停止，并新增交互与设计原则、动效、URL 深链、语义结构等 R16–R17 回归；2026-11-26 本机实测 Chromium 与 Edge 均为 **192 passed / 0 skipped**。
 - 后端 **309 项**（新增 `TokenRevocationIntegrationTest`：固定 `redis.enable=false`，验证无 Redis 也能持久撤销；新增拦截器版本号 / 状态缓存用例）。新增 4 个纯逻辑测试类补齐看板与降级链：`StatsServiceImplTest`（聚合口径 / 窗口裁剪与 14h 封顶 / 排序 / 区间校验）、`ReservationConverterTest`（批量预查短路 / 三种 VO / 状态文案）、`AiParseFallbackTest`（自然语言解析与非法输入不抛异常）、`AiRecommendFallbackTest`（规则打分与推荐理由）；另补 2 个业务分支覆盖类 `ReservationServiceImplCoverageTest`（参数校验/授权/导出上限/日历区间与可见性/关键词拼接）与 `ClassroomServiceImplCoverageTest`（CRUD 校验/删除保护/启停幂等/学生端缓存与占用时段/状态标签），以及 `UserServiceImplCoverageTest`（登录/注册/资料/改密全分支）、`RedisCacheObjectCacheTest`（对象缓存与代次失效降级）、`AiJsonSupportTest`（模型 JSON 容错解析）、`FavoriteServiceImplCoverageTest`（收藏上限与幽灵卡片过滤），行覆盖率 54% → **80.6%**（指令 81.9% / 分支 74.2%，ReservationServiceImpl 98.1%、ClassroomServiceImpl 99.1%、UserServiceImpl 97.5%、RedisCache 87.0%）。
 - 前端 E2E **120 项 / 17 spec**，新增「会话撤销」spec；新增 Microsoft Edge 全量回归项目（`npm run test:e2e:edge`，默认脚本仍只跑 Chromium）。
 - `server/scripts/smoke.ps1` 增至 **41 项**（含重置密码后旧 Token 失效断言），并修复脚本对 PowerShell 7 错误响应的兼容性。
@@ -64,7 +68,9 @@
 
 ### 文档
 
-- **重录三段演示视频以匹配墨蓝门牌体系**：视觉重构后旧素材（排课表式界面）已过期，用 `web/scripts/capture-demo-video.mjs` 重新录制并替换——GIF `docs/images/demo-walkthrough.gif`（880×550 / 10fps / 6.4MB / 实测 41.6 秒）、完整版 `demo-walkthrough.mp4`（1440×900 / H.264 / 2.9MB / 实测 73 秒）、AI 片段 `demo-ai-thinking.mp4`（1440×900 / H.264 / 0.8MB / 实测 30 秒），两个 MP4 已通过 `gh release upload v1.1.0 --clobber` 替换 Release 资产。脚本同步适配新界面：录制前清空 Redis `cache:ai:*` 保证等待动画与逐步轨迹真实出现、真实调用一次推荐接口预热 60 秒缓存、结尾指标卡更新为 347 项后端测试 / 行覆盖 81.6% / 41 项冒烟 / 141 例 E2E、字幕与光标改用墨蓝 token；AI 段落新增「思考中 → 自动折叠 → 展开回看」三态录制，面板头点击按「合成光标 → Playwright 点击 → DOM 点击」三级兜底（正文贴底滚动会拦截坐标点击）。README「演示」区块与 [`docs/演示视频分镜.md`](docs/演示视频分镜.md) 的分镜、实测时长、体积与验收阈值同步更新，并删除「录制于视觉重构前」的过期说明。
+- **v1.2.0 重录当前晨光玻璃演示素材并更新社交预览**：GIF `docs/images/demo-walkthrough.gif` 为 880×550 / 8fps / 96 色、45.76 秒、7,948,675 字节（≤8MB）；完整版 MP4 为 1440×900 / H.264、85.16 秒、5,016,044 字节；AI 思考片段为 29.76 秒、1,298,883 字节，两个 MP4 作为 v1.2.0 Release 资产发布。录制脚本适配整卡点击与折叠筛选，结尾卡更新为 192 例 E2E，并修复 AI 模式自定义 `--out` 不生效的问题。社交预览图更新为当前界面及 347 后端测试 / 81.6% 行覆盖 / 192 E2E。
+
+- **重录三段演示视频以匹配墨蓝门牌体系（v1.1.0，历史素材）**：视觉重构后旧素材（排课表式界面）已过期，用 `web/scripts/capture-demo-video.mjs` 重新录制并替换——GIF `docs/images/demo-walkthrough.gif`（880×550 / 10fps / 6.4MB / 实测 41.6 秒）、完整版 `demo-walkthrough.mp4`（1440×900 / H.264 / 2.9MB / 实测 73 秒）、AI 片段 `demo-ai-thinking.mp4`（1440×900 / H.264 / 0.8MB / 实测 30 秒），两个 MP4 已通过 `gh release upload v1.1.0 --clobber` 替换 Release 资产。脚本同步适配新界面：录制前清空 Redis `cache:ai:*` 保证等待动画与逐步轨迹真实出现、真实调用一次推荐接口预热 60 秒缓存、结尾指标卡更新为 347 项后端测试 / 行覆盖 81.6% / 41 项冒烟 / 141 例 E2E、字幕与光标改用墨蓝 token；AI 段落新增「思考中 → 自动折叠 → 展开回看」三态录制，面板头点击按「合成光标 → Playwright 点击 → DOM 点击」三级兜底（正文贴底滚动会拦截坐标点击）。README「演示」区块与 [`docs/演示视频分镜.md`](docs/演示视频分镜.md) 的分镜、实测时长、体积与验收阈值同步更新，并删除「录制于视觉重构前」的过期说明。
 - 新增 [`server/scripts/ai-switch.ps1`](server/scripts/ai-switch.ps1)：AI 动态开关的一键切换与校验；README「启用 AI」与 [`docs/运行与配置.md`](docs/运行与配置.md) §2 同步改写，并补「悬浮球不出现」排查表（静态/动态双开关、`docker compose restart` 不重读环境变量、前端每次启动以服务端探测为准）。
 - 新增可靠性证据：[`docs/可靠性验证.md`](docs/可靠性验证.md) 汇总故障演练与性能基准实测 —— 故障演练脚本 [`server/scripts/chaos-drill.ps1`](server/scripts/chaos-drill.ps1)（Redis fail closed 401 / MySQL 统一错误包 30s / 恢复自愈 / 数据复原，15 项；`-IncludeSlow` 补 60s 会话撤销窗口）、接口基准 [`web/scripts/bench-api.mjs`](web/scripts/bench-api.mjs)（7 个接口 p50/p95/p99，冲突检测 p95 ≈ 16.5 ms 对 500 ms 上限）、页面基准 [`web/scripts/bench-page.mjs`](web/scripts/bench-page.mjs)（7 个页面首屏就绪 p95 54–137 ms 对 2 s 上限）；README 质量表与文档导航同步。
 - 新增 [`docs/安全基线.md`](docs/安全基线.md) 与 [`server/scripts/security-check.ps1`](server/scripts/security-check.ps1)（8 项自动检查：响应头 / Server 版本 / 接口文档端点 / 默认密钥伪造 Token / 未登录 401 / 学生越权 403 / 登录与注册限流）；README「快速开始」补 `.env` 复制与密钥生成步骤、质量表增一行，[`docs/运行与配置.md`](docs/运行与配置.md) 环境变量表补 `SPRING_PROFILES_ACTIVE` / `CORS_ALLOWED_ORIGINS` 并更新 `JWT_SECRET` / `KNIFE4J_ENABLE` / `MYBATIS_LOG_IMPL` 口径。
@@ -72,14 +78,14 @@
 - 新增 AI 演示片段：`--mode=ai` 录制 30 秒「AI 助手思考过程」视频（`.devtmp/demo/demo-ai-thinking.mp4`，GitHub Release `v1.1.0` 资产），README「演示」区块增链接，`web/package.json` 增 `demo:ai`；[`docs/演示视频分镜.md`](docs/演示视频分镜.md) 增「AI 助手思考片段分镜」一节与预热缓存、真实模型耗时兜底说明。
 - 同步 `需求设计文档.md` §2.3.2（`sys_user.token_version`）、`docs/Redis加分项接入说明.md`、`docs/演示脚本.md` 的撤销与 fail-closed 口径，并新增数据库设计图字段。
 - 新增 [`docs/无障碍人工验收清单.md`](docs/无障碍人工验收清单.md)（读屏器人工验收步骤；人工听感按项目负责人 2026-11-07 决定**不执行**，非需求项，机器代理记录见下）。
-- 新增无障碍机器代理验收：脚本 [`web/scripts/a11y-acceptance.mjs`](web/scripts/a11y-acceptance.mjs)、记录 [`docs/review/无障碍机器代理验收记录.md`](docs/review/无障碍机器代理验收记录.md) 与证据 [`docs/review/a11y-evidence/`](docs/review/a11y-evidence/)；**16 项全部有机器证据并通过**（C4 修复后由机器验证）；真实播报人工听感按负责人决定不纳入交付（本机未安装 NVDA、讲述人未运行，未执行）。
+- 新增无障碍机器代理验收：脚本 [`web/scripts/a11y-acceptance.mjs`](web/scripts/a11y-acceptance.mjs)、记录 [`docs/review/无障碍机器代理验收记录.md`](docs/review/无障碍机器代理验收记录.md) 与证据 [`docs/review/a11y-evidence/`](docs/review/a11y-evidence/)；当前为 **15 项通过 + 1 项信息检查**（C4 修复后由机器验证）；真实播报人工听感按负责人决定不纳入交付（本机未安装 NVDA、讲述人未运行，未执行）。
 - 修正会话撤销「立即生效」的绝对表述：补充「删除鉴权状态快照失败时，Redis 恢复后 ≤60s 旧快照窗口内旧 Token 仍可能被接受」的如实口径（故障期间仍 fail-closed 401；窗口结束后回源数据库即 401），同步 [`docs/Redis加分项接入说明.md`](docs/Redis加分项接入说明.md) §3/§4/§5/§6.2、[`docs/演示脚本.md`](docs/演示脚本.md)、`AuthInterceptor` 与 `RedisCache` 注释。
 - README 重构为作品页结构（250 行）：预览截图前置、迭代历程压缩为 4 个里程碑，环境变量 / AI / Redis / 端口细节迁移至 [`docs/运行与配置.md`](docs/运行与配置.md)；新增 `.gitattributes` 统一换行为 LF（13 个文本文件 renormalize，无内容改动）。
 - README 增加「项目预览」真实运行截图（[`docs/images/`](docs/images/)，由 [`web/scripts/capture-screens.mjs`](web/scripts/capture-screens.mjs) 采集）与「架构设计」Mermaid 图、三点设计取舍表；「测试」章节补充规模统计表，方便快速了解项目与面试讲解。
 
 ### 持续集成
 
-- 新增 [`stack-smoke.yml`](.github/workflows/stack-smoke.yml)：真实起 MySQL / Redis / 后端 / 前端，`smoke` job 跑 41 项接口冒烟、`e2e` job 跑 120 项 Playwright E2E；两个 job 各自持有独立 service 容器，避免冒烟写入的数据污染 E2E 基线。
+- 新增 [`stack-smoke.yml`](.github/workflows/stack-smoke.yml)：真实起 MySQL / Redis / 后端 / 前端，`smoke` job 跑 41 项接口冒烟、`e2e` job 跑当前 spec 全集（192 项 Playwright E2E）；两个 job 各自持有独立 service 容器，避免冒烟写入的数据污染 E2E 基线。
 - `server-ci.yml` 增加 JaCoCo 覆盖率报告并作为 artifact 上传（`jacoco-maven-plugin 0.8.12`，指令覆盖率 81.9% / 行覆盖率 80.6% / 分支 74.2%，DTO / VO / entity 等纯数据载体不计入分母）。
 
 ## [1.0.0] - 2026-10

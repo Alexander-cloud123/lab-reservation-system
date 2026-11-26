@@ -8,11 +8,13 @@ on:
     paths:
       - 'server/**'
       - 'database/init_db.sql'
+      - 'database/migrations/**'
       - '.github/workflows/server-ci.yml'
   pull_request:
     paths:
       - 'server/**'
       - 'database/init_db.sql'
+      - 'database/migrations/**'
       - '.github/workflows/server-ci.yml'
 
 concurrency:

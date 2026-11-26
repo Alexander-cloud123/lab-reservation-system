@@ -52,7 +52,6 @@ const cfg = {
 }
 
 const GIF_FILE = path.join(ROOT, 'docs', 'images', 'demo-walkthrough.gif')
-const AI_FILE = path.join(cfg.out, 'demo-ai-thinking.mp4')
 
 /* ============================ 小工具 ============================ */
 
@@ -388,6 +387,7 @@ async function segClassroomList(page, { keyword = 'B101', building = false, buil
   await sleep(900)
 
   if (building) {
+    await tap(page, page.locator(BUTTON('更多筛选')).first(), { delay: 120 })
     const buildingSelect = page
       .locator('.el-form-item')
       .filter({ hasText: '楼栋' })
@@ -553,7 +553,7 @@ async function segEndCard(page) {
     subtitle: 'Spring Boot 3 + Vue 3，8 周课程设计作品',
     stats: [
       '347 项后端测试（JUnit），行覆盖 81.6%',
-      '41 项接口冒烟，141 例 E2E（Chromium + Edge）',
+      '41 项接口冒烟，192 例 E2E',
       '3 套 GitHub Actions，双重冲突校验，AI 可降级'
     ],
     repo: 'github.com/Alexander-cloud123/lab-reservation-system'
@@ -922,7 +922,7 @@ async function runGif(page, seed) {
   await sleep(300)
   await segLogin(page, { role: 0, account: 'zhangsan', password: '123456', fast: true })
   await segClassroomList(page, { keyword: 'B101' })
-  await tap(page, page.locator('.room-card').filter({ hasText: 'B101' }).first().locator('button').filter({ hasText: '查看详情' }).first(), { delay: 200 })
+  await tap(page, page.locator('.room-card').filter({ hasText: 'B101' }).first(), { delay: 200 })
   await page.waitForURL(/\/student\/classrooms\/5/, { timeout: 8000 })
   await sleep(900)
   await segReserveConflict(page, { date: seed.date, purpose: '课程设计答辩彩排' })
@@ -946,7 +946,7 @@ async function runFull(page, seed) {
   await segClassroomList(page, { keyword: 'B101', building: true })
   log('段 2/10：教室检索完成')
 
-  await tap(page, page.locator('.room-card').filter({ hasText: 'B101' }).first().locator('button').filter({ hasText: '查看详情' }).first(), { delay: 250 })
+  await tap(page, page.locator('.room-card').filter({ hasText: 'B101' }).first(), { delay: 250 })
   await page.waitForURL(/\/student\/classrooms\/5/, { timeout: 8000 })
   await sleep(1500)
 
@@ -1066,8 +1066,9 @@ async function main() {
     }
     if (size > 8) throw new Error('GIF 仍超过 8MB，请降低 --gif-width 或 --gif-fps')
   } else if (cfg.mode === 'ai') {
-    encodeMp4(webm, AI_FILE)
-    log(`AI 片段 MP4：${AI_FILE}（${fileSizeMB(AI_FILE).toFixed(1)}MB）`)
+    const aiFile = path.join(cfg.out, 'demo-ai-thinking.mp4')
+    encodeMp4(webm, aiFile)
+    log(`AI 片段 MP4：${aiFile}（${fileSizeMB(aiFile).toFixed(1)}MB）`)
   } else {
     const mp4 = path.join(cfg.out, 'demo-walkthrough.mp4')
     encodeMp4(webm, mp4)

@@ -8,24 +8,24 @@
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.10-6DB33F.svg)
 ![Vue](https://img.shields.io/badge/Vue-3.4-4FC08D.svg)
 ![Backend Tests](https://img.shields.io/badge/backend%20tests-347-brightgreen.svg)
-![E2E](https://img.shields.io/badge/E2E-192%20%28Chromium%20%2B%20Edge%29-brightgreen.svg)
+![E2E](https://img.shields.io/badge/E2E-192-brightgreen.svg)
 
-前后端分离的高校实验室/教室预约管理系统，覆盖 R1–R13 共 13 轮迭代。核心是预约提交的**「前端实时校验 + 后端二次冲突检测」双重校验**，以及**严格的预约状态流转**：
+前后端分离的高校实验室/教室预约管理系统，覆盖 R1–R17 共 17 轮迭代。核心是预约提交的**「前端实时校验 + 后端二次冲突检测」双重校验**，以及**严格的预约状态流转**：
 
 - 冲突检测公式：`新开始 < 旧结束 AND 新结束 > 旧开始`
 - 状态流转：待审核(0) → 已通过(1) / 已驳回(2)；待审核 / 已通过 → 已取消(3)
 
-**规模**：347 个后端测试（行覆盖 81.6%）· 41 项接口冒烟 · 192 例 Playwright E2E（Chromium + Edge）· 15 项故障演练 · 7 接口 + 7 页性能基准 · 3 套 GitHub Actions。
+**规模**：347 个后端测试（行覆盖 81.6%）· 41 项接口冒烟 · 192 例 Playwright E2E（Chromium + Edge 各 192 passed）· 15 项故障演练 · 7 接口 + 7 页性能基准 · 3 套 GitHub Actions。
 
 ## 演示
 
-41 秒 GIF 走完核心链路——登录字段级校验 → 教室检索 → 实时冲突检测 → 状态流转 → 数据看板 → 批量审核（Playwright 驱动真实浏览器录制，非拼接截图）：
+46 秒 GIF 走完核心链路——登录字段级校验 → 教室检索 → 实时冲突检测 → 状态流转 → 数据看板 → 批量审核（Playwright 驱动真实浏览器录制，非拼接截图）：
 
-<p align="center"><img src="docs/images/demo-walkthrough.gif" alt="预约系统 41 秒演示" width="880" /></p>
+<p align="center"><img src="docs/images/demo-walkthrough.gif" alt="预约系统 46 秒演示" width="880" /></p>
 
-73 秒完整版包含真实退出登录 / 管理员登录、日历月周切换、结尾指标卡：[下载 MP4](https://github.com/Alexander-cloud123/lab-reservation-system/releases/download/v1.1.0/demo-walkthrough.mp4)。
+85 秒完整版包含真实退出登录 / 管理员登录、日历月周切换、结尾指标卡：[下载 MP4](https://github.com/Alexander-cloud123/lab-reservation-system/releases/download/v1.2.0/demo-walkthrough.mp4)。
 
-AI 助手单独剪了约 30 秒片段（时长随上游吐字波动），展示「参考 DeepSeek 网页端」的思考体验——三点脉冲等待动画、逐条真实执行轨迹、服务端实测计时，回答到达后自动折叠为「已思考 X.X 秒」并可展开查看推理原文：[AI 助手思考片段](https://github.com/Alexander-cloud123/lab-reservation-system/releases/download/v1.1.0/demo-ai-thinking.mp4)。
+AI 助手单独剪了约 30 秒片段（时长随上游吐字波动），展示「参考 DeepSeek 网页端」的思考体验——三点脉冲等待动画、逐条真实执行轨迹、服务端实测计时，回答到达后自动折叠为「已思考 X.X 秒」并可展开查看推理原文：[AI 助手思考片段](https://github.com/Alexander-cloud123/lab-reservation-system/releases/download/v1.2.0/demo-ai-thinking.mp4)。
 
 录制脚本 [`web/scripts/capture-demo-video.mjs`](web/scripts/capture-demo-video.mjs) 会在录制前复位种子库、按固定锚点造出待审核与冲突数据，任意时刻重录结果一致；分镜、参数与验收清单见 [`docs/演示视频分镜.md`](docs/演示视频分镜.md)。
 
@@ -151,17 +151,19 @@ docker compose ps                              # 四条服务均应为 healthy
 
 > 安全口径：容器一律以 `prod` profile 启动，未注入 ≥32 字节的 `JWT_SECRET` 时启动失败；`/doc.html` 与 `/v3/api-docs` 在容器部署下不可访问，本机 `mvn spring-boot:run` 仍可查看；CORS 白名单默认收敛到本机 `8088`（部署入口）与 `5173`（Vite dev / E2E）。检查项与证据见 [安全基线](docs/安全基线.md)。
 
-数据库首次初始化由容器自动执行 [init_db.sql](database/init_db.sql)（仅在数据卷为空时触发）。**存量库需执行一次幂等迁移**（会话撤销依赖 `sys_user.token_version`，重复执行安全）：
+数据库首次初始化由容器自动执行 [init_db.sql](database/init_db.sql)（仅在数据卷为空时触发）。**存量库需执行一次幂等迁移**（会话撤销依赖 `sys_user.token_version`，重复执行安全）。Windows PowerShell 使用 `docker compose cp` 传递 SQL 原始字节，再在容器内导入，避免文本管道导致中文二次编码：
 
 ```powershell
-docker compose exec -T mysql mysql -uroot -proot --default-character-set=utf8mb4 < database/migrations/20261107_add_sys_user_token_version.sql
+docker compose cp database/migrations/20261107_add_sys_user_token_version.sql mysql:/tmp/add_token_version.sql
+docker compose exec mysql sh -c "mysql --default-character-set=utf8mb4 -uroot -proot < /tmp/add_token_version.sql"
 ```
 
 ### 方式二：本地开发（数据库用容器，前后端跑宿主机）
 
 ```powershell
 docker compose up -d mysql redis                # 映射 3307 / 6380
-mysql -h 127.0.0.1 -P 3307 -uroot -proot < database/init_db.sql
+docker compose cp database/init_db.sql mysql:/tmp/init_db.sql
+docker compose exec mysql sh -c "mysql --default-character-set=utf8mb4 -uroot -proot reservation < /tmp/init_db.sql"
 
 # 后端：容器端口与默认值不同，先注入环境变量（完整清单见 运行与配置）
 $env:MYSQL_URL  = "jdbc:mysql://localhost:3307/reservation?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai"
@@ -195,7 +197,7 @@ cd web; npm ci; npm run dev                     # http://127.0.0.1:5173
 |------|------|------|
 | 后端单元 / 集成测试 | 43 个测试类、347 个用例；行覆盖 **81.6%**（指令 83.6% / 分支 74.4%，JaCoCo） | `mvn -f server/pom.xml test` |
 | 接口冒烟回归 | 41 项（鉴权 / 权限 / 预约生命周期 / 冲突 / 校验 / 看板 / 收藏 / AI 降级 / 会话撤销） | `pwsh server/scripts/smoke.ps1` |
-| 前端 E2E | 24 个 spec、192 个用例 × Chromium + Edge | `npm run test:e2e:all`（默认只跑 Chromium） |
+| 前端 E2E | 24 个 spec、192 个用例；Chromium + Edge 各 192 passed | `npm run test:e2e`（Chromium）；`npm run test:e2e:edge`（Edge） |
 | 无障碍机器代理 | 15 项通过 + 1 项信息检查（人工听感按负责人决定不执行） | `node scripts/a11y-acceptance.mjs` |
 | 安全基线自检 | 8 项（默认密钥伪造 / 文档关闭 / 限流 / 响应头 / 越权） | `pwsh server/scripts/security-check.ps1` |
 | 故障演练 | 2 类故障 × 恢复验证，15 项（Redis fail closed / MySQL 有界失败 / 数据复原） | `pwsh server/scripts/chaos-drill.ps1` |
@@ -208,6 +210,7 @@ pwsh server/scripts/security-check.ps1         # 8 项安全基线（需 compose
 pwsh server/scripts/chaos-drill.ps1            # 15 项故障演练（会临时停 Redis / MySQL）
 cd web; npm run lint; npm run build            # 前端规范与构建
 cd web; npm run test:e2e                       # Chromium E2E（webServer 自动拉起 Vite）
+cd web; npm run test:e2e:edge                  # 本机 Microsoft Edge 全量复验
 cd web; node scripts/capture-screens.mjs       # 采集 README 预览截图
 ```
 
@@ -216,10 +219,10 @@ cd web; node scripts/capture-screens.mjs       # 采集 README 预览截图
 | 工作流 | 触发 | 内容 |
 |--------|------|------|
 | `web-lint.yml` | push / PR（`web/**`） | `npm ci` → `npm run lint` → `npm run build` |
-| `server-ci.yml` | push / PR（`server/**`、`database/init_db.sql`）+ 手动 | 起 MySQL 8.0 / Redis 7.0 → 导入种子数据 → `mvn test`（347 项）→ 上传 JaCoCo 报告 |
-| `stack-smoke.yml` | push / PR（`server/**`、`web/**`、`database/init_db.sql`）+ 手动 | **smoke**：打包 jar 起后端 → 41 项接口冒烟；**e2e**：独立栈 + Chromium → 192 例 Playwright（两 job 各自独立 MySQL / Redis，互不污染数据） |
+| `server-ci.yml` | push / PR（`server/**`、`database/init_db.sql`、`database/migrations/**`）+ 手动 | 起 MySQL 8.0 / Redis 7.0 → 导入种子数据 → `mvn test`（347 项）→ 上传 JaCoCo 报告 |
+| `stack-smoke.yml` | push / PR（`server/**`、`web/**`、`database/init_db.sql`、`database/migrations/**`）+ 手动 | **smoke**：打包 jar 起后端 → 41 项接口冒烟；**e2e**：独立栈 + Chromium → 192 例 Playwright（两 job 各自独立 MySQL / Redis，互不污染数据） |
 
-已实测：`stack-smoke` 的 smoke **41/41**（2026-11-17）；本机 Chromium 全量 **189 passed / 3 skipped（共 192 例，2026-11-25）**；`server-ci` 口径下 `mvn test` **347 项通过**并上传 `jacoco-report`。
+已实测：`stack-smoke` 的 smoke **41/41**（2026-11-17）；本机 Chromium 与 Edge 全量均为 **192 passed / 0 skipped（各 192 例，2026-11-26）**；`server-ci` 口径下 `mvn test` **347 项通过**并上传 `jacoco-report`。
 
 ## 迭代历程（里程碑）
 
@@ -229,6 +232,7 @@ cd web; node scripts/capture-screens.mjs       # 采集 README 预览截图
 | R4–R5 | 个人中心与收藏全链路、日历总览与数据看板（ECharts / FullCalendar） |
 | R6–R10 | 联调与回归保障、AI 接入与降级、Redis 加分项、代码质量重构、E2E 基建与无障碍修复 |
 | R11–R13 | AI 观测与结果缓存、智能问答 SSE 流式、停止生成 / Markdown / 多轮与结构化流式 |
+| R14–R17 · **v1.2.0（当前发布，2026-11-26）** | AI 真实思考过程与全屏多轮对话、预约规划 plan & confirm、页面上下文；交互与设计原则改进、动效体系、URL 深链与语义结构；晨光玻璃视觉体系 |
 
 逐轮变更摘要与交付文档见 [CHANGELOG.md](CHANGELOG.md) 与 [`docs/iterations/`](docs/iterations)。
 
@@ -242,6 +246,7 @@ cd web; node scripts/capture-screens.mjs       # 采集 README 预览截图
 | 运行与配置（环境变量 / AI / Redis / 端口） | [`docs/运行与配置.md`](docs/运行与配置.md) |
 | 界面设计规范（晨光玻璃体系 / token / 材质与动效 / 已消除的 AI 默认外观） | [docs/界面设计规范.md](docs/界面设计规范.md) |
 | 安全基线（部署加固项与验证命令） | [`docs/安全基线.md`](docs/安全基线.md) |
+| 依赖安全审计（补丁与剩余 advisory 的适用性记录） | [`docs/依赖安全审计.md`](docs/依赖安全审计.md) |
 | 可靠性验证（故障演练 / 接口与页面性能基准） | [`docs/可靠性验证.md`](docs/可靠性验证.md) |
 | 演示视频分镜与录制说明 | [`docs/演示视频分镜.md`](docs/演示视频分镜.md) |
 | AI 助手思考过程（事件协议 / 计时口径 / 交互设计） | [docs/AI思考过程设计.md](docs/AI思考过程设计.md) |

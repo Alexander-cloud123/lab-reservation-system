@@ -2,7 +2,7 @@
 #
 # 与 server-ci.yml 的分工：
 #   server-ci.yml    —— JVM 层：单测 + 集成测试（不起前端，最快给出红灯）
-#   stack-smoke.yml  —— 全栈层：jar 起来后跑 41 项接口冒烟（smoke）与 120 项 Playwright E2E（e2e）
+#   stack-smoke.yml  —— 全栈层：jar 起来后跑 41 项接口冒烟（smoke）与 192 项 Playwright E2E（e2e）
 # 两个 job 各自持有独立的 MySQL / Redis service 容器，互不污染数据：
 #   smoke 会写一条预约并登出 / 重置密码（token_version 自增），E2E 依赖干净基线计数，不能共用库。
 name: Stack Smoke & E2E
@@ -14,12 +14,14 @@ on:
       - 'server/**'
       - 'web/**'
       - 'database/init_db.sql'
+      - 'database/migrations/**'
       - '.github/workflows/stack-smoke.yml'
   pull_request:
     paths:
       - 'server/**'
       - 'web/**'
       - 'database/init_db.sql'
+      - 'database/migrations/**'
       - '.github/workflows/stack-smoke.yml'
 
 concurrency:
@@ -108,7 +110,7 @@ jobs:
         if: failure()
         run: tail -n 200 /tmp/api.log || true
 
-  # ---------- 2) 浏览器 E2E（Chromium 全量 120 项） ----------
+  # ---------- 2) 浏览器 E2E（Chromium 全量 192 项） ----------
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -199,7 +201,7 @@ jobs:
       - name: Install Playwright browser (Chromium)
         run: npx playwright install --with-deps chromium
 
-      - name: Run Playwright E2E (120 cases)
+      - name: Run Playwright E2E (192 cases)
         run: npm run test:e2e
         env:
           E2E_API_PORT: '8080'
@@ -211,7 +213,7 @@ jobs:
         with:
           name: playwright-report
           path: web/e2e-report
-          retention-days: 7
+          retention-days: 14
 
       - name: Backend log on failure
         if: failure()
